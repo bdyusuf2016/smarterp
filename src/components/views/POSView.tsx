@@ -26,7 +26,8 @@ import {
   ArrowRightLeft,
   Building2,
   Tag,
-  Camera
+  Camera,
+  Package
 } from 'lucide-react';
 import { 
   Tenant, 
@@ -74,12 +75,12 @@ const DEFAULT_ONLINE_SERVICES = [
   { id: 'rate_os_9', title: 'খতিয়ান / পরচা ও ই-নামজারি আবেদন', rate: 150, description: 'ভূমি মন্ত্রণালয় আরএস/সিএস পরচা' },
 ];
 
-export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
-  const physicalProducts = storageService.getProducts(activeTenant.id);
-  const customers = storageService.getCustomers(activeTenant.id);
-  const devices = storageService.getDevices();
-  const batches = storageService.getBatches();
-  const tradeIns = storageService.getTradeIns(activeTenant.id).filter(t => t.status === 'pending' || t.status === 'accepted');
+export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) => {
+  const physicalProducts = storageService.getProducts(activeTenant.id) || [];
+  const customers = storageService.getCustomers(activeTenant.id) || [];
+  const devices = storageService.getDevices() || [];
+  const batches = storageService.getBatches() || [];
+  const tradeIns = (storageService.getTradeIns(activeTenant.id) || []).filter(t => t.status === 'pending' || t.status === 'accepted');
 
   // Load customized photocopy and online services rates
   const storagePhotocopyRatesKey = `dokan_v2_photocopy_rates_${activeTenant.id}`;

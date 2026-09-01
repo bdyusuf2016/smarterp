@@ -54,7 +54,7 @@ class AuthService {
     }
   }
 
-  private saveSession(session: UserProfile | null): void {
+  public saveSession(session: UserProfile | null): void {
     this.currentSession = session;
     if (session) {
       localStorage.setItem(AUTH_KEY, JSON.stringify(session));
@@ -62,6 +62,10 @@ class AuthService {
       localStorage.removeItem(AUTH_KEY);
     }
     window.dispatchEvent(new CustomEvent('dokan_auth_changed', { detail: { session } }));
+  }
+
+  public saveCurrentUser(user: UserProfile | null): void {
+    this.saveSession(user);
   }
 
   getCurrentUser(): UserProfile | null {
