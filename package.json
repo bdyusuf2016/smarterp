@@ -20,7 +20,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "deploy": "npm run build:ui && gh-pages -d dist"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -64,5 +65,7 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vitest": "^3.0.5"
+    ,
+    "gh-pages": "^5.0.0"
   }
 }

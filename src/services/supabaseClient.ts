@@ -11,6 +11,10 @@ export interface SupabaseConfig {
 
 const STORAGE_KEY_SUPABASE_CONFIG = 'smarterp_supabase_config';
 
+// Hardcoded defaults to simplify GitHub Pages deployment (public anon key)
+const DEFAULT_SUPABASE_URL = 'https://ydymvzvmyasjnymhmvzh.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkeW12enZteWFzam55bWhtdnpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyNjExMTYsImV4cCI6MjEwMzgzNzExNn0.biHFmztGZ2IKDrzx2xpBHU_EUc2PwzmrqRdeWSXn2zc';
+
 export interface ConnectionTestResult {
   connected: boolean;
   latencyMs: number;
@@ -33,8 +37,8 @@ class SupabaseService {
   }
 
   private loadConfig(): SupabaseConfig {
-    const envUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || '';
-    const envKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || '';
+    const envUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || DEFAULT_SUPABASE_URL;
+    const envKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || DEFAULT_SUPABASE_ANON_KEY;
 
     try {
       if (typeof window !== 'undefined') {

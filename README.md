@@ -75,6 +75,26 @@ npm run dev
 # http://localhost:5173
 ```
 
+## 📢 GitHub Pages Publish
+
+1. Ensure this repo is pushed to GitHub (default branch `main` or `master`).
+2. Install `gh-pages` locally (dev dependency already added):
+
+```bash
+npm ci
+```
+
+3. Publish with the npm script (builds UI and publishes `dist`):
+
+```bash
+npm run deploy
+```
+
+4. Alternatively, push to GitHub and let the Actions workflow publish automatically on pushes to `main`/`master`.
+
+5. Enable GitHub Pages in repository Settings → Pages if needed (source: `gh-pages` branch).
+
+
 ## ⚙️ Supabase Setup
 
 1. [Supabase](https://supabase.com/) এ একটি নতুন প্রজেক্ট তৈরি করুন
