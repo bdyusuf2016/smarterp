@@ -25,7 +25,8 @@ import {
   DollarSign,
   ArrowRightLeft,
   Building2,
-  Tag
+  Tag,
+  Camera
 } from 'lucide-react';
 import { 
   Tenant, 
@@ -41,6 +42,7 @@ import {
 import { storageService } from '../../services/storageService';
 import { RuleEngine } from '../../engine/ruleEngine';
 import { Modal } from '../common/Modal';
+import { CameraScannerModal } from '../common/CameraScannerModal';
 import { printPosReceipt } from '../../shared/utils/printReceipt';
 import { generateQrCodeSvg } from '../../shared/utils/qrCode';
 
@@ -239,6 +241,27 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
 
   // Mobile Tab Switcher ('catalog' | 'cart') for phone screens
   const [mobileTab, setMobileTab] = useState<'catalog' | 'cart'>('catalog');
+
+  // Camera Barcode & QR Scanner Modal State
+  const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
+
+  // Camera scan success handler (Auto adds matching product or populates search)
+  const handleCameraScanSuccess = (scannedCode: string) => {
+    const trimmed = scannedCode.trim();
+    if (!trimmed) return;
+
+    const found = products.find(p => 
+      (p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()) ||
+      p.code.toLowerCase() === trimmed.toLowerCase() ||
+      (p.sku && p.sku.toLowerCase() === trimmed.toLowerCase())
+    );
+
+    if (found) {
+      handleAddToCart(found);
+    } else {
+      setSearchTerm(trimmed);
+    }
+  };
 
   // Category filters
   const categoriesList = Array.from(new Set(products.map(p => p.category_name))).filter(Boolean);
@@ -533,6 +556,17 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
                 autoFocus
               />
             </div>
+
+            {/* Mobile / Device Camera Barcode Scanner Button */}
+            <button
+              type="button"
+              onClick={() => setIsCameraScannerOpen(true)}
+              className="px-2.5 sm:px-3 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 shadow-xs shadow-indigo-600/20 cursor-pointer shrink-0 transition-all active:scale-[0.97]"
+              title="মোবাইল ক্যামেরা দিয়ে বারকোড বা QR স্ক্যান করুন"
+            >
+              <Camera className="w-4 h-4 text-indigo-100" />
+              <span className="hidden sm:inline">ক্যামেরা স্ক্যান</span>
+            </button>
 
             <button
               type="button"
@@ -1500,6 +1534,15 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
           </div>
         )}
       </Modal>
+
+      {/* ========================================================================= */}
+      {/* 6. Live Camera Barcode & QR Scanner Modal                                 */}
+      {/* ========================================================================= */}
+      <CameraScannerModal
+        isOpen={isCameraScannerOpen}
+        onClose={() => setIsCameraScannerOpen(false)}
+        onScanSuccess={handleCameraScanSuccess}
+      />
     </div>
   );
 };

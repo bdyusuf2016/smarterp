@@ -34,6 +34,7 @@
     "drizzle-orm": "^0.38.4",
     "express": "^4.21.2",
     "helmet": "^8.0.0",
+    "html5-qrcode": "^2.3.8",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
@@ -59,13 +60,12 @@
     "autoprefixer": "^10.4.21",
     "drizzle-kit": "^0.30.4",
     "esbuild": "^0.25.0",
+    "gh-pages": "^5.0.0",
     "pino-pretty": "^13.0.0",
     "supertest": "^7.0.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vitest": "^3.0.5"
-    ,
-    "gh-pages": "^5.0.0"
   }
 }
