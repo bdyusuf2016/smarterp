@@ -650,8 +650,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400">
                     <Package className="w-10 h-10 mx-auto mb-2 text-slate-300" />
-                    <p className="font-semibold text-slate-600">কোনো পণ্য পাওয়া যায়নি</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">নতুন পণ্য যুক্ত করতে উপরের বাটনে চাপুন।</p>
+                    <p className="font-semibold text-slate-600">{isEn ? 'No products found' : 'কোনো পণ্য পাওয়া যায়নি'}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">{isEn ? 'Click the button above to add new products.' : 'নতুন পণ্য যুক্ত করতে উপরের বাটনে চাপুন।'}</p>
                   </td>
                 </tr>
               ) : (
@@ -674,7 +674,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                           {catObj?.icon && <IconRenderer name={catObj.icon} className="w-3 h-3 text-indigo-600" />}
                           <span>{catObj?.name || product.category_name}</span>
                         </span>
-                        {product.brand && <p className="text-[10px] text-slate-400 mt-0.5">ব্র্যান্ড: {product.brand}</p>}
+                        {product.brand && <p className="text-[10px] text-slate-400 mt-0.5">{isEn ? 'Brand:' : 'ব্র্যান্ড:'} {product.brand}</p>}
                       </td>
 
                       <td className="py-3.5 px-4">
@@ -688,7 +688,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                           <span className="font-bold text-slate-900">৳{product.selling_price.toFixed(2)}</span>
                         </div>
                         <p className="text-[10px] text-emerald-600 font-sans font-semibold">
-                          লাভ: ৳{(product.selling_price - product.purchase_price).toFixed(2)}
+                          {isEn ? 'Margin:' : 'লাভ:'} ৳{(product.selling_price - product.purchase_price).toFixed(2)}
                         </p>
                       </td>
 
@@ -699,14 +699,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                         {product.stock_quantity <= product.min_stock_alert && (
                           <span className="text-[10px] text-rose-500 font-semibold flex items-center gap-0.5 mt-0.5">
                             <AlertCircle className="w-3 h-3" />
-                            <span>কম স্টক এলার্ট</span>
+                            <span>{isEn ? 'Low Stock' : 'কম স্টক এলার্ট'}</span>
                           </span>
                         )}
                       </td>
 
                       <td className="py-3.5 px-4">
                         {customProps.length === 0 ? (
-                          <span className="text-[11px] text-slate-400 italic">কোনো কাস্টম প্রোপার্টি নেই</span>
+                          <span className="text-[11px] text-slate-400 italic">{isEn ? 'No custom properties' : 'কোনো কাস্টম প্রোপার্টি নেই'}</span>
                         ) : (
                           <div className="flex flex-wrap gap-1 max-w-xs">
                             {customProps.slice(0, 3).map(([k, v]) => (
@@ -720,7 +720,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                                 onClick={() => setInspectingProduct(product)}
                                 className="text-[10px] text-indigo-600 font-bold hover:underline cursor-pointer"
                               >
-                                +{customProps.length - 3} আরও দেখুন
+                                +{customProps.length - 3} {isEn ? 'more' : 'আরও দেখুন'}
                               </button>
                             )}
                           </div>
@@ -733,7 +733,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                             type="button"
                             onClick={() => setInspectingProduct(product)}
                             className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                            title="পণ্যের সম্পূর্ণ প্রোপার্টি দেখুন"
+                            title={isEn ? "View Product Properties" : "পণ্যের সম্পূর্ণ প্রোপার্টি দেখুন"}
                           >
                             <Eye className="w-4 h-4" />
                           </button>
@@ -752,7 +752,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                               ]);
                             }}
                             className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                            title="বারকোড ও প্রাইস ট্যাগ প্রিন্ট করুন"
+                            title={isEn ? "Print Barcode & Price Tag" : "বারকোড ও প্রাইস ট্যাগ প্রিন্ট করুন"}
                           >
                             <Printer className="w-4 h-4" />
                           </button>
@@ -761,7 +761,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                             type="button"
                             onClick={() => handleOpenEdit(product)}
                             className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                            title="সম্পাদনা করুন"
+                            title={isEn ? "Edit Product" : "সম্পাদনা করুন"}
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
@@ -782,8 +782,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        title={editingProduct ? `পণ্য সম্পাদনা: ${editingProduct.name}` : 'নতুন পণ্য ও ডায়নামিক প্রোপার্টি'}
-        subtitle="দোকানের ক্যাটাগরি স্কিমা এবং আইটেমের নিজস্ব কাস্টম প্রোপার্টি ম্যানেজমেন্ট"
+        title={editingProduct ? (isEn ? `Edit Product: ${editingProduct.name}` : `পণ্য সম্পাদনা: ${editingProduct.name}`) : (isEn ? 'Create New Product & Dynamic Schema' : 'নতুন পণ্য ও ডায়নামিক প্রোপার্টি')}
+        subtitle={isEn ? 'Category schema rules, dynamic fields and tracking modes' : 'দোকানের ক্যাটাগরি স্কিমা এবং আইটেমের নিজস্ব কাস্টম প্রোপার্টি ম্যানেজমেন্ট'}
         maxWidth="3xl"
       >
         <form onSubmit={handleSaveProduct} className="space-y-5 text-xs">
@@ -791,7 +791,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
           <div className="space-y-3">
             <div className="flex items-center gap-2 border-b border-slate-200 pb-1.5 text-xs font-bold uppercase text-slate-800 tracking-wide">
               <Building2 className="w-4 h-4 text-indigo-600" />
-              <span>১. বিজনেস ক্যাটাগরি, পণ্যের ধরন ও সাধারণ বিবরণ</span>
+              <span>{isEn ? '1. Business Category & Product Type' : '১. বিজনেস ক্যাটাগরি, পণ্যের ধরন ও সাধারণ বিবরণ'}</span>
             </div>
 
             {/* 3-Tier Categorization Flow Box */}
@@ -800,7 +800,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                 {/* 1. Business Category */}
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    ১. দোকানের বিজনেস ক্যাটাগরি (Business Domain) *
+                    {isEn ? '1. Business Domain / Category *' : '১. দোকানের বিজনেস ক্যাটাগরি (Business Domain) *'}
                   </label>
                   <select
                     value={formCategoryId}
@@ -818,7 +818,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                 {/* 2. Product Category / Subcategory */}
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    ২. পণ্যের ক্যাটাগরি / সাব-ক্যাটাগরি (Product Category) *
+                    {isEn ? '2. Product Subcategory *' : '২. পণ্যের ক্যাটাগরি / সাব-ক্যাটাগরি (Product Category) *'}
                   </label>
                   <div className="flex gap-1.5">
                     <select
@@ -837,19 +837,21 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               {/* 3. Product Name / Title */}
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  ৩. পণ্যের পূর্ণাঙ্গ নাম / টাইটেল (Product Title) *
+                  {isEn ? '3. Product Title / Full Name *' : '৩. পণ্যের পূর্ণাঙ্গ নাম / টাইটেল (Product Title) *'}
                 </label>
                 <input
                   type="text"
                   required
                   placeholder={
-                    formCategoryId === 'cat_stationery' 
-                      ? "যেমন: Fresh A4 Offset Paper 80GSM Ream (কাগজ), বা Matador Pinpoint Blue Pen" 
-                      : formCategoryId === 'cat_telecom'
-                        ? "যেমন: Samsung Galaxy A15 (6GB/128GB), বা Baseus 20W Fast Charger"
-                        : formCategoryId === 'cat_grocery'
-                          ? "যেমন: তীর ফর্টিফাইড সয়াবিন তেল ৫ লিটার, বা বোম্বে সুইটস চানাচুর ১৫০ গ্রাম"
-                          : "যেমন: পণ্যের পূর্ণাঙ্গ ব্র্যান্ড ও বিবরণসহ নাম"
+                    isEn
+                      ? "e.g., Samsung Galaxy A15 (6GB/128GB), or A4 80GSM Offset Paper Ream"
+                      : formCategoryId === 'cat_stationery' 
+                        ? "যেমন: Fresh A4 Offset Paper 80GSM Ream (কাগজ), বা Matador Pinpoint Blue Pen" 
+                        : formCategoryId === 'cat_telecom'
+                          ? "যেমন: Samsung Galaxy A15 (6GB/128GB), বা Baseus 20W Fast Charger"
+                          : formCategoryId === 'cat_grocery'
+                            ? "যেমন: তীর ফর্টিফাইড সয়াবিন তেল ৫ লিটার, বা বোম্বে সুইটস চানাচুর ১৫০ গ্রাম"
+                            : "যেমন: পণ্যের পূর্ণাঙ্গ ব্র্যান্ড ও বিবরণসহ নাম"
                   }
                   value={formData.name || ''}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
@@ -861,7 +863,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
             {/* Other Base Attributes: SKU, Barcode, Brand, Unit */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">আইটেম কোড / SKU *</label>
+                <label className="block font-semibold text-slate-700 mb-1">{isEn ? 'Item Code / SKU *' : 'আইটেম কোড / SKU *'}</label>
                 <input
                   type="text"
                   required
@@ -873,10 +875,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">বারকোড / UPC (ঐচ্ছিক)</label>
+                <label className="block font-semibold text-slate-700 mb-1">{isEn ? 'Barcode / UPC (Optional)' : 'বারকোড / UPC (ঐচ্ছিক)'}</label>
                 <input
                   type="text"
-                  placeholder="স্ক্যান করুন বা লিখুন"
+                  placeholder={isEn ? "Scan or enter barcode" : "স্ক্যান করুন বা লিখুন"}
                   value={formData.barcode || ''}
                   onChange={e => setFormData({ ...formData, barcode: e.target.value })}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono"
@@ -884,10 +886,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">ব্র্যান্ড / কোম্পানি</label>
+                <label className="block font-semibold text-slate-700 mb-1">{isEn ? 'Brand / Company' : 'ব্র্যান্ড / কোম্পানি'}</label>
                 <input
                   type="text"
-                  placeholder="যেমন: Matador, Fresh, Apple, Teer"
+                  placeholder={isEn ? "e.g., Apple, Samsung, Fresh" : "যেমন: Matador, Fresh, Apple, Teer"}
                   value={formData.brand || ''}
                   onChange={e => setFormData({ ...formData, brand: e.target.value })}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
@@ -895,11 +897,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">একক (Unit of Measure) *</label>
+                <label className="block font-semibold text-slate-700 mb-1">{isEn ? 'Unit of Measure *' : 'একক (Unit of Measure) *'}</label>
                 <input
                   type="text"
                   required
-                  placeholder="যেমন: pcs, kg, রিম"
+                  placeholder={isEn ? "e.g., pcs, kg, box" : "যেমন: pcs, kg, রিম"}
                   value={formData.unit || 'pcs'}
                   onChange={e => setFormData({ ...formData, unit: e.target.value })}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-900"
@@ -909,11 +911,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                   const currentSubcat = (BUSINESS_PRODUCT_CATEGORIES[formCategoryId]?.subcategories || []).find(
                     s => s.name === formData.category_name
                   ) || BUSINESS_PRODUCT_CATEGORIES[formCategoryId]?.subcategories[0];
-                  const suggested = currentSubcat?.suggestedUnits || ['pcs', 'kg', 'box', 'copy', 'ডজন'];
+                  const suggested = currentSubcat?.suggestedUnits || ['pcs', 'kg', 'box', 'copy', 'service'];
 
                   return (
                     <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                      <span className="text-[9px] text-slate-400 font-medium mr-0.5">পছন্দ করুন:</span>
+                      <span className="text-[9px] text-slate-400 font-medium mr-0.5">{isEn ? 'Quick:' : 'পছন্দ করুন:'}</span>
                       {suggested.map(u => (
                         <button
                           key={u}
@@ -939,13 +941,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
           <div className="space-y-3 pt-2">
             <div className="flex items-center gap-2 border-b border-slate-200 pb-1.5 text-xs font-bold uppercase text-slate-800 tracking-wide">
               <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
-              <span>২. মূল্য ও ইনভেন্টরি ট্র্যাকিং মোড</span>
+              <span>{isEn ? '2. Pricing & Tracking Mechanism' : '২. মূল্য ও ইনভেন্টরি ট্র্যাকিং মোড'}</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                  <span>ট্র্যাকিং মেকানিজম *</span>
+                  <span>{isEn ? 'Tracking Mechanism *' : 'ট্র্যাকিং মেকানিজম *'}</span>
                   <span className="text-[10px] text-indigo-600 font-bold font-mono">
                     {formData.tracking_mode}
                   </span>
@@ -958,18 +960,18 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                   }}
                   className="w-full px-3 py-2 bg-indigo-50/70 border-2 border-indigo-300 rounded-lg font-bold text-indigo-900 focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                 >
-                  <option value="TRACKING_QUANTITY">📦 TRACKING_QUANTITY (স্ট্যান্ডার্ড স্টক গণনা)</option>
-                  <option value="TRACKING_IMEI">📱 TRACKING_IMEI (টেলিকম IMEI ট্র্যাকিং)</option>
-                  <option value="TRACKING_SERIAL">🔢 TRACKING_SERIAL (ইলেকট্রনিক্স সিরিয়াল)</option>
-                  <option value="TRACKING_BATCH">🏷️ TRACKING_BATCH (গ্রোসারি ব্যাচ ও মেয়াদ)</option>
-                  <option value="TRACKING_WEIGHT">⚖️ TRACKING_WEIGHT (ডিজিটাল ওজন স্কেল - কেজি/গ্রাম)</option>
-                  <option value="TRACKING_BOOK">📚 TRACKING_BOOK (বই ও লাইব্রেরি ক্যাটালগ)</option>
-                  <option value="TRACKING_NONE">⚡ TRACKING_NONE (ভার্চুয়াল সেবা / ডিজিটাল রেট)</option>
+                  <option value="TRACKING_QUANTITY">📦 TRACKING_QUANTITY ({isEn ? 'Standard Stock Counter' : 'স্ট্যান্ডার্ড স্টক গণনা'})</option>
+                  <option value="TRACKING_IMEI">📱 TRACKING_IMEI ({isEn ? 'Telecom IMEI Registry' : 'টেলিকম IMEI ট্র্যাকিং'})</option>
+                  <option value="TRACKING_SERIAL">🔢 TRACKING_SERIAL ({isEn ? 'Electronics Serial Number' : 'ইলেকট্রনিক্স সিরিয়াল'})</option>
+                  <option value="TRACKING_BATCH">🏷️ TRACKING_BATCH ({isEn ? 'Grocery / Pharmacy Expiry' : 'গ্রোসারি ব্যাচ ও মেয়াদ'})</option>
+                  <option value="TRACKING_WEIGHT">⚖️ TRACKING_WEIGHT ({isEn ? 'Scale Weight - Kg/gm' : 'ডিজিটাল ওজন স্কেল - কেজি/গ্রাম'})</option>
+                  <option value="TRACKING_BOOK">📚 TRACKING_BOOK ({isEn ? 'Books & Library Catalog' : 'বই ও লাইব্রেরি ক্যাটালগ'})</option>
+                  <option value="TRACKING_NONE">⚡ TRACKING_NONE ({isEn ? 'Virtual Service / Rate Card' : 'ভার্চুয়াল সেবা / ডিজিটাল রেট'})</option>
                 </select>
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">ক্রয় মূল্য (৳)</label>
+                <label className="block font-semibold text-slate-700 mb-1">{isEn ? 'Purchase Price (৳)' : 'ক্রয় মূল্য (৳)'}</label>
                 <input
                   type="number"
                   step="0.01"
@@ -980,7 +982,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">বিক্রয় মূল্য (৳) *</label>
+                <label className="block font-semibold text-slate-700 mb-1">{isEn ? 'Selling Price (৳) *' : 'বিক্রয় মূল্য (৳) *'}</label>
                 <input
                   type="number"
                   step="0.01"
@@ -998,17 +1000,17 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
                     <Cpu className="w-4 h-4 text-blue-600" />
-                    <span>IMEI / সিরিয়াল নম্বর ম্যানেজমেন্ট ({imeiList.length} টি সংযুক্ত)</span>
+                    <span>{isEn ? `IMEI / Serial Registry (${imeiList.length} items)` : `IMEI / সিরিয়াল নম্বর ম্যানেজমেন্ট (${imeiList.length} টি সংযুক্ত)`}</span>
                   </span>
                   <span className="text-[10px] text-blue-700 font-semibold">
-                    স্টক গণনা: <b className="font-mono">{imeiList.length}</b> পিস
+                    {isEn ? 'Stock Count:' : 'স্টক গণনা:'} <b className="font-mono">{imeiList.length}</b> {isEn ? 'pcs' : 'পিস'}
                   </span>
                 </div>
 
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="১৫-ডিজিট IMEI বা সিরিয়াল লিখে Enter চাপুন বা স্ক্যান করুন..."
+                    placeholder={isEn ? "Enter 15-digit IMEI or Serial and press Enter..." : "১৫-ডিজিট IMEI বা সিরিয়াল লিখে Enter চাপুন বা স্ক্যান করুন..."}
                     value={imeiInput}
                     onChange={e => setImeiInput(e.target.value)}
                     onKeyDown={e => {
@@ -1038,7 +1040,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                     }}
                     className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 cursor-pointer"
                   >
-                    + যোগ
+                    {isEn ? '+ Add' : '+ যোগ'}
                   </button>
                 </div>
 
@@ -1070,21 +1072,21 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2">
                 <span className="font-bold text-amber-900 text-xs flex items-center gap-1.5">
                   <Tag className="w-4 h-4 text-amber-600" />
-                  <span>ব্যাচ ও মেয়াদোত্তীর্ণ ট্র্যাকিং (Grocery / Pharmacy Batch)</span>
+                  <span>{isEn ? 'Batch & Expiry Date (Grocery / Pharmacy Lot)' : 'ব্যাচ ও মেয়াদোত্তীর্ণ ট্র্যাকিং (Grocery / Pharmacy Batch)'}</span>
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-semibold text-amber-900 mb-1">ব্যাচ নম্বর (Batch No)</label>
+                    <label className="block text-[11px] font-semibold text-amber-900 mb-1">{isEn ? 'Batch Number' : 'ব্যাচ নম্বর (Batch No)'}</label>
                     <input
                       type="text"
-                      placeholder="যেমন: BATCH-2026-01"
+                      placeholder={isEn ? "e.g., BATCH-2026-01" : "যেমন: BATCH-2026-01"}
                       value={batchNo}
                       onChange={e => setBatchNo(e.target.value)}
                       className="w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-mono"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-amber-900 mb-1">মেয়াদোত্তীর্ণ তারিখ (Expiry Date)</label>
+                    <label className="block text-[11px] font-semibold text-amber-900 mb-1">{isEn ? 'Expiry Date' : 'মেয়াদোত্তীর্ণ তারিখ (Expiry Date)'}</label>
                     <input
                       type="date"
                       value={expiryDate}
@@ -1101,23 +1103,23 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2">
                 <span className="font-bold text-emerald-900 text-xs flex items-center gap-1.5">
                   <SlidersHorizontal className="w-4 h-4 text-emerald-600" />
-                  <span>ডিজিটাল ওয়েট স্কেল মেকানিজম (Weighing Scale Pricing)</span>
+                  <span>{isEn ? 'Digital Weight Scale Pricing' : 'ডিজিটাল ওয়েট স্কেল মেকানিজম (Weighing Scale Pricing)'}</span>
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-semibold text-emerald-900 mb-1">প্যাকেট / কন্টেইনারের ট্যার ওজন (Tare Weight gm)</label>
+                    <label className="block text-[11px] font-semibold text-emerald-900 mb-1">{isEn ? 'Tare Weight (gm)' : 'প্যাকেট / কন্টেইনারের ট্যার ওজন (Tare Weight gm)'}</label>
                     <input
                       type="number"
-                      placeholder="যেমন: 20 গ্রাম"
+                      placeholder={isEn ? "e.g., 20 gm" : "যেমন: 20 গ্রাম"}
                       value={tareWeightGm || ''}
                       onChange={e => setTareWeightGm(parseFloat(e.target.value) || 0)}
                       className="w-full px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-mono"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-emerald-900 mb-1">মূল্য নির্ধারণ একক</label>
+                    <label className="block text-[11px] font-semibold text-emerald-900 mb-1">{isEn ? 'Pricing Rate' : 'মূল্য নির্ধারণ একক'}</label>
                     <div className="px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-bold text-emerald-800">
-                      প্রতি {formData.unit || 'কেজি'} বিক্রয় মূল্য: ৳{formData.selling_price}
+                      {isEn ? `Price per ${formData.unit || 'kg'}: ৳${formData.selling_price}` : `প্রতি ${formData.unit || 'কেজি'} বিক্রয় মূল্য: ৳${formData.selling_price}`}
                     </div>
                   </div>
                 </div>
@@ -1129,24 +1131,24 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-xl space-y-2">
                 <span className="font-bold text-purple-900 text-xs flex items-center gap-1.5">
                   <FileText className="w-4 h-4 text-purple-600" />
-                  <span>বই ও লাইব্রেরি প্রকাশনা বিবরণ (Book Catalog)</span>
+                  <span>{isEn ? 'Book Catalog Details' : 'বই ও লাইব্রেরি প্রকাশনা বিবরণ (Book Catalog)'}</span>
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-semibold text-purple-900 mb-1">লেখক / সম্পাদক (Author)</label>
+                    <label className="block text-[11px] font-semibold text-purple-900 mb-1">{isEn ? 'Author / Editor' : 'লেখক / সম্পাদক (Author)'}</label>
                     <input
                       type="text"
-                      placeholder="যেমন: ড. মুহম্মদ জাফর ইকবাল"
+                      placeholder={isEn ? "e.g., Dr. Muhammad Zafar Iqbal" : "যেমন: ড. মুহম্মদ জাফর ইকবাল"}
                       value={authorName}
                       onChange={e => setAuthorName(e.target.value)}
                       className="w-full px-2.5 py-1.5 bg-white border border-purple-300 rounded-lg text-xs"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-purple-900 mb-1">প্রকাশনী / প্রেস (Publisher)</label>
+                    <label className="block text-[11px] font-semibold text-purple-900 mb-1">{isEn ? 'Publisher / Press' : 'প্রকাশনী / প্রেস (Publisher)'}</label>
                     <input
                       type="text"
-                      placeholder="যেমন: অনন্যা প্রকাশনী, পাঞ্জেরী"
+                      placeholder={isEn ? "e.g., Ananya, Panjeree" : "যেমন: অনন্যা প্রকাশনী, পাঞ্জেরী"}
                       value={publisherName}
                       onChange={e => setPublisherName(e.target.value)}
                       className="w-full px-2.5 py-1.5 bg-white border border-purple-300 rounded-lg text-xs"
@@ -1160,7 +1162,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
             {formData.tracking_mode === 'TRACKING_NONE' && (
               <div className="p-3 bg-slate-100 border border-slate-300 rounded-xl text-xs text-slate-700 font-semibold flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
-                <span>এটি একটি ভার্চুয়াল সেবা / ডিজিটাল সার্ভিস রেট কার্ড (কোনো ফিজিক্যাল ইনভেন্টরি স্টক মাইনাস হবে না)।</span>
+                <span>{isEn ? 'This is a virtual service / digital rate card (no physical inventory stock reduction).' : 'এটি একটি ভার্চুয়াল সেবা / ডিজিটাল সার্ভিস রেট কার্ড (কোনো ফিজিক্যাল ইনভেন্টরি স্টক মাইনাস হবে না)।'}</span>
               </div>
             )}
 
@@ -1169,7 +1171,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    বর্তমান স্টক পরিমাণ {formData.tracking_mode === 'TRACKING_IMEI' ? '(IMEI থেকে অটো-সিঙ্ক)' : ''}
+                    {isEn ? 'Current Stock Quantity' : 'বর্তমান স্টক পরিমাণ'} {formData.tracking_mode === 'TRACKING_IMEI' ? (isEn ? '(Auto-synced from IMEI)' : '(IMEI থেকে অটো-সিঙ্ক)') : ''}
                   </label>
                   <input
                     type="number"
@@ -1184,7 +1186,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">কম স্টক এলার্ট সীমা (Threshold)</label>
+                  <label className="block font-semibold text-slate-700 mb-1">{isEn ? 'Low Stock Alert Threshold' : 'কম স্টক এলার্ট সীমা (Threshold)'}</label>
                   <input
                     type="number"
                     value={formData.min_stock_alert}
@@ -1202,7 +1204,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
                   <Tag className="w-4 h-4 text-indigo-600" />
-                  <span>৩. ক্যাটাগরি ও সাব-ক্যাটাগরি ভিত্তিক কাস্টম ফিল্ড ({categoryFieldDefs.length} টি নির্ধারিত)</span>
+                  <span>{isEn ? `3. Category Custom Fields (${categoryFieldDefs.length} fields defined)` : `৩. ক্যাটাগরি ও সাব-ক্যাটাগরি ভিত্তিক কাস্টম ফিল্ড (${categoryFieldDefs.length} টি নির্ধারিত)`}</span>
                 </h3>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-[10.5px] bg-indigo-100 text-indigo-700 px-2.5 py-0.5 rounded-full font-bold border border-indigo-200">
@@ -1229,10 +1231,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-900">
                 <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                <span>৪. স্টকে Item এর জন্য কাস্টম প্রোপার্টি (Dynamic Custom Properties)</span>
+                <span>{isEn ? '4. Custom Dynamic Item Properties' : '৪. স্টকে Item এর জন্য কাস্টম প্রোপার্টি (Dynamic Custom Properties)'}</span>
               </div>
               <span className="text-[10px] text-indigo-600 font-semibold">
-                প্রয়োজনমতো যেকোনো ফিল্ড যুক্ত করুন
+                {isEn ? 'Add any ad-hoc field' : 'প্রয়োজনমতো যেকোনো ফিল্ড যুক্ত করুন'}
               </span>
             </div>
 
@@ -1241,7 +1243,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               <div className="w-full sm:w-1/3">
                 <input
                   type="text"
-                  placeholder="প্রোপার্টি নাম (যেমন: রং, সাইজ, কাগজের GSM)"
+                  placeholder={isEn ? "Property Name (e.g., Color, GSM)" : "প্রোপার্টি নাম (যেমন: রং, সাইজ, কাগজের GSM)"}
                   value={newPropKey}
                   onChange={e => setNewPropKey(e.target.value)}
                   className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -1250,7 +1252,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               <div className="w-full sm:w-1/2">
                 <input
                   type="text"
-                  placeholder="প্রোপার্টি ভ্যালু (যেমন: Midnight Black, XL, 80 GSM)"
+                  placeholder={isEn ? "Property Value (e.g., Midnight Black, 80 GSM)" : "প্রোপার্টি ভ্যালু (যেমন: Midnight Black, XL, 80 GSM)"}
                   value={newPropVal}
                   onChange={e => setNewPropVal(e.target.value)}
                   className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -1262,7 +1264,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                 className="w-full sm:w-auto px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-bold shrink-0 flex items-center justify-center gap-1 shadow-xs cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>যুক্ত করুন</span>
+                <span>{isEn ? 'Add' : 'যুক্ত করুন'}</span>
               </button>
             </div>
 
@@ -1284,7 +1286,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                       type="button"
                       onClick={() => handleRemoveAdHocProperty(prop.id)}
                       className="text-slate-400 hover:text-rose-600 p-1 transition-colors cursor-pointer"
-                      title="মুছে ফেলুন"
+                      title={isEn ? "Remove" : "মুছে ফেলুন"}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -1293,7 +1295,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               </div>
             ) : (
               <p className="text-[11px] text-slate-400 italic">
-                কোনো অতিরিক্ত কাস্টম প্রোপার্টি যুক্ত করা হয়নি।
+                {isEn ? 'No ad-hoc custom properties added.' : 'কোনো অতিরিক্ত কাস্টম প্রোপার্টি যুক্ত করা হয়নি।'}
               </p>
             )}
           </div>
@@ -1305,14 +1307,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               onClick={() => setIsCreateModalOpen(false)}
               className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-semibold cursor-pointer"
             >
-              বাতিল
+              {isEn ? 'Cancel' : 'বাতিল'}
             </button>
             <button
               type="submit"
               className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md shadow-indigo-600/30 cursor-pointer flex items-center gap-1.5"
             >
               <Check className="w-4 h-4" />
-              <span>{editingProduct ? 'পরিবর্তন সেভ করুন' : 'পণ্য রেকর্ড সংরক্ষণ করুন'}</span>
+              <span>{editingProduct ? (isEn ? 'Save Changes' : 'পরিবর্তন সেভ করুন') : (isEn ? 'Save Product Record' : 'পণ্য রেকর্ড সংরক্ষণ করুন')}</span>
             </button>
           </div>
         </form>
@@ -1325,27 +1327,27 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
         <Modal
           isOpen={true}
           onClose={() => setInspectingProduct(null)}
-          title={`পণ্যের বিবরণ: ${inspectingProduct.name}`}
-          subtitle={`আইটেম কোড: ${inspectingProduct.code} • বারকোড: ${inspectingProduct.barcode || 'N/A'}`}
+          title={isEn ? `Product Details: ${inspectingProduct.name}` : `পণ্যের বিবরণ: ${inspectingProduct.name}`}
+          subtitle={`${isEn ? 'Item Code:' : 'আইটেম কোড:'} ${inspectingProduct.code} • Barcode: ${inspectingProduct.barcode || 'N/A'}`}
           maxWidth="2xl"
         >
           <div className="space-y-4 text-xs">
             {/* Core Summary Cards */}
             <div className="grid grid-cols-3 gap-3">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="text-[11px] text-slate-500 font-semibold">ক্রয় মূল্য</div>
+                <div className="text-[11px] text-slate-500 font-semibold">{isEn ? 'Cost Price' : 'ক্রয় মূল্য'}</div>
                 <div className="text-base font-black text-slate-800 mt-0.5 font-mono">
                   ৳{inspectingProduct.purchase_price.toFixed(2)}
                 </div>
               </div>
               <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-200">
-                <div className="text-[11px] text-indigo-600 font-semibold">বিক্রয় মূল্য</div>
+                <div className="text-[11px] text-indigo-600 font-semibold">{isEn ? 'Selling Price' : 'বিক্রয় মূল্য'}</div>
                 <div className="text-base font-black text-indigo-900 mt-0.5 font-mono">
                   ৳{inspectingProduct.selling_price.toFixed(2)}
                 </div>
               </div>
               <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
-                <div className="text-[11px] text-emerald-600 font-semibold">স্টক পরিমাণ</div>
+                <div className="text-[11px] text-emerald-600 font-semibold">{isEn ? 'Stock Quantity' : 'স্টক পরিমাণ'}</div>
                 <div className="text-base font-black text-emerald-800 mt-0.5 font-mono">
                   {inspectingProduct.stock_quantity} {inspectingProduct.unit}
                 </div>
@@ -1356,7 +1358,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
               <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
                 <Sparkles className="w-4 h-4 text-indigo-600" />
-                <span>সকল কাস্টম ও ডাইনামিক প্রোপার্টি স্পেসিফিকেশন:</span>
+                <span>{isEn ? 'Custom & Dynamic Schema Specifications:' : 'সকল কাস্টম ও ডাইনামিক প্রোপার্টি স্পেসিফিকেশন:'}</span>
               </div>
 
               {Object.keys(inspectingProduct.custom_fields || {}).length > 0 ? (
@@ -1372,7 +1374,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                 </div>
               ) : (
                 <p className="text-slate-400 italic text-[11px]">
-                  এই পণ্যের সাথে কোনো কাস্টম প্রোপার্টি সংযুক্ত নেই।
+                  {isEn ? 'No custom properties attached to this product.' : 'এই পণ্যের সাথে কোনো কাস্টম প্রোপার্টি সংযুক্ত নেই।'}
                 </p>
               )}
             </div>
@@ -1389,14 +1391,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <Edit3 className="w-3.5 h-3.5" />
-                <span>প্রোপার্টি সম্পাদনা করুন</span>
+                <span>{isEn ? 'Edit Product' : 'প্রোপার্টি সম্পাদনা করুন'}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setInspectingProduct(null)}
                 className="px-4 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer"
               >
-                বন্ধ করুন
+                {isEn ? 'Close' : 'বন্ধ করুন'}
               </button>
             </div>
           </div>
@@ -1410,13 +1412,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
         <Modal
           isOpen={true}
           onClose={() => setIsStockInwardModalOpen(false)}
-          title="নতুন স্টক ইনওয়ার্ড (Stock Inward / Add Stock)"
-          subtitle="বিদ্যমান পণ্যে নতুন স্টক যোগ করুন এবং ক্রয়/বিক্রয় মূল্য আপডেট করুন"
+          title={isEn ? "Stock Inward (Add Stock)" : "নতুন স্টক ইনওয়ার্ড (Stock Inward / Add Stock)"}
+          subtitle={isEn ? "Add incoming stock quantity and update cost / sell pricing" : "বিদ্যমান পণ্যে নতুন স্টক যোগ করুন এবং ক্রয়/বিক্রয় মূল্য আপডেট করুন"}
           maxWidth="2xl"
         >
           <form onSubmit={handleSaveStockInward} className="space-y-4 text-xs">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">পণ্য নির্বাচন করুন *</label>
+              <label className="block font-semibold text-slate-700 mb-1">{isEn ? 'Select Product *' : 'পণ্য নির্বাচন করুন *'}</label>
               <select
                 value={inwardProductId}
                 onChange={e => {
@@ -1431,10 +1433,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                 required
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:bg-white"
               >
-                <option value="">-- পণ্য সিলেক্ট করুন --</option>
+                <option value="">{isEn ? '-- Select Product --' : '-- পণ্য সিলেক্ট করুন --'}</option>
                 {products.map(p => (
                   <option key={p.id} value={p.id}>
-                    {p.name} ({p.code}) • বর্তমান স্টক: {p.stock_quantity} {p.unit}
+                    {p.name} ({p.code}) • {isEn ? 'Current Stock:' : 'বর্তমান স্টক:'} {p.stock_quantity} {p.unit}
                   </option>
                 ))}
               </select>
@@ -1442,7 +1444,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">যোগকৃত নতুন স্টক পরিমাণ *</label>
+                <label className="block font-semibold text-slate-700 mb-1">{isEn ? 'Added Stock Qty *' : 'যোগকৃত নতুন স্টক পরিমাণ *'}</label>
                 <input
                   type="number"
                   min="1"
@@ -1454,7 +1456,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">নতুন ক্রয় মূল্য (৳)</label>
+                <label className="block font-semibold text-slate-700 mb-1">{isEn ? 'New Cost Price (৳)' : 'নতুন ক্রয় মূল্য (৳)'}</label>
                 <input
                   type="number"
                   step="0.01"
@@ -1465,7 +1467,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">নতুন বিক্রয় মূল্য (৳)</label>
+                <label className="block font-semibold text-slate-700 mb-1">{isEn ? 'New Selling Price (৳)' : 'নতুন বিক্রয় মূল্য (৳)'}</label>
                 <input
                   type="number"
                   step="0.01"
@@ -1478,10 +1480,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">সাপ্লায়ার / মহাজন</label>
+                <label className="block font-semibold text-slate-700 mb-1">{isEn ? 'Supplier / Vendor' : 'সাপ্লায়ার / মহাজন'}</label>
                 <input
                   type="text"
-                  placeholder="যেমন: গ্লোবাল টেক, ফ্রেশ ডেইরি"
+                  placeholder={isEn ? "e.g., Global Tech, Fresh" : "যেমন: গ্লোবাল টেক, ফ্রেশ ডেইরি"}
                   value={inwardSupplier}
                   onChange={e => setInwardSupplier(e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg"
@@ -1489,10 +1491,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">চালান নং / নোট</label>
+                <label className="block font-semibold text-slate-700 mb-1">{isEn ? 'Challan No / Notes' : 'চালান নং / নোট'}</label>
                 <input
                   type="text"
-                  placeholder="ইনভয়েস বা ব্যাচ রেফারেন্স..."
+                  placeholder={isEn ? "Invoice or batch reference..." : "ইনভয়েস বা ব্যাচ রেফারেন্স..."}
                   value={inwardNotes}
                   onChange={e => setInwardNotes(e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg"
@@ -1504,13 +1506,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
             {inwardProductId && (
               <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between text-xs">
                 <div>
-                  <span className="text-slate-600">বর্তমান স্টক: </span>
+                  <span className="text-slate-600">{isEn ? 'Current Stock: ' : 'বর্তমান স্টক: '}</span>
                   <b className="font-mono">{products.find(p => p.id === inwardProductId)?.stock_quantity || 0}</b>
-                  <span className="text-slate-600"> + নতুন ইনওয়ার্ড: </span>
+                  <span className="text-slate-600">{isEn ? ' + Inward: ' : ' + নতুন ইনওয়ার্ড: '}</span>
                   <b className="text-emerald-700 font-mono">+{inwardQty}</b>
                 </div>
                 <div className="text-right">
-                  <span className="text-slate-600 text-[11px]">ইনওয়ার্ডের পর মোট স্টক: </span>
+                  <span className="text-slate-600 text-[11px]">{isEn ? 'Total After Inward: ' : 'ইনওয়ার্ডের পর মোট স্টক: '}</span>
                   <span className="font-black text-emerald-800 font-mono text-sm">
                     {((products.find(p => p.id === inwardProductId)?.stock_quantity || 0) + Number(inwardQty))}
                   </span>
@@ -1522,16 +1524,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               <button
                 type="button"
                 onClick={() => setIsStockInwardModalOpen(false)}
-                className="px-4 py-2 border border-slate-300 hover:bg-slate-100 rounded-xl font-semibold cursor-pointer"
+                className="px-4 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl font-semibold cursor-pointer"
               >
-                বাতিল
+                {isEn ? 'Cancel' : 'বাতিল'}
               </button>
               <button
                 type="submit"
                 className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md cursor-pointer flex items-center gap-1.5"
               >
                 <Check className="w-4 h-4" />
-                <span>স্টক ইনওয়ার্ড সংরক্ষণ করুন</span>
+                <span>{isEn ? 'Save Stock Inward' : 'স্টক ইনওয়ার্ড সংরক্ষণ করুন'}</span>
               </button>
             </div>
           </form>
