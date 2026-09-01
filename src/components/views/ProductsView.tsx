@@ -24,7 +24,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Cpu,
-  FileText
+  FileText,
+  Camera
 } from 'lucide-react';
 import { 
   Tenant, 
@@ -38,6 +39,7 @@ import { i18n } from '../../services/i18nService';
 import { CatalogInitEngine } from '../../engine/catalogInitEngine';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
+import { CameraScannerModal } from '../common/CameraScannerModal';
 import { CustomFieldRenderer } from '../common/CustomFieldRenderer';
 import { printBarcodeStickers } from '../../shared/utils/printReceipt';
 import { IconRenderer } from '../common/IconRenderer';
@@ -186,6 +188,40 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
   const [adHocProperties, setAdHocProperties] = useState<DynamicPropertyItem[]>([]);
   const [newPropKey, setNewPropKey] = useState('');
   const [newPropVal, setNewPropVal] = useState('');
+
+  // Camera Barcode & IMEI Scanner Target State
+  const [scannerTarget, setScannerTarget] = useState<'product_barcode' | 'product_imei' | 'inward_scan' | null>(null);
+
+  // Scanner Success Callback
+  const handleScannerSuccess = (decodedText: string) => {
+    const code = decodedText.trim();
+    if (!code) return;
+
+    if (scannerTarget === 'product_barcode') {
+      setFormData(prev => ({ ...prev, barcode: code }));
+      setScannerTarget(null);
+    } else if (scannerTarget === 'product_imei') {
+      if (!imeiList.includes(code)) {
+        const updated = [...imeiList, code];
+        setImeiList(updated);
+        setFormData(prev => ({ ...prev, stock_quantity: updated.length }));
+      }
+    } else if (scannerTarget === 'inward_scan') {
+      const found = products.find(p => 
+        (p.barcode && p.barcode.toLowerCase() === code.toLowerCase()) ||
+        p.code.toLowerCase() === code.toLowerCase() ||
+        (p.sku && p.sku.toLowerCase() === code.toLowerCase())
+      );
+      if (found) {
+        setInwardProductId(found.id);
+        setInwardPurchasePrice(found.purchase_price);
+        setInwardSellingPrice(found.selling_price);
+      } else {
+        alert(isEn ? `No product found matching code: ${code}` : `কোড: ${code} এর সাথে কোনো পণ্য পাওয়া যায়নি।`);
+      }
+      setScannerTarget(null);
+    }
+  };
 
   // Fetch applicable custom fields for currently selected category & subcategory in form
   const categoryFieldDefs = storageService.getCustomFields(formCategoryId, 'product', formData.category_name);
@@ -875,14 +911,35 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">{isEn ? 'Barcode / UPC (Optional)' : 'বারকোড / UPC (ঐচ্ছিক)'}</label>
-                <input
-                  type="text"
-                  placeholder={isEn ? "Scan or enter barcode" : "স্ক্যান করুন বা লিখুন"}
-                  value={formData.barcode || ''}
-                  onChange={e => setFormData({ ...formData, barcode: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono"
-                />
+                <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>{isEn ? 'Barcode / UPC' : 'বারকোড / UPC'}</span>
+                  <button
+                    type="button"
+                    onClick={() => setScannerTarget('product_barcode')}
+                    className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 cursor-pointer bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200"
+                    title={isEn ? "Scan barcode with camera" : "ক্যামেরা দিয়ে বারকোড স্ক্যান করুন"}
+                  >
+                    <Camera className="w-3 h-3" />
+                    <span>{isEn ? 'Scan' : 'স্ক্যান'}</span>
+                  </button>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder={isEn ? "Scan or enter barcode" : "স্ক্যান করুন বা লিখুন"}
+                    value={formData.barcode || ''}
+                    onChange={e => setFormData({ ...formData, barcode: e.target.value })}
+                    className="w-full pl-3 pr-8 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setScannerTarget('product_barcode')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                    title={isEn ? "Scan with camera" : "ক্যামেরা দিয়ে স্ক্যান করুন"}
+                  >
+                    <Camera className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <div>
@@ -1007,26 +1064,47 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                   </span>
                 </div>
 
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder={isEn ? "Enter 15-digit IMEI or Serial and press Enter..." : "১৫-ডিজিট IMEI বা সিরিয়াল লিখে Enter চাপুন বা স্ক্যান করুন..."}
-                    value={imeiInput}
-                    onChange={e => setImeiInput(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const val = imeiInput.trim();
-                        if (val && !imeiList.includes(val)) {
-                          const updated = [...imeiList, val];
-                          setImeiList(updated);
-                          setImeiInput('');
-                          setFormData(prev => ({ ...prev, stock_quantity: updated.length }));
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      placeholder={isEn ? "Enter 15-digit IMEI or Serial and press Enter..." : "১৫-ডিজিট IMEI বা সিরিয়াল লিখে Enter চাপুন বা স্ক্যান করুন..."}
+                      value={imeiInput}
+                      onChange={e => setImeiInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const val = imeiInput.trim();
+                          if (val && !imeiList.includes(val)) {
+                            const updated = [...imeiList, val];
+                            setImeiList(updated);
+                            setImeiInput('');
+                            setFormData(prev => ({ ...prev, stock_quantity: updated.length }));
+                          }
                         }
-                      }
-                    }}
-                    className="flex-1 px-3 py-1.5 bg-white border border-blue-300 rounded-lg text-xs font-mono"
-                  />
+                      }}
+                      className="w-full pl-3 pr-8 py-1.5 bg-white border border-blue-300 rounded-lg text-xs font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setScannerTarget('product_imei')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+                      title={isEn ? "Scan IMEI with camera" : "ক্যামেরা দিয়ে IMEI স্ক্যান করুন"}
+                    >
+                      <Camera className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setScannerTarget('product_imei')}
+                    className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                    title={isEn ? "Scan IMEI barcode with camera" : "ক্যামেরা দিয়ে IMEI স্ক্যান করুন"}
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">{isEn ? 'Scan' : 'স্ক্যান'}</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => {
@@ -1539,6 +1617,28 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
           </form>
         </Modal>
       )}
+
+      {/* ================================================== */}
+      {/* CAMERA SCANNER MODAL (BARCODE / IMEI / INWARD)     */}
+      {/* ================================================== */}
+      <CameraScannerModal
+        isOpen={scannerTarget !== null}
+        onClose={() => setScannerTarget(null)}
+        onScanSuccess={handleScannerSuccess}
+        title={
+          scannerTarget === 'product_barcode'
+            ? (isEn ? 'Scan Product Barcode' : 'পণ্যের বারকোড স্ক্যান করুন')
+            : scannerTarget === 'product_imei'
+            ? (isEn ? 'Scan Device IMEI / Serial' : 'ডিভাইস IMEI বা সিরিয়াল স্ক্যান করুন')
+            : (isEn ? 'Scan Product for Stock Inward' : 'স্টক ইনওয়ার্ডের জন্য পণ্য স্ক্যান করুন')
+        }
+        subtitle={
+          scannerTarget === 'product_imei'
+            ? (isEn ? 'Continuous mode: Scan multiple IMEIs consecutively' : 'ধারাবাহিক মোড: একের পর এক একাধিক IMEI স্ক্যান করুন')
+            : undefined
+        }
+        continuousModeDefault={scannerTarget === 'product_imei'}
+      />
     </div>
   );
 };
