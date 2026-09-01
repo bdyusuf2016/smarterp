@@ -437,9 +437,6 @@ export const AppLayout: React.FC = () => {
         return <AuditView activeTenant={activeTenant} activeRole={activeRole} />;
       
       case 'tenant_provisioning':
-        if (activeRole !== 'SUPER_ADMIN') {
-          return renderUnauthorized('system.super_admin_matrix', 'দোকান ও ডোমেন প্রভিশনিং');
-        }
         return (
           <TenantManagementView
             activeRole={activeRole}
