@@ -856,12 +856,12 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
                 <div className="flex items-center gap-1.5">
                   <DollarSign className={`w-4 h-4 ${!isReceivedAmountEntered && cart.length > 0 ? 'text-amber-600' : 'text-blue-600'}`} />
                   <div>
-                    <span className="font-bold text-[#1a1b1e] text-xs block">
-                      রিসিভ অ্যামাউন্ট (জমা ৳) <span className="text-rose-600 font-bold">*</span>
+                    <span className="font-bold text-slate-800 text-xs">
+                      প্রাপ্ত টাকা / জমা (৳) <span className="text-rose-600 font-bold">*</span>
                     </span>
                     {!isReceivedAmountEntered && cart.length > 0 && (
                       <span className="text-[9px] text-amber-700 font-semibold block">
-                        এন্ট্রি করা বাধ্যতামূলক
+                        টাকার পরিমাণ দেওয়া আবশ্যক
                       </span>
                     )}
                   </div>
@@ -890,7 +890,7 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
                 <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-200/70">
                   <span className="text-[10px] text-slate-500 font-bold mr-0.5 flex items-center gap-1">
                     <Zap className="w-3 h-3 text-amber-500" />
-                    <span>কুইক পে:</span>
+                    <span>দ্রুত জমা শর্টকাট:</span>
                   </span>
 
                   {/* Exact Cash Button: Auto-fills exact bill amount */}
@@ -903,9 +903,9 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
                         ? 'bg-emerald-600 hover:bg-emerald-700 active:scale-[0.97] text-white cursor-pointer shadow-emerald-600/20'
                         : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
                     }`}
-                    title="কাস্টমার ঠিক যে পরিমাণ বিল হয়েছে তা দিলে এই বাটনে চাপুন"
+                    title="কাস্টমার সম্পূর্ণ বিল সমপরিমাণ পরিশোধ করলে এই বাটনে চাপুন"
                   >
-                    <span>⚡ ফুল পেইড (ঠিক ঠিক ৳{grandTotal.toFixed(0)})</span>
+                    <span>⚡ সম্পূর্ণ পরিশোধ (৳{grandTotal.toFixed(0)})</span>
                   </button>
 
                   {/* Common Note Shortcuts */}
@@ -1099,8 +1099,8 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
               {cart.length === 0
                 ? 'কার্ট খালি! পণ্য নির্বাচন করুন'
                 : !isReceivedAmountEntered
-                ? '⚠️ রিসিভ অ্যামাউন্ট এন্ট্রি দিন (বাটন লক)'
-                : `বিল সম্পন্ন ও রসিদ প্রিন্ট (৳${grandTotal.toFixed(2)})`}
+                ? '⚠️ প্রাপ্ত টাকা এন্ট্রি দিন (বাটন লক)'
+                : `বিক্রয় সম্পন্ন ও রসিদ প্রিন্ট (৳${grandTotal.toFixed(2)})`}
             </span>
           </button>
         </div>
