@@ -56,6 +56,8 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
   const [ownerPassword, setOwnerPassword] = useState('password123');
   const [address, setAddress] = useState('');
   const [currencySymbol, setCurrencySymbol] = useState('৳');
+  const [tinNumber, setTinNumber] = useState('');
+  const [binNumber, setBinNumber] = useState('');
   
   // Domain Setup
   const [subdomain, setSubdomain] = useState('');
@@ -89,6 +91,8 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
     setOwnerPassword('password123');
     setAddress('ঢাকা, বাংলাদেশ');
     setCurrencySymbol('৳');
+    setTinNumber('');
+    setBinNumber('');
     setSubdomain('');
     setCustomDomain('');
     setSelectedCategories(['cat_telecom']);
@@ -109,6 +113,8 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
     setOwnerPassword('••••••••');
     setAddress(t.address);
     setCurrencySymbol(t.currency_symbol || '৳');
+    setTinNumber(t.tin_number || '');
+    setBinNumber(t.bin_number || t.vat_number || '');
     setSubdomain(t.subdomain || '');
     setCustomDomain(t.custom_domain || '');
     setSelectedCategories(t.active_categories.map(c => c.business_category_id));
@@ -171,6 +177,9 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
       currency: 'BDT',
       currency_symbol: currencySymbol || '৳',
       address: address.trim() || 'বাংলাদেশ',
+      tin_number: tinNumber.trim(),
+      bin_number: binNumber.trim(),
+      vat_number: binNumber.trim(),
       subdomain: cleanSubdomain,
       custom_domain: customDomain.trim(),
       status: 'active',
@@ -356,6 +365,12 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
                             <span>•</span>
                             <span>{t.address}</span>
                           </div>
+                          {(t.bin_number || t.tin_number || t.vat_number) && (
+                            <div className="flex items-center gap-1 text-[9.5px] text-slate-500 font-mono mt-0.5">
+                              {(t.bin_number || t.vat_number) && <span className="bg-blue-50 text-blue-700 px-1 rounded border border-blue-200">BIN: {t.bin_number || t.vat_number}</span>}
+                              {t.tin_number && <span className="bg-emerald-50 text-emerald-700 px-1 rounded border border-emerald-200">TIN: {t.tin_number}</span>}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -540,6 +555,28 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
                       onChange={e => setCurrencySymbol(e.target.value)}
                       placeholder="৳"
                       className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">TIN নম্বর (Tax Identification No)</label>
+                    <input
+                      type="text"
+                      value={tinNumber}
+                      onChange={e => setTinNumber(e.target.value)}
+                      placeholder="TIN-894729182"
+                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">BIN নম্বর (Business Identification No / ভ্যাট)</label>
+                    <input
+                      type="text"
+                      value={binNumber}
+                      onChange={e => setBinNumber(e.target.value)}
+                      placeholder="BIN-001928471-001"
+                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono"
                     />
                   </div>
                 </div>

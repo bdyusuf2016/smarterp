@@ -57,6 +57,18 @@ export interface ReceiptData {
   shopPhone?: string;
   shopEmail?: string;
   vatRegNo?: string;
+  tinNo?: string;
+  binNo?: string;
+  headerNote?: string;
+  footerNote?: string;
+  termsNote?: string;
+  templateStyle?: 'modern' | 'classic' | 'thermal' | 'colorful' | 'tax_compliant';
+  primaryColor?: string;
+  showLogo?: boolean;
+  showQr?: boolean;
+  showWatermark?: boolean;
+  showSignatures?: boolean;
+  showTinBin?: boolean;
   invoiceNo: string;
   date?: string | Date;
   cashierName?: string;
@@ -89,6 +101,14 @@ export function printPosReceipt(data: ReceiptData) {
   const is58mm = format === '58mm';
   const isThermal = !isA4 && !isA5;
 
+  const style = data.templateStyle || 'modern';
+  const accentColor = data.primaryColor || (style === 'colorful' ? '#7c3aed' : style === 'classic' ? '#0f172a' : style === 'tax_compliant' ? '#047857' : '#0284c7');
+  const showLogo = data.showLogo !== false;
+  const showQr = data.showQr !== false;
+  const showWatermark = data.showWatermark !== false;
+  const showSignatures = data.showSignatures !== false;
+  const showTinBin = data.showTinBin !== false;
+
   const dateObj = data.date ? new Date(data.date) : new Date();
   const formattedDate = dateObj.toLocaleDateString('en-GB') + ' ' + dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
@@ -101,6 +121,9 @@ export function printPosReceipt(data: ReceiptData) {
   const adjustmentVal = data.adjustment || 0;
   const paidVal = isCredit ? (data.paidAmount || 0) : data.grandTotal;
   const dueVal = isCredit ? (data.dueAmount || (data.grandTotal - paidVal)) : 0;
+
+  const effectiveBin = data.binNo || data.vatRegNo;
+  const effectiveTin = data.tinNo;
 
   const html = `
 <!DOCTYPE html>
@@ -146,6 +169,16 @@ export function printPosReceipt(data: ReceiptData) {
     .receipt-bottom-block {
       margin-top: 14px;
       page-break-inside: avoid;
+    }
+
+    /* Header Note banner */
+    .header-slogan-note {
+      text-align: center;
+      font-size: ${isA4 ? '12px' : '10px'};
+      font-weight: 700;
+      color: ${accentColor};
+      margin-bottom: 4px;
+      letter-spacing: 0.3px;
     }
 
     /* Watermark Stamp Exact V1 Design */
@@ -196,12 +229,12 @@ export function printPosReceipt(data: ReceiptData) {
       width: ${isA4 ? '64px' : isA5 ? '44px' : '40px'};
       height: ${isA4 ? '64px' : isA5 ? '44px' : '40px'};
       border-radius: 50%;
-      border: 2px solid #0284c7;
+      border: 2px solid ${accentColor};
       padding: 2px;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(135deg, #0284c7, #6366f1);
+      background: linear-gradient(135deg, ${accentColor}, #0f172a);
       color: #fff;
       font-weight: 900;
       font-size: ${isA4 ? '24px' : isA5 ? '16px' : '16px'};
@@ -215,15 +248,22 @@ export function printPosReceipt(data: ReceiptData) {
       text-align: ${isThermal ? 'center' : 'left'};
     }
     .receipt-branch {
-      font-size: ${isA4 ? '12px' : '10px'};
-      color: #475569;
+      font-size: ${isA4 ? '12px' : '10.5px'};
+      color: #334155;
       font-weight: 500;
       text-align: ${isThermal ? 'center' : 'left'};
     }
     .receipt-phone {
-      font-size: ${isA4 ? '12px' : '10px'};
-      color: #0284c7;
+      font-size: ${isA4 ? '12px' : '10.5px'};
+      color: ${accentColor};
       font-weight: 700;
+      text-align: ${isThermal ? 'center' : 'left'};
+    }
+    .receipt-tin-bin {
+      font-size: ${isA4 ? '11px' : '9.5px'};
+      color: #475569;
+      font-weight: 600;
+      margin-top: 1px;
       text-align: ${isThermal ? 'center' : 'left'};
     }
 
@@ -264,8 +304,8 @@ export function printPosReceipt(data: ReceiptData) {
       color: #0f172a;
       font-weight: 700;
       padding: ${isA4 ? '6px 8px' : isA5 ? '4px 6px' : '3px 0'};
-      border-bottom: ${isA4 || isA5 ? '1px solid #cbd5e1' : '1px dashed #000'};
-      border-top: ${isA4 || isA5 ? '1px solid #cbd5e1' : 'none'};
+      border-bottom: ${isA4 || isA5 ? '1.5px solid #cbd5e1' : '1px dashed #000'};
+      border-top: ${isA4 || isA5 ? '1.5px solid #cbd5e1' : 'none'};
       text-align: left;
     }
     .receipt-table td {
@@ -306,7 +346,7 @@ export function printPosReceipt(data: ReceiptData) {
     .receipt-summary .total {
       font-weight: 800;
       font-size: ${isA4 ? '14px' : isA5 ? '12px' : '12px'};
-      color: #0284c7;
+      color: ${accentColor};
       border-top: 1px solid #cbd5e1;
       border-bottom: 1px solid #cbd5e1;
       padding: 3px 0;
@@ -325,12 +365,25 @@ export function printPosReceipt(data: ReceiptData) {
       text-align: center;
     }
 
+    /* Terms & Conditions Box */
+    .receipt-terms-box {
+      background: #fafafa;
+      border: 1px dashed #cbd5e1;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: ${isA4 ? '10.5px' : '9px'};
+      color: #475569;
+      margin: 6px 0;
+      line-height: 1.4;
+      white-space: pre-line;
+    }
+
     /* Signatures with ample signing room */
     .a4-signatures {
-      display: ${isA4 || isA5 ? 'flex' : 'none'};
+      display: ${showSignatures && (isA4 || isA5) ? 'flex' : 'none'};
       justify-content: space-between;
-      margin-top: ${isA4 ? '58px' : isA5 ? '38px' : '0'};
-      margin-bottom: ${isA4 ? '12px' : isA5 ? '8px' : '0'};
+      margin-top: ${isA4 ? '52px' : isA5 ? '34px' : '0'};
+      margin-bottom: ${isA4 ? '10px' : isA5 ? '6px' : '0'};
       padding-top: 2px;
     }
     .sig-box {
@@ -362,24 +415,32 @@ export function printPosReceipt(data: ReceiptData) {
 </head>
 <body>
   <div class="thermal-receipt">
-    <div class="receipt-watermark ${watermarkClass}">${watermarkText}</div>
+    ${showWatermark ? `<div class="receipt-watermark ${watermarkClass}">${watermarkText}</div>` : ''}
 
     <div class="receipt-body-content">
+      ${data.headerNote ? `<div class="header-slogan-note">${data.headerNote}</div>` : ''}
+
       <!-- Header -->
       <div class="receipt-header-two-columns">
         <div class="receipt-col-left">
-          <div class="receipt-logo">D</div>
+          ${showLogo ? `<div class="receipt-logo">${data.shopName ? data.shopName.charAt(0).toUpperCase() : 'S'}</div>` : ''}
           <div class="receipt-header-text">
             <h2>${data.shopName}</h2>
-            <p class="receipt-branch">${data.shopBranch || data.shopAddress || 'ঢাকা, বাংলাদেশ'}</p>
-            <p class="receipt-phone">হটলাইন: ${data.shopPhone || '01700-000000'}</p>
-            ${data.vatRegNo ? `<p style="font-size:11px; color:#475569;">VAT/BIN: <strong>${data.vatRegNo}</strong></p>` : ''}
+            <p class="receipt-branch">📍 ${data.shopAddress || data.shopBranch || 'ঢাকা, বাংলাদেশ'}</p>
+            <p class="receipt-phone">📞 হটলাইন: ${data.shopPhone || '01700-000000'}</p>
+            ${showTinBin && (effectiveBin || effectiveTin) ? `
+              <div class="receipt-tin-bin">
+                ${effectiveBin ? `<span>BIN/VAT: <strong>${effectiveBin}</strong></span>` : ''}
+                ${effectiveBin && effectiveTin ? ` • ` : ''}
+                ${effectiveTin ? `<span>TIN: <strong>${effectiveTin}</strong></span>` : ''}
+              </div>
+            ` : ''}
           </div>
         </div>
 
         <div class="receipt-col-right">
           <div class="receipt-meta-box">
-            <div class="meta-item">ইনভয়েস #: <strong style="font-family:monospace; color:#0284c7;">${data.invoiceNo}</strong></div>
+            <div class="meta-item">ইনভয়েস #: <strong style="font-family:monospace; color:${accentColor};">${data.invoiceNo}</strong></div>
             <div class="meta-item">তারিখ ও সময়: <strong>${formattedDate}</strong></div>
             <div class="meta-item">কাস্টমার: <strong>${data.customerName || 'সাধারণ কাস্টমার (ক্যাশ)'}</strong></div>
             ${data.customerPhone ? `<div class="meta-item">মোবাইল: <strong>${data.customerPhone}</strong></div>` : ''}
@@ -410,7 +471,7 @@ export function printPosReceipt(data: ReceiptData) {
               <td>
                 <strong style="color: #0f172a;">${item.name}</strong>
                 ${item.imei ? `<div style="font-size: 10px; color: #7c3aed; font-family: monospace; font-weight: bold; margin-top: 1px;">IMEI/SN: ${item.imei}</div>` : ''}
-                ${itemWarranty ? `<div style="font-size: 10px; color: #0284c7; font-weight: 700; margin-top: 1px;">🛡️ ওয়ারেন্টি: ${itemWarranty}</div>` : ''}
+                ${itemWarranty ? `<div style="font-size: 10px; color: ${accentColor}; font-weight: 700; margin-top: 1px;">🛡️ ওয়ারেন্টি: ${itemWarranty}</div>` : ''}
                 ${item.batchNumber ? `<div style="font-size: 10px; color: #059669; font-family: monospace; margin-top: 1px;">ব্যাচ: ${item.batchNumber}</div>` : ''}
               </td>
               <td style="text-align: center; font-weight: 600;">${item.quantity}</td>
@@ -426,16 +487,18 @@ export function printPosReceipt(data: ReceiptData) {
 
       <!-- Summary & QR Box -->
       <div class="receipt-middle-summary-row">
-        <div class="receipt-qrcode-box" style="padding: 4px; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; text-align: center; display: inline-block;">
-          ${generateQrCodeSvg(`Invoice: ${data.invoiceNo} | ${data.shopName} | Total: ৳${data.grandTotal.toFixed(2)} | ${watermarkText}`, isThermal ? 65 : 75)}
-          <small style="display:block; font-size: 8.5px; color: #64748b; margin-top: 2px;">Scan to Verify</small>
-        </div>
+        ${showQr ? `
+          <div class="receipt-qrcode-box" style="padding: 4px; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; text-align: center; display: inline-block;">
+            ${generateQrCodeSvg(`Invoice: ${data.invoiceNo} | ${data.shopName} | Total: ৳${data.grandTotal.toFixed(2)} | ${watermarkText}`, isThermal ? 65 : 75)}
+            <small style="display:block; font-size: 8.5px; color: #64748b; margin-top: 2px;">Scan to Verify</small>
+          </div>
+        ` : '<div></div>'}
 
         <div class="receipt-summary">
           <div class="r-row"><span>সাবটোটাল:</span><span style="font-family: monospace;">৳${data.subtotal.toFixed(2)}</span></div>
           ${taxVal > 0 ? `<div class="r-row"><span>ভ্যাট / ট্যাক্স (${data.taxRate || 0}%):</span><span style="font-family: monospace;">+৳${taxVal.toFixed(2)}</span></div>` : ''}
           ${discountVal > 0 ? `<div class="r-row" style="color: #e11d48;"><span>ছাড় (Discount):</span><span style="font-family: monospace;">-৳${discountVal.toFixed(2)}</span></div>` : ''}
-          ${adjustmentVal !== 0 ? `<div class="r-row" style="color: ${adjustmentVal > 0 ? '#0284c7' : '#e11d48'};"><span>এডজাস্টমেন্ট:</span><span style="font-family: monospace;">${adjustmentVal > 0 ? '+' : ''}৳${adjustmentVal.toFixed(2)}</span></div>` : ''}
+          ${adjustmentVal !== 0 ? `<div class="r-row" style="color: ${adjustmentVal > 0 ? accentColor : '#e11d48'};"><span>এডজাস্টমেন্ট:</span><span style="font-family: monospace;">${adjustmentVal > 0 ? '+' : ''}৳${adjustmentVal.toFixed(2)}</span></div>` : ''}
           ${data.tradeInCredit && data.tradeInCredit > 0 ? `<div class="r-row" style="color: #059669;"><span>ট্রেড-ইন ভাউচার:</span><span style="font-family: monospace;">-৳${data.tradeInCredit.toFixed(2)}</span></div>` : ''}
           
           <div class="r-row total">
@@ -455,6 +518,13 @@ export function printPosReceipt(data: ReceiptData) {
           <strong>ওয়ারেন্টি শর্তাবলী:</strong> পণ্য ক্রয়ের তারিখ হতে বর্ণিত সময়ের জন্য অফিসিয়াল ওয়ারেন্টি পলিসি প্রযোজ্য।
         </div>
       ` : ''}
+
+      ${data.termsNote ? `
+        <!-- Policy & Terms -->
+        <div class="receipt-terms-box">
+          <strong>শর্তাবলী ও পলিসি:</strong><br>${data.termsNote}
+        </div>
+      ` : ''}
     </div>
 
     <!-- Bottom Section: Signatures & Footer inside Margins -->
@@ -469,7 +539,7 @@ export function printPosReceipt(data: ReceiptData) {
 
       <!-- Footer with Admin Customizable Branding -->
       <div style="text-align: center; margin-top: 6px;">
-        <p class="receipt-footer-msg">*** ধন্যবাদ আবার আসবেন ***</p>
+        <p class="receipt-footer-msg">${data.footerNote || '*** ধন্যবাদ আবার আসবেন ***'}</p>
         <small class="powered-by">${data.softwareBranding || data.systemSoftwareName || 'SmartERP Enterprise Platform V2.0'}</small>
       </div>
     </div>

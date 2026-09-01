@@ -253,7 +253,7 @@ export const ProfileManagerModal: React.FC<ProfileManagerModalProps> = ({
                   <Building2 className="w-4 h-4 text-blue-600" />
                   <span>বর্তমান দোকান ও ব্রাঞ্চ সংযোগ</span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
                   <div>
                     <span className="text-slate-500 block text-[10px]">দোকানের নাম:</span>
                     <span className="font-semibold text-slate-800">{activeTenant.name}</span>
@@ -262,6 +262,28 @@ export const ProfileManagerModal: React.FC<ProfileManagerModalProps> = ({
                     <span className="text-slate-500 block text-[10px]">টেন্যান্ট কোড:</span>
                     <span className="font-mono font-semibold text-slate-800">{activeTenant.code}</span>
                   </div>
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">ঠিকানা:</span>
+                    <span className="font-semibold text-slate-800">{activeTenant.address || 'বাংলাদেশ'}</span>
+                  </div>
+                  {activeTenant.phone && (
+                    <div>
+                      <span className="text-slate-500 block text-[10px]">মোবাইল:</span>
+                      <span className="font-mono font-semibold text-slate-800">{activeTenant.phone}</span>
+                    </div>
+                  )}
+                  {activeTenant.tin_number && (
+                    <div>
+                      <span className="text-slate-500 block text-[10px]">TIN নম্বর:</span>
+                      <span className="font-mono font-semibold text-emerald-700">{activeTenant.tin_number}</span>
+                    </div>
+                  )}
+                  {(activeTenant.bin_number || activeTenant.vat_number) && (
+                    <div>
+                      <span className="text-slate-500 block text-[10px]">BIN / VAT নম্বর:</span>
+                      <span className="font-mono font-semibold text-blue-700">{activeTenant.bin_number || activeTenant.vat_number}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 

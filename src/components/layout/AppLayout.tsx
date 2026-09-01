@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Tenant, UserRole } from '../../types';
 import { storageService } from '../../services/storageService';
 import { authService, UserProfile } from '../../services/authService';
+import { i18n } from '../../services/i18nService';
 import { RbacEngine } from '../../engine/rbacEngine';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
@@ -60,6 +61,13 @@ export const AppLayout: React.FC = () => {
   const [activeViewId, setActiveViewId] = useState<string>('dashboard');
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isAuthRoute, setIsAuthRoute] = useState(false);
+  const [currentLang, setCurrentLang] = useState<'bn' | 'en'>(() => i18n.getLanguage());
+
+  useEffect(() => {
+    const handleLang = () => setCurrentLang(i18n.getLanguage());
+    window.addEventListener('dokan_lang_changed', handleLang);
+    return () => window.removeEventListener('dokan_lang_changed', handleLang);
+  }, []);
 
   // Footer & Branding Configuration State
   const [footerConfig, setFooterConfig] = useState(() => {
@@ -231,6 +239,7 @@ export const AppLayout: React.FC = () => {
         return <BillingCalculatorView activeTenant={activeTenant} activeRole={activeRole} />;
 
       case 'products':
+      case 'products_catalog':
         if (!RbacEngine.hasPermission(activeRole, 'products.view')) {
           return renderUnauthorized('products.view', 'প্রোডাক্ট ও স্টক');
         }
@@ -304,6 +313,7 @@ export const AppLayout: React.FC = () => {
         return <CategoryStudioView activeTenant={activeTenant} activeRole={activeRole} onTenantUpdated={handleTenantUpdated} />;
       
       case 'customers':
+      case 'customers_crm':
         if (!RbacEngine.hasPermission(activeRole, 'customers.view')) {
           return renderUnauthorized('customers.view', 'কাস্টমার বাকির খাতা');
         }
@@ -316,6 +326,7 @@ export const AppLayout: React.FC = () => {
         return <SuppliersView activeTenant={activeTenant} activeRole={activeRole} />;
       
       case 'accounting':
+      case 'accounting_ledger':
         if (!RbacEngine.hasPermission(activeRole, 'accounting.view_ledger')) {
           return renderUnauthorized('accounting.view_ledger', 'হিসাব ও ক্যাশ খাতা');
         }
@@ -334,6 +345,7 @@ export const AppLayout: React.FC = () => {
         return <StaffManagementView activeTenant={activeTenant} activeRole={activeRole} />;
 
       case 'global_settings':
+      case 'settings':
         if (!RbacEngine.hasPermission(activeRole, 'system.settings_manage')) {
           return renderUnauthorized('system.settings_manage', 'গ্লোবাল সেটিংস');
         }
@@ -408,7 +420,7 @@ export const AppLayout: React.FC = () => {
         />
 
         {/* Content Canvas */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-5 min-w-0 bg-[#f1f3f5]">
+        <main key={`${activeViewId}_${currentLang}`} className="flex-1 overflow-y-auto p-4 sm:p-5 min-w-0 bg-[#f1f3f5]">
           <div className="max-w-full mx-auto">
             {renderActiveView()}
           </div>

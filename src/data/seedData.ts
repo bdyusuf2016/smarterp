@@ -276,26 +276,48 @@ export const INITIAL_CATEGORY_MODULES: BusinessCategoryModule[] = [
 // CUSTOM FIELD DEFINITIONS
 // ==================================================
 export const INITIAL_CUSTOM_FIELDS: CustomFieldDefinition[] = [
-  // Telecom fields
-  { id: 'cf_ram', entity_type: 'product', business_category_id: 'cat_telecom', name: 'RAM (GB)', code: 'ram', field_type: 'select', options: ['4GB', '6GB', '8GB', '12GB', '16GB'], is_required: false },
-  { id: 'cf_storage', entity_type: 'product', business_category_id: 'cat_telecom', name: 'Internal Storage', code: 'storage', field_type: 'select', options: ['64GB', '128GB', '256GB', '512GB', '1TB'], is_required: false },
-  { id: 'cf_color', entity_type: 'product', business_category_id: 'cat_telecom', name: 'Color Finish', code: 'color', field_type: 'text', is_required: false, placeholder: 'e.g. Midnight Black' },
-  { id: 'cf_network', entity_type: 'product', business_category_id: 'cat_telecom', name: 'Network Tech', code: 'network_type', field_type: 'select', options: ['5G / LTE', '4G LTE', 'Dual SIM 5G', 'WiFi Only'], is_required: false },
+  // 1. Stationery Category Custom Fields (বই-খাতা ও স্টেশনারি)
+  { id: 'cf_stat_paper_gsm', entity_type: 'product', business_category_id: 'cat_stationery', target_subcategories: ['কাগজ ও অফসেট রিম'], name: 'কাগজের জিএসএম (GSM)', code: 'paper_gsm', field_type: 'select', options: ['70 GSM', '75 GSM', '80 GSM', '100 GSM', '120 GSM', '150 GSM', '200+ GSM'], is_required: false },
+  { id: 'cf_stat_paper_size', entity_type: 'product', business_category_id: 'cat_stationery', target_subcategories: ['কাগজ ও অফসেট রিম'], name: 'কাগজের সাইজ (Paper Size)', code: 'paper_size', field_type: 'select', options: ['A4 (210 x 297 mm)', 'A3 (297 x 420 mm)', 'Legal (8.5 x 14 in)', 'Letter (8.5 x 11 in)', 'Foolscap (F4)'], is_required: false },
+  { id: 'cf_stat_sheets', entity_type: 'product', business_category_id: 'cat_stationery', target_subcategories: ['কাগজ ও অফসেট রিম'], name: 'শিট সংখ্যা (Sheets per Ream)', code: 'sheets_per_ream', field_type: 'select', options: ['500 Sheets (1 Ream)', '450 Sheets', '250 Sheets', '100 Sheets', '50 Sheets'], is_required: false },
+  { id: 'cf_stat_paper_finish', entity_type: 'product', business_category_id: 'cat_stationery', target_subcategories: ['কাগজ ও অফসেট রিম'], name: 'কাগজের টাইপ (Finish)', code: 'paper_finish', field_type: 'select', options: ['Offset White (অফসেট হোয়াইট)', 'Glossy Photo Paper (চকচকে ফটো)', 'Matte Photo Paper', 'Art Paper', 'Newsprint', 'Kraft / Brown Paper'], is_required: false },
+  
+  { id: 'cf_stat_nb_pages', entity_type: 'product', business_category_id: 'cat_stationery', target_subcategories: ['খাতা ও নোটবুক'], name: 'পৃষ্ঠা সংখ্যা (Pages)', code: 'pages', field_type: 'select', options: ['48 Pages', '64 Pages', '96 Pages', '120 Pages', '160 Pages', '200 Pages', '300 Pages'], is_required: false },
+  { id: 'cf_stat_nb_ruling', entity_type: 'product', business_category_id: 'cat_stationery', target_subcategories: ['খাতা ও নোটবুক'], name: 'রুলিং টাইপ (Ruling Type)', code: 'ruling_type', field_type: 'select', options: ['একটানা রুলটানা (Single Line)', 'বাংলা মার্জিন খাতা', 'ইংরেজি চারদাগি রুল', 'অংক / গ্রাফ ছককাটা (Grid)', 'সাদা / প্লেইন (Unruled)'], is_required: false },
+  { id: 'cf_stat_nb_cover', entity_type: 'product', business_category_id: 'cat_stationery', target_subcategories: ['খাতা ও নোটবুক'], name: 'কভার টাইপ (Cover)', code: 'cover_type', field_type: 'select', options: ['হার্ড কভার (Hardcover)', 'পেপারব্যাক (Softcover)', 'স্পাইরাল বাইন্ডিং (Spiral)', 'প্লাস্টিক লেমিনেটেড'], is_required: false },
 
-  // Grocery fields
-  { id: 'cf_brand', entity_type: 'product', business_category_id: 'cat_grocery', name: 'Brand Name', code: 'brand', field_type: 'text', is_required: false, placeholder: 'e.g. Nestlé, Organic Farms' },
-  { id: 'cf_unit_size', entity_type: 'product', business_category_id: 'cat_grocery', name: 'Pack / Unit Size', code: 'unit_size', field_type: 'text', is_required: false, placeholder: 'e.g. 500g, 1L, 12 Pack' },
-  { id: 'cf_temp_req', entity_type: 'product', business_category_id: 'cat_grocery', name: 'Storage Temp', code: 'temp_requirement', field_type: 'select', options: ['Ambient / Room', 'Chilled (0-4°C)', 'Frozen (-18°C)'], is_required: false },
+  { id: 'cf_stat_ink_color', entity_type: 'product', business_category_id: 'cat_stationery', target_subcategories: ['কলম, পেন্সিল ও মার্কার'], name: 'কালির রঙ (Ink Color)', code: 'ink_color', field_type: 'select', options: ['নীল (Blue)', 'কালো (Black)', 'লাল (Red)', 'সবুজ (Green)', 'মাল্টিকালার (Multicolor)'], is_required: false },
+  { id: 'cf_stat_nib_size', entity_type: 'product', business_category_id: 'cat_stationery', target_subcategories: ['কলম, পেন্সিল ও মার্কার'], name: 'নিব / পয়েন্ট সাইজ (Nib Size)', code: 'nib_size', field_type: 'select', options: ['0.5 mm (Fine)', '0.6 mm', '0.7 mm (Medium)', '1.0 mm (Bold)', 'Chisel Tip (মার্কার)'], is_required: false },
 
-  // Book fields
-  { id: 'cf_author', entity_type: 'product', business_category_id: 'cat_library', name: 'Primary Author', code: 'author', field_type: 'text', is_required: true, placeholder: 'e.g. Robert C. Martin' },
-  { id: 'cf_publisher', entity_type: 'product', business_category_id: 'cat_library', name: 'Publisher House', code: 'publisher', field_type: 'text', is_required: false, placeholder: 'e.g. O\'Reilly, Pearson' },
-  { id: 'cf_isbn', entity_type: 'product', business_category_id: 'cat_library', name: 'ISBN-13', code: 'isbn', field_type: 'text', is_required: true, placeholder: '978-0132350884' },
-  { id: 'cf_edition', entity_type: 'product', business_category_id: 'cat_library', name: 'Edition', code: 'edition', field_type: 'text', is_required: false, placeholder: '2nd Revised Edition' },
+  { id: 'cf_stat_book_author', entity_type: 'product', business_category_id: 'cat_stationery', target_subcategories: ['বই, গাইড ও টেস্ট পেপার'], name: 'লেখক / সম্পাদক (Author)', code: 'author', field_type: 'text', placeholder: 'যেমন: অধ্যাপক ড. মুহম্মদ জাফর ইকবাল', is_required: false },
+  { id: 'cf_stat_book_pub', entity_type: 'product', business_category_id: 'cat_stationery', target_subcategories: ['বই, গাইড ও টেস্ট পেপার'], name: 'প্রকাশনী (Publisher)', code: 'publisher', field_type: 'text', placeholder: 'যেমন: অনুপম, লেকচার, পাঞ্জেরী', is_required: false },
+  { id: 'cf_stat_art_shades', entity_type: 'product', business_category_id: 'cat_stationery', target_subcategories: ['আর্ট, ড্রয়িং ও কালার'], name: 'কালার শেড সংখ্যা (Shades)', code: 'color_shades', field_type: 'select', options: ['12 Shades', '18 Shades', '24 Shades', '36 Shades', '48 Shades'], is_required: false },
 
-  // Electronics fields
-  { id: 'cf_power_rating', entity_type: 'product', business_category_id: 'cat_electronics', name: 'Power Consumption', code: 'power_rating', field_type: 'text', is_required: false, placeholder: 'e.g. 65W, 220V' },
-  { id: 'cf_screen_size', entity_type: 'product', business_category_id: 'cat_electronics', name: 'Screen Size (in)', code: 'screen_size', field_type: 'text', is_required: false, placeholder: 'e.g. 15.6", 65"' }
+  // 2. Telecom Category Custom Fields (টেলিকম ও মোবাইল শপ)
+  { id: 'cf_tel_ram', entity_type: 'product', business_category_id: 'cat_telecom', target_subcategories: ['স্মার্টফোন ও ফিচারফোন'], name: 'RAM (GB)', code: 'ram', field_type: 'select', options: ['2GB', '3GB', '4GB', '6GB', '8GB', '12GB', '16GB'], is_required: false },
+  { id: 'cf_tel_storage', entity_type: 'product', business_category_id: 'cat_telecom', target_subcategories: ['স্মার্টফোন ও ফিচারফোন'], name: 'ইন্টারনাল স্টোরেজ (ROM)', code: 'storage', field_type: 'select', options: ['32GB', '64GB', '128GB', '256GB', '512GB', '1TB'], is_required: false },
+  { id: 'cf_tel_color', entity_type: 'product', business_category_id: 'cat_telecom', target_subcategories: ['স্মার্টফোন ও ফিচারফোন', 'গ্লাস ও ব্যাক কভার'], name: 'কালার / রঙ (Color)', code: 'color', field_type: 'text', placeholder: 'যেমন: Midnight Black, Titanium Blue', is_required: false },
+  { id: 'cf_tel_network', entity_type: 'product', business_category_id: 'cat_telecom', target_subcategories: ['স্মার্টফোন ও ফিচারফোন', 'সিম, রাউটার ও মেমোরি কার্ড'], name: 'নেটওয়ার্ক টাইপ (Network)', code: 'network_type', field_type: 'select', options: ['5G Dual SIM', '4G LTE VoLTE', '4G + 2G Dual SIM', 'WiFi Only'], is_required: false },
+  { id: 'cf_tel_wattage', entity_type: 'product', business_category_id: 'cat_telecom', target_subcategories: ['চার্জার ও ডেটা কেবল'], name: 'আউটপুট ওয়াট (Wattage)', code: 'wattage', field_type: 'select', options: ['18W Quick Charge', '20W PD Fast', '25W Fast Charge', '33W Super Charge', '45W PD Fast', '65W GaN Fast', '100W+ Flash Charge'], is_required: false },
+  { id: 'cf_tel_port', entity_type: 'product', business_category_id: 'cat_telecom', target_subcategories: ['চার্জার ও ডেটা কেবল'], name: 'পোর্ট টাইপ (Port Type)', code: 'port_type', field_type: 'select', options: ['Type-C to Type-C', 'Type-C to Lightning (Apple)', 'USB-A to Type-C', 'USB-A to Lightning', 'Micro-USB'], is_required: false },
+  { id: 'cf_tel_anc', entity_type: 'product', business_category_id: 'cat_telecom', target_subcategories: ['হেডফোন, বাডস ও স্পিকার'], name: 'নয়েজ ক্যান্সেলেশন (ANC)', code: 'anc_type', field_type: 'select', options: ['Active Noise Cancellation (ANC)', 'Environmental Noise (ENC)', 'Standard Audio'], is_required: false },
+  { id: 'cf_tel_mat', entity_type: 'product', business_category_id: 'cat_telecom', target_subcategories: ['গ্লাস ও ব্যাক কভার'], name: 'ম্যাটেরিয়াল (Material)', code: 'material', field_type: 'select', options: ['9D Tempered Glass', 'Privacy Matte Glass', 'Silicone TPU Case', 'Leather Finish Flip', 'Shockproof Hard Case'], is_required: false },
+
+  // 3. Grocery Category Custom Fields (মুদি ও সুপারশপ)
+  { id: 'cf_groc_variety', entity_type: 'product', business_category_id: 'cat_grocery', target_subcategories: ['চাল, ডাল ও আটা-ময়দা'], name: 'চালের জাত / ভ্যারাইটি', code: 'rice_variety', field_type: 'select', options: ['নাজিরশাইল প্রিমিয়াম', 'মিনিকেট অটো রাইস', 'বাসমতী চাল', 'চিনিগুড়া সুগন্ধি', 'কাটারিভোগ', 'বিআর-২৮ সিদ্ধ চাল'], is_required: false },
+  { id: 'cf_groc_oil_type', entity_type: 'product', business_category_id: 'cat_grocery', target_subcategories: ['তেল, ঘি ও মশলাপাতি'], name: 'তেলের প্রকার (Oil Type)', code: 'oil_type', field_type: 'select', options: ['ফর্টিফাইড সয়াবিন তেল', 'ঘানি ভাঙা খাঁটি সরিষার তেল', 'সানফ্লাওয়ার অয়েল', 'এক্সট্রা ভার্জিন অলিভ অয়েল', 'খাঁটি গাওয়া ঘি'], is_required: false },
+  { id: 'cf_groc_temp', entity_type: 'product', business_category_id: 'cat_grocery', target_subcategories: ['দুধ, ডিম ও ডেইরি', 'অন্যান্য মুদি পণ্য'], name: 'সংরক্ষণ তাপমাত্রা (Storage Temp)', code: 'temp_requirement', field_type: 'select', options: ['Ambient / Room (স্বাভাবিক)', 'Chilled (0-4°C চিলার)', 'Frozen (-18°C ডিপ ফ্রিজ)'], is_required: false },
+
+  // 4. Digital Services Category Custom Fields (ফটোকপি ও ডিজিটাল সেবা)
+  { id: 'cf_serv_size', entity_type: 'product', business_category_id: 'cat_services', target_subcategories: ['ফটোকপি ও জেরক্স', 'কালার ও ব্ল্যাক প্রিন্টিং', 'ছবি প্রিন্ট ও পাসপোর্ট সাইজ ছবি'], name: 'প্রিন্ট পেপার সাইজ (Size)', code: 'print_paper_size', field_type: 'select', options: ['A4 Standard', 'Legal Size', 'A3 Large', '4R Photo Size', 'Stamp Size'], is_required: false },
+  { id: 'cf_serv_sides', entity_type: 'product', business_category_id: 'cat_services', target_subcategories: ['ফটোকপি ও জেরক্স', 'কালার ও ব্ল্যাক প্রিন্টিং'], name: 'প্রিন্ট সাইড (Print Sides)', code: 'print_sides', field_type: 'select', options: ['এক পিঠ (Single Side)', 'উভয় পিঠ (Double Sided)'], is_required: false },
+  { id: 'cf_serv_app_type', entity_type: 'product', business_category_id: 'cat_services', target_subcategories: ['অনলাইন আবেদন ও সরকারি ফরম'], name: 'আবেদনের ধরন (Application Type)', code: 'application_type', field_type: 'select', options: ['সরকারি চাকরির আবেদন', 'পাসপোর্ট ও ভিসা ফরম', 'এনআইডি ও ভোটার তথ্য সংশোধন', 'অনলাইন জন্ম নিবন্ধন', 'জমি-জমা ই-পর্চা / খতিয়ান', 'বিশ্ববিদ্যালয় ভর্তি আবেদন'], is_required: false },
+
+  // 5. Library Category Custom Fields (লাইব্রেরি ও বইঘর)
+  { id: 'cf_lib_author', entity_type: 'product', business_category_id: 'cat_library', name: 'লেখক (Author)', code: 'author', field_type: 'text', is_required: false, placeholder: 'যেমন: কাজী নজরুল ইসলাম, রবীন্দ্রনাথ ঠাকুর' },
+  { id: 'cf_lib_publisher', entity_type: 'product', business_category_id: 'cat_library', name: 'প্রকাশনী (Publisher)', code: 'publisher', field_type: 'text', is_required: false, placeholder: 'যেমন: সময় প্রকাশনী, ঐতিহ্য' },
+  { id: 'cf_lib_isbn', entity_type: 'product', business_category_id: 'cat_library', name: 'ISBN-13 কোড', code: 'isbn', field_type: 'text', is_required: false, placeholder: '978-XXXXXXXXXX' },
+  { id: 'cf_lib_edition', entity_type: 'product', business_category_id: 'cat_library', name: 'সংস্করণ (Edition)', code: 'edition', field_type: 'text', is_required: false, placeholder: 'যেমন: ৪র্থ সংস্করণ ২০২৩' }
 ];
 
 // ==================================================

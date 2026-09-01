@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShoppingCart, 
   Search, 
@@ -23,7 +23,9 @@ import {
   Percent,
   Sliders,
   DollarSign,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Building2,
+  Tag
 } from 'lucide-react';
 import { 
   Tenant, 
@@ -33,7 +35,8 @@ import {
   CustomerMember, 
   SaleTransaction,
   DeviceItem,
-  ProductBatch
+  ProductBatch,
+  CustomPaymentMethod,
 } from '../../types';
 import { storageService } from '../../services/storageService';
 import { RuleEngine } from '../../engine/ruleEngine';
@@ -153,11 +156,58 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
   // Combined Master Products
   const products = [...physicalProducts, ...serviceProducts];
 
+  // Dynamic Payment Methods Configuration
+  const [paymentConfig, setPaymentConfig] = useState(() => {
+    try {
+      const stored =
+        localStorage.getItem(`dokan_v2_payment_settings_${activeTenant.id}`) ||
+        localStorage.getItem('dokan_v2_payment_settings');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error(e);
+    }
+    return {
+      enableCash: true,
+      enableBkash: true,
+      bkashNumber: "01700000000",
+      bkashType: "Merchant",
+      enableNagad: true,
+      nagadNumber: "01800000000",
+      nagadType: "Personal",
+      enableRocket: true,
+      rocketNumber: "01900000000",
+      enableCard: true,
+      cardTerminalName: "City Bank POS",
+      enableDueCredit: true,
+      customMethods: [] as CustomPaymentMethod[],
+    };
+  });
+
+  useEffect(() => {
+    const handlePaymentSettingsChanged = () => {
+      try {
+        const stored =
+          localStorage.getItem(`dokan_v2_payment_settings_${activeTenant.id}`) ||
+          localStorage.getItem('dokan_v2_payment_settings');
+        if (stored) setPaymentConfig(JSON.parse(stored));
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    window.addEventListener('dokan_v2_payment_settings_changed', handlePaymentSettingsChanged);
+    window.addEventListener('storage', handlePaymentSettingsChanged);
+    return () => {
+      window.removeEventListener('dokan_v2_payment_settings_changed', handlePaymentSettingsChanged);
+      window.removeEventListener('storage', handlePaymentSettingsChanged);
+    };
+  }, [activeTenant.id]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('ALL');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('cash_customer');
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BKASH' | 'NAGAD' | 'ROCKET' | 'CARD' | 'CREDIT_DUE'>('CASH');
+  const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
+  const [customTrxId, setCustomTrxId] = useState<string>('');
   
   // Commercial Billing Options: VAT %, Discount (৳), Adjustment (±৳)
   const [vatPercent, setVatPercent] = useState<number>(0);
@@ -210,15 +260,23 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
   
   const grandTotal = Math.max(0, subtotal + taxAmount - discountAmount + adjustmentAmount - tradeInCredit);
 
+  // Validate if received amount is entered explicitly
+  const isReceivedAmountEntered = paymentMethod === 'CREDIT_DUE' || (
+    receivedInput.trim() !== '' &&
+    !isNaN(Number(receivedInput)) &&
+    Number(receivedInput) >= 0
+  );
+
   // Determine effective paid amount, due, and change
   const effectivePaidAmount = paymentMethod === 'CREDIT_DUE'
     ? 0 
-    : receivedInput === '' 
-    ? grandTotal 
+    : receivedInput.trim() === '' 
+    ? 0 
     : Math.max(0, Number(receivedInput) || 0);
 
   const dueAmount = Math.max(0, grandTotal - effectivePaidAmount);
   const changeAmount = Math.max(0, effectivePaidAmount - grandTotal);
+  const isCheckoutDisabled = cart.length === 0 || !isReceivedAmountEntered;
 
   const handleAddToCart = (product: GenericProduct) => {
     if (product.tracking_mode === 'TRACKING_IMEI') {
@@ -345,6 +403,26 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
     const customerName = selectedCust ? selectedCust.name : 'সাধারণ কাস্টমার (ক্যাশ)';
     const customerPhone = selectedCust ? selectedCust.phone : '';
 
+    const selectedCustomMethod = (paymentConfig.customMethods || []).find(
+      (m: CustomPaymentMethod) => m.code === paymentMethod
+    );
+
+    const readableMethodName = selectedCustomMethod
+      ? selectedCustomMethod.name
+      : paymentMethod === 'CASH'
+      ? 'ক্যাশ'
+      : paymentMethod === 'BKASH'
+      ? `বিকাশ (${paymentConfig.bkashType || 'MFS'})`
+      : paymentMethod === 'NAGAD'
+      ? `নগদ (${paymentConfig.nagadType || 'MFS'})`
+      : paymentMethod === 'ROCKET'
+      ? 'রকেট'
+      : paymentMethod === 'CARD'
+      ? (paymentConfig.cardTerminalName || 'ব্যাংক কার্ড')
+      : paymentMethod === 'CREDIT_DUE'
+      ? 'বাকিতে (Due)'
+      : paymentMethod;
+
     const newSale: SaleTransaction = {
       id: `sale_${Date.now()}`,
       invoice_no: `INV-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
@@ -363,7 +441,7 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
       grand_total: grandTotal,
       paid_amount: effectivePaidAmount,
       due_amount: dueAmount,
-      payment_method: paymentMethod === 'CREDIT_DUE' ? 'CREDIT_DUE' : paymentMethod === 'CARD' ? 'CARD' : paymentMethod === 'CASH' ? 'CASH' : 'MOBILE_BANKING',
+      payment_method: readableMethodName,
       payment_status: dueAmount === 0 ? 'PAID' : effectivePaidAmount === 0 ? 'DUE' : 'PARTIAL',
       created_at: new Date().toISOString()
     };
@@ -384,6 +462,7 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
     storageService.saveSale(newSale);
     setCompletedSale(newSale);
     handleClearCart();
+    setCustomTrxId('');
   };
 
   const isPreviewA4 = previewPaperSize === 'A4';
@@ -690,27 +769,87 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
             </div>
 
             {/* Received Amount Input & Due / Change Indicator */}
-            <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5 mt-1">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-[#1a1b1e] flex items-center gap-1 text-xs">
-                  <DollarSign className="w-3.5 h-3.5 text-blue-600" />
-                  <span>রিসিভ অ্যামাউন্ট (জমা ৳):</span>
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={paymentMethod === 'CREDIT_DUE' ? '0' : receivedInput}
-                  disabled={paymentMethod === 'CREDIT_DUE'}
-                  onChange={e => setReceivedInput(e.target.value)}
-                  placeholder={grandTotal.toFixed(2)}
-                  className="w-28 px-2 py-1 bg-white border-2 border-blue-400 focus:border-blue-600 text-[#1a1b1e] font-mono font-bold text-right rounded text-xs shadow-2xs"
-                />
+            <div className={`p-2.5 rounded-xl border transition-all space-y-2 mt-1 ${
+              !isReceivedAmountEntered && cart.length > 0
+                ? 'bg-amber-50/70 border-amber-300 ring-2 ring-amber-400/30'
+                : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <DollarSign className={`w-4 h-4 ${!isReceivedAmountEntered && cart.length > 0 ? 'text-amber-600' : 'text-blue-600'}`} />
+                  <div>
+                    <span className="font-bold text-[#1a1b1e] text-xs block">
+                      রিসিভ অ্যামাউন্ট (জমা ৳) <span className="text-rose-600 font-bold">*</span>
+                    </span>
+                    {!isReceivedAmountEntered && cart.length > 0 && (
+                      <span className="text-[9px] text-amber-700 font-semibold block">
+                        এন্ট্রি করা বাধ্যতামূলক
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={paymentMethod === 'CREDIT_DUE' ? '0' : receivedInput}
+                    disabled={paymentMethod === 'CREDIT_DUE'}
+                    onChange={e => setReceivedInput(e.target.value)}
+                    placeholder="0.00"
+                    className={`w-32 px-2.5 py-1.5 bg-white border-2 font-mono font-bold text-right rounded-lg text-xs shadow-2xs focus:outline-none ${
+                      !isReceivedAmountEntered && cart.length > 0
+                        ? 'border-amber-400 focus:border-amber-600 text-amber-900 bg-amber-50/30'
+                        : 'border-blue-400 focus:border-blue-600 text-slate-900'
+                    }`}
+                  />
+                </div>
               </div>
+
+              {/* Quick Cash Presets Shortcuts */}
+              {paymentMethod !== 'CREDIT_DUE' && (
+                <div className="flex items-center gap-1 flex-wrap pt-0.5 border-t border-slate-200/70">
+                  <span className="text-[9.5px] text-slate-500 font-semibold mr-0.5">কুইক পে:</span>
+                  <button
+                    type="button"
+                    onClick={() => setReceivedInput(grandTotal.toString())}
+                    className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold shadow-2xs cursor-pointer transition-colors"
+                  >
+                    ঠিক ঠিক ৳{grandTotal.toFixed(0)}
+                  </button>
+                  {[50, 100, 500, 1000].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => {
+                        const cur = Number(receivedInput) || 0;
+                        setReceivedInput((cur + amt).toString());
+                      }}
+                      className="px-1.5 py-0.5 bg-white hover:bg-slate-200 text-slate-700 border border-slate-300 rounded text-[10px] font-mono font-semibold cursor-pointer transition-colors"
+                    >
+                      +{amt}
+                    </button>
+                  ))}
+                  {receivedInput !== '' && (
+                    <button
+                      type="button"
+                      onClick={() => setReceivedInput('')}
+                      className="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded text-[10px] font-semibold cursor-pointer transition-colors"
+                    >
+                      মুছুন
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Quick Due / Change Indicator Badges */}
               <div className="flex items-center justify-between text-[11px] font-bold pt-0.5">
-                {dueAmount > 0 ? (
+                {!isReceivedAmountEntered && cart.length > 0 ? (
+                  <span className="text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded border border-amber-300 w-full text-center text-[10.5px]">
+                    ⚠️ বিল সম্পন্ন করতে রিসিভ অ্যামাউন্ট লিখুন বা &apos;ঠিক ঠিক&apos; চাপুন
+                  </span>
+                ) : dueAmount > 0 ? (
                   <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 w-full flex justify-between">
                     <span>বকেয়া / বাকি (Due):</span>
                     <span className="font-mono">৳{dueAmount.toFixed(2)}</span>
@@ -730,51 +869,145 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
             </div>
           </div>
 
-          {/* Payment Method Radio / Pill Group */}
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 text-[11px] pt-1">
-            {[
-              { id: 'CASH', label: 'ক্যাশ', icon: Coins },
-              { id: 'BKASH', label: 'বিকাশ', icon: Wallet },
-              { id: 'NAGAD', label: 'নগদ', icon: Wallet },
-              { id: 'ROCKET', label: 'রকেট', icon: Wallet },
-              { id: 'CARD', label: 'কার্ড', icon: CreditCard },
-              { id: 'CREDIT_DUE', label: 'বাকিতে', icon: User },
-            ].map(m => {
-              const Icon = m.icon;
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => {
-                    setPaymentMethod(m.id as any);
-                    if (m.id === 'CREDIT_DUE') {
-                      setReceivedInput('0');
-                    } else if (receivedInput === '0') {
-                      setReceivedInput('');
-                    }
-                  }}
-                  className={`py-1.5 px-1 rounded-lg font-bold border transition-colors flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
-                    paymentMethod === m.id
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                      : 'bg-[#f8f9fa] text-[#495057] border-[#dee2e6] hover:bg-gray-200'
-                  }`}
-                >
-                  <Icon className="w-3 h-3" />
-                  <span>{m.label}</span>
-                </button>
-              );
-            })}
+          {/* Dynamic Payment Method Radio / Pill Group */}
+          <div className="space-y-1.5 pt-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10.5px] font-bold text-slate-700">
+                পেমেন্ট মেথড নির্বাচন:
+              </span>
+              <span className="text-[9.5px] text-slate-400 font-mono">
+                {paymentMethod}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-1 text-[11px]">
+              {[
+                { id: 'CASH', label: 'নগদ ক্যাশ', icon: Coins, enabled: paymentConfig.enableCash !== false, color: '#059669' },
+                { id: 'BKASH', label: `বিকাশ`, icon: Wallet, enabled: paymentConfig.enableBkash !== false, color: '#db2777' },
+                { id: 'NAGAD', label: `নগদ`, icon: Wallet, enabled: paymentConfig.enableNagad !== false, color: '#d97706' },
+                { id: 'ROCKET', label: 'রকেট', icon: Wallet, enabled: paymentConfig.enableRocket !== false, color: '#7c3aed' },
+                { id: 'CARD', label: paymentConfig.cardTerminalName || 'কার্ড', icon: CreditCard, enabled: paymentConfig.enableCard !== false, color: '#2563eb' },
+                { id: 'CREDIT_DUE', label: 'বাকিতে (Due)', icon: User, enabled: paymentConfig.enableDueCredit !== false, color: '#e11d48' },
+                ...((paymentConfig.customMethods || [])
+                  .filter((cm: CustomPaymentMethod) => cm.isActive)
+                  .map((cm: CustomPaymentMethod) => ({
+                    id: cm.code,
+                    label: cm.name,
+                    icon: cm.type === 'BANK' ? CreditCard : cm.type === 'MFS' ? Wallet : cm.type === 'CHEQUE' ? Receipt : CreditCard,
+                    enabled: true,
+                    color: cm.color || '#0284c7',
+                    isCustom: true,
+                    customData: cm,
+                  }))
+                ),
+              ]
+                .filter(m => m.enabled)
+                .map(m => {
+                  const Icon = m.icon;
+                  const isSelected = paymentMethod === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        setPaymentMethod(m.id);
+                        if (m.id === 'CREDIT_DUE') {
+                          setReceivedInput('0');
+                        } else if (receivedInput === '0') {
+                          setReceivedInput('');
+                        }
+                      }}
+                      className={`py-1.5 px-2.5 rounded-lg font-bold border transition-all flex items-center gap-1.5 cursor-pointer text-xs ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                          : 'bg-[#f8f9fa] text-[#495057] border-[#dee2e6] hover:bg-slate-200'
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{m.label}</span>
+                    </button>
+                  );
+                })}
+            </div>
+
+            {/* TrxID / Note Input for MFS & Custom Methods */}
+            {paymentMethod !== 'CASH' && paymentMethod !== 'CREDIT_DUE' && (
+              <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg space-y-1 mt-1 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-[10px] font-bold text-slate-700 flex items-center gap-1 shrink-0">
+                    <Tag className="w-3 h-3 text-indigo-600" />
+                    <span>TrxID / রেফারেন্স নং (ঐচ্ছিক/প্রয়োজনে):</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={customTrxId}
+                    onChange={(e) => setCustomTrxId(e.target.value)}
+                    placeholder="যেমন: 8X74920482"
+                    className="w-full px-2 py-1 bg-white border border-slate-300 rounded font-mono text-xs text-slate-900 focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+
+                {/* Account Details Hint */}
+                {(() => {
+                  const activeCustom = (paymentConfig.customMethods || []).find(
+                    (cm: CustomPaymentMethod) => cm.code === paymentMethod
+                  );
+                  if (activeCustom) {
+                    return (
+                      <div className="text-[9.5px] text-slate-500 flex items-center gap-2 pt-0.5 font-medium">
+                        {activeCustom.accountNumber && <span>📞 <b>{activeCustom.accountNumber}</b></span>}
+                        {activeCustom.bankName && <span>🏦 {activeCustom.bankName}</span>}
+                        {activeCustom.chargePercent ? <span>ফি: <b>{activeCustom.chargePercent}%</b></span> : null}
+                        {activeCustom.instructions && <span>• {activeCustom.instructions}</span>}
+                      </div>
+                    );
+                  }
+                  if (paymentMethod === 'BKASH' && paymentConfig.bkashNumber) {
+                    return (
+                      <div className="text-[9.5px] text-pink-700 font-medium pt-0.5">
+                        📱 বিকাশ ({paymentConfig.bkashType}): <b>{paymentConfig.bkashNumber}</b>
+                      </div>
+                    );
+                  }
+                  if (paymentMethod === 'NAGAD' && paymentConfig.nagadNumber) {
+                    return (
+                      <div className="text-[9.5px] text-amber-700 font-medium pt-0.5">
+                        📱 নগদ ({paymentConfig.nagadType}): <b>{paymentConfig.nagadNumber}</b>
+                      </div>
+                    );
+                  }
+                  if (paymentMethod === 'ROCKET' && paymentConfig.rocketNumber) {
+                    return (
+                      <div className="text-[9.5px] text-purple-700 font-medium pt-0.5">
+                        📱 রকেট: <b>{paymentConfig.rocketNumber}</b>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+            )}
           </div>
 
-          {/* Big Complete Sale Button */}
+          {/* Big Complete Sale Button - Locked until Received Amount is entered */}
           <button
             type="button"
-            disabled={cart.length === 0}
+            disabled={isCheckoutDisabled}
             onClick={handleProcessCheckout}
-            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-extrabold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
+            className={`w-full py-2.5 font-extrabold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all ${
+              isCheckoutDisabled
+                ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-80'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md cursor-pointer active:scale-[0.99]'
+            }`}
           >
             <Printer className="w-4 h-4" />
-            <span>বিল সম্পন্ন ও রসিদ প্রিন্ট (৳{grandTotal.toFixed(2)})</span>
+            <span>
+              {cart.length === 0
+                ? 'কার্ট খালি! পণ্য নির্বাচন করুন'
+                : !isReceivedAmountEntered
+                ? '⚠️ রিসিভ অ্যামাউন্ট এন্ট্রি দিন (বাটন লক)'
+                : `বিল সম্পন্ন ও রসিদ প্রিন্ট (৳${grandTotal.toFixed(2)})`}
+            </span>
           </button>
         </div>
       </div>
@@ -904,26 +1137,51 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
               }`}>
                 
                 {/* Watermark Stamp */}
-                <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-[20deg] font-black tracking-widest uppercase border-4 rounded-lg pointer-events-none select-none z-10 opacity-15 whitespace-nowrap ${
-                  completedSale.payment_status === 'DUE'
-                    ? 'text-rose-600 border-rose-600 text-3xl px-6 py-2'
-                    : 'text-emerald-600 border-emerald-600 text-3xl px-6 py-2'
-                }`}>
-                  {completedSale.payment_status === 'DUE' ? 'DUE' : 'PAID'}
-                </div>
+                {((() => {
+                  try {
+                    const tCfg = JSON.parse(localStorage.getItem(`dokan_v2_template_config_${activeTenant.id}`) || localStorage.getItem('dokan_v2_template_config') || '{}');
+                    return tCfg.showWatermark !== false;
+                  } catch { return true; }
+                })()) && (
+                  <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-[20deg] font-black tracking-widest uppercase border-4 rounded-lg pointer-events-none select-none z-10 opacity-15 whitespace-nowrap ${
+                    completedSale.payment_status === 'DUE'
+                      ? 'text-rose-600 border-rose-600 text-3xl px-6 py-2'
+                      : 'text-emerald-600 border-emerald-600 text-3xl px-6 py-2'
+                  }`}>
+                    {completedSale.payment_status === 'DUE' ? 'DUE' : 'PAID'}
+                  </div>
+                )}
+
+                {/* Slogan / Header Note from Template */}
+                {(() => {
+                  try {
+                    const tCfg = JSON.parse(localStorage.getItem(`dokan_v2_template_config_${activeTenant.id}`) || localStorage.getItem('dokan_v2_template_config') || '{}');
+                    if (tCfg.headerNote) {
+                      return <div className="text-center font-bold text-xs text-blue-600 mb-1">{tCfg.headerNote}</div>;
+                    }
+                  } catch {}
+                  return null;
+                })()}
 
                 {/* Header with Shop Info & Meta */}
                 <div className={`flex justify-between items-center gap-3 mb-2 ${isPreviewThermal ? 'flex-col text-center' : ''}`}>
                   <div className={`flex items-center gap-2.5 ${isPreviewThermal ? 'flex-col text-center' : ''}`}>
                     <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black flex items-center justify-center text-lg shrink-0">
-                      D
+                      {activeTenant.name ? activeTenant.name.charAt(0).toUpperCase() : 'S'}
                     </div>
                     <div>
                       <h2 className="font-extrabold text-slate-900 text-base leading-tight">
                         {activeTenant.name || 'দোকান ম্যানেজার ERP'}
                       </h2>
-                      <p className="text-[11px] text-slate-600">ঢাকা, বাংলাদেশ</p>
-                      <p className="text-[11px] text-blue-600 font-bold">হটলাইন: 01700-000000</p>
+                      <p className="text-[11px] text-slate-600 font-medium">📍 {activeTenant.address || 'ঢাকা, বাংলাদেশ'}</p>
+                      <p className="text-[11px] text-blue-600 font-bold">📞 হটলাইন: {activeTenant.phone || '01700-000000'}</p>
+                      {(activeTenant.bin_number || activeTenant.tin_number || activeTenant.vat_number) && (
+                        <div className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                          {(activeTenant.bin_number || activeTenant.vat_number) && <span>BIN/VAT: <strong>{activeTenant.bin_number || activeTenant.vat_number}</strong></span>}
+                          {(activeTenant.bin_number || activeTenant.vat_number) && activeTenant.tin_number && <span> • </span>}
+                          {activeTenant.tin_number && <span>TIN: <strong>{activeTenant.tin_number}</strong></span>}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1051,6 +1309,21 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
                   </div>
                 )}
 
+                {/* Terms & Conditions from Template */}
+                {(() => {
+                  try {
+                    const tCfg = JSON.parse(localStorage.getItem(`dokan_v2_template_config_${activeTenant.id}`) || localStorage.getItem('dokan_v2_template_config') || '{}');
+                    if (tCfg.termsConditions) {
+                      return (
+                        <div className="p-1.5 bg-slate-50 border border-dashed border-slate-300 rounded text-[9.5px] text-slate-600 my-2 whitespace-pre-line">
+                          <strong>শর্তাবলী:</strong><br />{tCfg.termsConditions}
+                        </div>
+                      );
+                    }
+                  } catch {}
+                  return null;
+                })()}
+
                 {/* Dual Signatures for A4 / A5 with Ample Signing Room */}
                 {(isPreviewA4 || isPreviewA5) && (
                   <div className="flex justify-between pt-14 pb-2 text-[11px] text-slate-600 font-semibold">
@@ -1065,7 +1338,14 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
 
                 {/* Footer Message with System Admin Branding */}
                 <div className="text-center pt-2 text-[10px] text-slate-500">
-                  <p className="font-bold text-slate-700">*** ধন্যবাদ আবার আসবেন ***</p>
+                  <p className="font-bold text-slate-700">
+                    {(() => {
+                      try {
+                        const tCfg = JSON.parse(localStorage.getItem(`dokan_v2_template_config_${activeTenant.id}`) || localStorage.getItem('dokan_v2_template_config') || '{}');
+                        return tCfg.footerNote || '*** ধন্যবাদ আবার আসবেন ***';
+                      } catch { return '*** ধন্যবাদ আবার আসবেন ***'; }
+                    })()}
+                  </p>
                   <p className="font-mono text-slate-500 text-[9.5px] tracking-wide mt-0.5">
                     {activeTenant.system_branding || 'SmartERP Enterprise Platform V2.0'}
                   </p>
@@ -1086,11 +1366,35 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
               <button
                 type="button"
                 onClick={() => {
+                  let templateSettings: any = {};
+                  try {
+                    templateSettings = JSON.parse(
+                      localStorage.getItem(`dokan_v2_template_config_${activeTenant.id}`) ||
+                      localStorage.getItem('dokan_v2_template_config') ||
+                      '{}'
+                    );
+                  } catch (e) {
+                    console.error(e);
+                  }
+
                   printPosReceipt({
                     shopName: activeTenant.name || 'SmartERP Enterprise',
-                    shopAddress: 'ঢাকা, বাংলাদেশ',
-                    shopPhone: '01700-000000',
-                    vatRegNo: 'BIN-123456789',
+                    shopAddress: activeTenant.address || 'ঢাকা, বাংলাদেশ',
+                    shopPhone: activeTenant.phone || '01700-000000',
+                    shopEmail: activeTenant.email || '',
+                    tinNo: activeTenant.tin_number || '',
+                    binNo: activeTenant.bin_number || activeTenant.vat_number || 'BIN-123456789',
+                    vatRegNo: activeTenant.bin_number || activeTenant.vat_number || 'BIN-123456789',
+                    headerNote: templateSettings.headerNote || 'বিসমিল্লাহির রাহমানির রাহিম',
+                    footerNote: templateSettings.footerNote || 'বিক্রিত পণ্য ৭ দিনের মধ্যে ক্যাশ মেমো সহ পরিবর্তনযোগ্য। ধন্যবাদ, আবার আসবেন!',
+                    termsNote: templateSettings.termsConditions || '',
+                    templateStyle: templateSettings.templateStyle || 'modern',
+                    primaryColor: templateSettings.primaryColor || '#0284c7',
+                    showLogo: templateSettings.showLogo ?? true,
+                    showQr: templateSettings.showQrCode ?? true,
+                    showWatermark: templateSettings.showWatermark ?? true,
+                    showSignatures: templateSettings.showSignatures ?? true,
+                    showTinBin: templateSettings.showTinBin ?? true,
                     invoiceNo: completedSale.invoice_no,
                     date: completedSale.created_at,
                     customerName: completedSale.customer_name,

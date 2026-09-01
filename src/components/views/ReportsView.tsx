@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -21,10 +21,17 @@ import {
   CreditCard,
   Layers,
   ShoppingBag,
-  Users
+  Users,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ExternalLink
 } from 'lucide-react';
 import { Tenant, UserRole, SaleTransaction, AccountingEntry, GenericProduct, RechargeRecord, CustomerMember } from '../../types';
 import { storageService } from '../../services/storageService';
+import { i18n } from '../../services/i18nService';
 import { Modal } from '../common/Modal';
 import { printReportDocument } from '../../shared/utils/printReceipt';
 
@@ -41,6 +48,22 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
   const [customFromDate, setCustomFromDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [customToDate, setCustomToDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [lang, setLang] = useState<'bn' | 'en'>(() => i18n.getLanguage());
+
+  useEffect(() => {
+    const handleLang = () => setLang(i18n.getLanguage());
+    window.addEventListener('dokan_lang_changed', handleLang);
+    return () => window.removeEventListener('dokan_lang_changed', handleLang);
+  }, []);
+
+  const isEn = lang === 'en';
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+
+  // Dynamic currency symbol configured from settings
+  const currencySymbol = activeTenant?.currency_symbol || activeTenant?.currency || '৳';
 
   // Reload state
   const [sales, setSales] = useState<SaleTransaction[]>(() => storageService.getSales(activeTenant.id));
@@ -48,6 +71,19 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
   const [products, setProducts] = useState<GenericProduct[]>(() => storageService.getProducts(activeTenant.id));
   const [recharges, setRecharges] = useState<RechargeRecord[]>(() => storageService.getRecharges(activeTenant.id));
   const [customers, setCustomers] = useState<CustomerMember[]>(() => storageService.getCustomers(activeTenant.id));
+
+  // Modal State for Quick Expense Addition
+  const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
+  const [newExpenseTitle, setNewExpenseTitle] = useState('');
+  const [newExpenseCategory, setNewExpenseCategory] = useState('দোকান ভাড়া');
+  const [newExpenseAmount, setNewExpenseAmount] = useState<number>(0);
+  const [newExpensePaymentMethod, setNewExpensePaymentMethod] = useState('ক্যাশ ড্রয়ার / নগদ');
+  const [newExpenseDate, setNewExpenseDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+
+  // Reset pagination on filter or tab change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, dateFilter, searchQuery, pageSize, customFromDate, customToDate]);
 
   const reloadData = () => {
     setSales(storageService.getSales(activeTenant.id));
@@ -57,147 +93,181 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
     setCustomers(storageService.getCustomers(activeTenant.id));
   };
 
-  // Add Expense State
-  const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
-  const [newExpenseCategory, setNewExpenseCategory] = useState('দোকান ভাড়া');
-  const [newExpenseAmount, setNewExpenseAmount] = useState<number>(0);
-  const [newExpenseNote, setNewExpenseNote] = useState('');
-  const [newExpensePaymentMethod, setNewExpensePaymentMethod] = useState('ক্যাশ ড্রয়ার / নগদ');
-  const [newExpenseDate, setNewExpenseDate] = useState(() => new Date().toISOString().split('T')[0]);
-
-  // Date Range Checker
-  const isDateInRange = (dateStr?: string) => {
-    if (!dateStr) return true;
-    if (dateFilter === 'all') return true;
-
+  // Helper: Date filter matching
+  const isDateInRange = (dateStr: string): boolean => {
+    const d = new Date(dateStr);
     const now = new Date();
-    const itemDate = new Date(dateStr);
-    const todayStr = now.toISOString().split('T')[0];
 
     if (dateFilter === 'today') {
-      return dateStr.startsWith(todayStr);
-    } else if (dateFilter === 'yesterday') {
-      const yesterday = new Date(now);
-      yesterday.setDate(now.getDate() - 1);
-      return dateStr.startsWith(yesterday.toISOString().split('T')[0]);
-    } else if (dateFilter === 'week') {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(now.getDate() - 7);
-      return itemDate >= sevenDaysAgo && itemDate <= now;
-    } else if (dateFilter === 'month') {
-      const currentYearMonth = now.toISOString().slice(0, 7);
-      return dateStr.startsWith(currentYearMonth);
-    } else if (dateFilter === 'last_month') {
-      const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const lastMonthStr = lastMonthDate.toISOString().slice(0, 7);
-      return dateStr.startsWith(lastMonthStr);
-    } else if (dateFilter === 'custom') {
-      const itemDay = dateStr.split('T')[0];
-      if (customFromDate && itemDay < customFromDate) return false;
-      if (customToDate && itemDay > customToDate) return false;
-      return true;
+      return d.toDateString() === now.toDateString();
     }
-    return true;
+    if (dateFilter === 'yesterday') {
+      const yest = new Date();
+      yest.setDate(now.getDate() - 1);
+      return d.toDateString() === yest.toDateString();
+    }
+    if (dateFilter === 'week') {
+      const weekAgo = new Date();
+      weekAgo.setDate(now.getDate() - 7);
+      return d >= weekAgo && d <= now;
+    }
+    if (dateFilter === 'month') {
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }
+    if (dateFilter === 'last_month') {
+      const lastMonth = new Date();
+      lastMonth.setMonth(now.getMonth() - 1);
+      return d.getMonth() === lastMonth.getMonth() && d.getFullYear() === lastMonth.getFullYear();
+    }
+    if (dateFilter === 'custom') {
+      const from = new Date(customFromDate + 'T00:00:00');
+      const to = new Date(customToDate + 'T23:59:59');
+      return d >= from && d <= to;
+    }
+    return true; // 'all'
   };
 
-  // Filtered Datasets
+  // 1. Filter Sales
   const filteredSales = sales.filter(s => isDateInRange(s.created_at));
-  const filteredRecharges = recharges.filter(r => isDateInRange(r.created_at));
-  
-  // Expenses from Accounting Entries
-  const filteredExpenses = accountingEntries.filter(
-    a => a.reference_type === 'EXPENSE' && isDateInRange(a.created_at)
+
+  // 2. Filter Operating Expenses (from accountingEntries where reference_type === 'EXPENSE')
+  const filteredExpenses = accountingEntries.filter(e => 
+    e.reference_type === 'EXPENSE' && isDateInRange(e.created_at)
   );
 
-  // Financial Calculations
-  const grossSalesAmount = filteredSales.reduce((sum, s) => sum + (s.subtotal || s.grand_total), 0);
+  // 3. Filter Recharge & Service Commissions
+  const filteredRecharges = recharges.filter(r => isDateInRange(r.created_at));
+
+  // ==========================================
+  // FINANCIAL CALCULATIONS (GAAP STANDARD P&L)
+  // ==========================================
+
+  // 1. Gross Sales & Discounts
+  const grossSalesAmount = filteredSales.reduce((sum, s) => sum + s.subtotal, 0);
   const totalDiscounts = filteredSales.reduce((sum, s) => sum + (s.discount_amount || 0), 0);
   const netSalesRevenue = filteredSales.reduce((sum, s) => sum + s.grand_total, 0);
 
-  // Cost of Goods Sold (COGS)
-  const totalCOGS = filteredSales.reduce((sum, s) => {
-    return sum + (s.items || []).reduce((itemSum, item) => {
-      const buyPrice = item.product?.purchase_price ?? ((item.unit_price || 0) * 0.75);
-      return itemSum + (buyPrice * item.quantity);
+  // 2. Cost of Goods Sold (COGS)
+  const totalCOGS = filteredSales.reduce((cogsSum, sale) => {
+    const saleItemsCost = sale.items.reduce((itemSum, item) => {
+      const matchedProduct = products.find(p => p.id === item.product.id);
+      const unitPurchasePrice = matchedProduct?.purchase_price ?? (item.unit_price * 0.7);
+      return itemSum + (unitPurchasePrice * item.quantity);
     }, 0);
+    return cogsSum + saleItemsCost;
   }, 0);
 
+  // 3. Gross Profit Margin
   const grossProfitMargin = netSalesRevenue - totalCOGS;
   const grossProfitPercent = netSalesRevenue > 0 ? (grossProfitMargin / netSalesRevenue) * 100 : 0;
 
-  // Other Incomes (MFS Commissions + Digital Services)
+  // 4. Other Incomes (MFS / Digital Services Commission)
   const totalRechargeCommissions = filteredRecharges.reduce((sum, r) => sum + (r.commission_earned || 0), 0);
 
-  // Operating Expenses
+  // 5. Total Operating Expenses (Shop Rent, Utility, Salaries, Tea/Snacks etc.)
   const totalOperatingExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
 
-  // Final Net Profit / Loss
-  const netProfitOrLoss = (grossProfitMargin + totalRechargeCommissions) - totalOperatingExpenses;
+  // 6. Net Profit or Loss
+  const netProfitOrLoss = grossProfitMargin + totalRechargeCommissions - totalOperatingExpenses;
   const netProfitMarginPercent = netSalesRevenue > 0 ? (netProfitOrLoss / netSalesRevenue) * 100 : 0;
 
-  // Total Customer Due
-  const totalCustomerDues = customers.reduce((sum, c) => sum + (c.current_due || 0), 0);
-
-  // Total Inventory Valuation (Asset)
+  // 7. Balance Sheet Assets (Inventory Valuation & Receivables)
   const totalStockPurchaseValue = products.reduce((sum, p) => sum + ((p.purchase_price || 0) * (p.stock_quantity || 0)), 0);
   const totalStockRetailValue = products.reduce((sum, p) => sum + ((p.selling_price || 0) * (p.stock_quantity || 0)), 0);
+  const totalCustomerDues = customers.reduce((sum, c) => sum + (c.current_due || 0), 0);
 
-  // Dynamic Bengali Month Names
-  const banglaMonths = [
-    'জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন',
-    'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'
-  ];
-  const currentDate = new Date();
-  const currentMonthName = banglaMonths[currentDate.getMonth()];
-  const currentYear = currentDate.getFullYear();
+  // Label text for date ranges
+  const monthNames = ["জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন", "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর"];
+  const currentMonthName = monthNames[new Date().getMonth()];
+  const prevMonthName = monthNames[(new Date().getMonth() + 11) % 12];
 
-  const prevMonthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
-  const prevMonthName = banglaMonths[prevMonthDate.getMonth()];
-  const prevMonthYear = prevMonthDate.getFullYear();
-
-  // Date Filter Labels
   const filterLabels: Record<DateFilterRange, string> = {
-    today: 'আজকের হিসাব (Today)',
-    yesterday: 'গতকালের হিসাব (Yesterday)',
-    week: 'চলতি সপ্তাহ (This Week)',
-    month: `${currentMonthName} ${currentYear} (চলতি মাস)`,
-    last_month: `${prevMonthName} ${prevMonthYear} (পূর্বের মাস)`,
-    all: 'সার্বিক হিসাব (All Time)',
-    custom: 'কাস্টম সময়সীমা'
+    today: 'আজকের হিসাব',
+    yesterday: 'গতকালের হিসাব',
+    week: 'বিগত ৭ দিনের হিসাব',
+    month: `চলতি মাস (${currentMonthName})`,
+    last_month: `পূর্ববর্তী মাস (${prevMonthName})`,
+    all: 'সার্বিক সর্বকালের হিসাব',
+    custom: `কাস্টম সময়কাল (${customFromDate} হতে ${customToDate})`
   };
 
   // Add Expense Handler
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newExpenseAmount <= 0) {
-      alert('টাকার পরিমাণ ০ এর বেশি হতে হবে!');
-      return;
-    }
+    if (!newExpenseAmount || newExpenseAmount <= 0) return;
 
-    const entry: AccountingEntry = {
+    const newEntry: AccountingEntry = {
       id: `exp_${Date.now()}`,
       tenant_id: activeTenant.id,
       reference_type: 'EXPENSE',
-      reference_id: `EXP-${Date.now().toString().slice(-4)}`,
-      title: `${newExpenseCategory} ${newExpenseNote ? `(${newExpenseNote})` : ''}`.trim(),
-      debit_account: newExpenseCategory,
+      reference_id: `VCH-${Date.now().toString().slice(-5)}`,
+      title: newExpenseTitle.trim() || newExpenseCategory,
+      debit_account: `Expenses:${newExpenseCategory}`,
       credit_account: newExpensePaymentMethod,
       amount: newExpenseAmount,
-      created_at: newExpenseDate ? new Date(newExpenseDate).toISOString() : new Date().toISOString()
+      created_at: new Date(newExpenseDate).toISOString(),
     };
 
-    storageService.saveAccountingEntry(entry);
-    reloadData();
+    storageService.saveAccountingEntry(newEntry);
     setIsAddExpenseOpen(false);
     setNewExpenseAmount(0);
-    setNewExpenseNote('');
+    setNewExpenseTitle('');
+    reloadData();
   };
 
   const handleDeleteExpense = (id: string) => {
-    if (window.confirm('আপনি কি এই খরচের এন্ট্রিটি মুছে ফেলতে চান?')) {
+    if (confirm('আপনি কি এই খরচের এন্ট্রিটি মুছে ফেলতে চান?')) {
       storageService.deleteAccountingEntry(id);
       reloadData();
     }
+  };
+
+  // ==========================================
+  // EXPORT TO CSV / EXCEL HANDLERS
+  // ==========================================
+  const triggerCSVDownload = (csvContent: string, filename: string) => {
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportExpensesCSV = (items: AccountingEntry[]) => {
+    let csv = 'SL,Voucher No,Expense Title,Debit Account,Payment Account,Amount,Date & Time\n';
+    items.forEach((exp, idx) => {
+      csv += `${idx + 1},"${exp.reference_id}","${exp.title.replace(/"/g, '""')}","${exp.debit_account}","${exp.credit_account}",${exp.amount.toFixed(2)},"${new Date(exp.created_at).toLocaleString('en-GB')}"\n`;
+    });
+    triggerCSVDownload(csv, `SmartERP_Expenses_${dateFilter}_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
+  const handleExportSalesCSV = (items: SaleTransaction[]) => {
+    let csv = 'SL,Invoice No,Customer Name,Customer Phone,Items Count,Payment Method,Discount,Grand Total,Paid Amount,Due Amount,Date & Time\n';
+    items.forEach((s, idx) => {
+      csv += `${idx + 1},"${s.invoice_no}","${(s.customer_name || 'General Customer').replace(/"/g, '""')}","${s.customer_phone || ''}",${s.items?.length || 0},"${s.payment_method}",${(s.discount_amount || 0).toFixed(2)},${s.grand_total.toFixed(2)},${s.paid_amount.toFixed(2)},${(s.due_amount || 0).toFixed(2)},"${new Date(s.created_at).toLocaleString('en-GB')}"\n`;
+    });
+    triggerCSVDownload(csv, `SmartERP_Sales_Register_${dateFilter}_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
+  const handleExportInventoryCSV = (items: GenericProduct[]) => {
+    let csv = 'SL,Product Code,Product Name,Category,Current Stock,Unit,Purchase Price,Selling Price,Total Cost Value,Total Selling Value\n';
+    items.forEach((p, idx) => {
+      const costVal = (p.purchase_price || 0) * (p.stock_quantity || 0);
+      const sellVal = (p.selling_price || 0) * (p.stock_quantity || 0);
+      csv += `${idx + 1},"${p.code}","${p.name.replace(/"/g, '""')}","${p.category_name || 'General'}",${p.stock_quantity},"${p.unit || 'Pcs'}",${(p.purchase_price || 0).toFixed(2)},${(p.selling_price || 0).toFixed(2)},${costVal.toFixed(2)},${sellVal.toFixed(2)}\n`;
+    });
+    triggerCSVDownload(csv, `SmartERP_Stock_Valuation_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
+  const handleExportDuesCSV = (items: CustomerMember[]) => {
+    let csv = 'SL,Customer Name,Phone,Address,Total Spent,Current Due\n';
+    items.forEach((c, idx) => {
+      csv += `${idx + 1},"${c.name.replace(/"/g, '""')}","${c.phone}","${(c.address || '').replace(/"/g, '""')}",${(c.total_spent || 0).toFixed(2)},${(c.current_due || 0).toFixed(2)}\n`;
+    });
+    triggerCSVDownload(csv, `SmartERP_Customer_Dues_${new Date().toISOString().split('T')[0]}.csv`);
   };
 
   // Print P&L Statement (Portrait GAAP layout)
@@ -206,30 +276,30 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
       shopName: activeTenant.name,
       shopAddress: activeTenant.address || 'বাংলাদেশ',
       shopPhone: activeTenant.phone || '',
-      vatRegNo: activeTenant.vat_number || 'BIN-9081293849',
+      vatRegNo: activeTenant.bin_number || activeTenant.vat_number || 'BIN-9081293849',
       reportTitle: `আর্থিক লাভ-ক্ষতি ও পরিচালন বিবরণী (P&L Financial Statement)`,
       periodText: filterLabels[dateFilter],
       orientation: 'portrait',
       kpis: [
-        { label: 'মোট বিক্রয় রাজস্ব', value: `৳ ${netSalesRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#0f172a', subtext: `${filteredSales.length} টি সফল ইনভয়েস` },
-        { label: 'পণ্যের ক্রয়মূল্য (COGS)', value: `৳ ${totalCOGS.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#d97706', subtext: 'বিক্রিত পণ্যের ক্রয় ব্যয়' },
-        { label: 'মোট গ্রস লাভ', value: `৳ ${grossProfitMargin.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#059669', subtext: `মার্জিন: ${grossProfitPercent.toFixed(1)}%` },
-        { label: 'দোকানের মোট খরচ', value: `৳ ${totalOperatingExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#dc2626', subtext: `${filteredExpenses.length} টি ভাউচার` },
-        { label: 'চূড়ান্ত নিট লাভ', value: `৳ ${netProfitOrLoss.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: netProfitOrLoss >= 0 ? '#059669' : '#dc2626', subtext: `নিট রেট: ${netProfitMarginPercent.toFixed(1)}%` },
+        { label: 'মোট বিক্রয় রাজস্ব', value: `${currencySymbol} ${netSalesRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#0f172a', subtext: `${filteredSales.length} টি সফল ইনভয়েস` },
+        { label: 'পণ্যের ক্রয়মূল্য (COGS)', value: `${currencySymbol} ${totalCOGS.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#d97706', subtext: 'বিক্রিত পণ্যের ক্রয় ব্যয়' },
+        { label: 'মোট গ্রস লাভ', value: `${currencySymbol} ${grossProfitMargin.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#059669', subtext: `মার্জিন: ${grossProfitPercent.toFixed(1)}%` },
+        { label: 'দোকানের মোট খরচ', value: `${currencySymbol} ${totalOperatingExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#dc2626', subtext: `${filteredExpenses.length} টি ভাউচার` },
+        { label: 'চূড়ান্ত নিট লাভ', value: `${currencySymbol} ${netProfitOrLoss.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: netProfitOrLoss >= 0 ? '#059669' : '#dc2626', subtext: `নিট রেট: ${netProfitMarginPercent.toFixed(1)}%` },
       ],
-      columns: ['আর্থিক বিবরণী বিবরণ (Financial Head)', 'হিসাব প্রকার', 'পরিমাণ (৳ / BDT)'],
+      columns: ['আর্থিক বিবরণী বিবরণ (Financial Head)', 'হিসাব প্রকার', `পরিমাণ (${currencySymbol})`],
       columnAlignments: ['left', 'center', 'right'],
       rows: [
-        ['১. মোট বিক্রয় (Gross Sales Revenue)', 'রাজস্ব / বিক্রয় আয়', `৳ ${grossSalesAmount.toFixed(2)}`],
-        ['২. বাদ: ডিসকাউন্ট ও ছাড় (Less: Discounts)', 'কর্তন / ছাড়', `- ৳ ${totalDiscounts.toFixed(2)}`],
-        ['৩. নিট বিক্রয় রাজস্ব (Net Sales Revenue)', 'নিট রাজস্ব', `৳ ${netSalesRevenue.toFixed(2)}`],
-        ['৪. বাদ: বিক্রিত পণ্যের ক্রয়মূল্য (Less: COGS)', 'পণ্য ক্রয় ব্যয়', `- ৳ ${totalCOGS.toFixed(2)}`],
-        ['৫. মোট গ্রস লাভ মার্জিন (Gross Profit Margin)', 'গ্রস লাভ', `৳ ${grossProfitMargin.toFixed(2)} (${grossProfitPercent.toFixed(1)}%)`],
-        ['৬. যোগ: MFS, রিচার্জ ও সেবা কমিশন (Add: Other Income)', 'কমিশন আয়', `+ ৳ ${totalRechargeCommissions.toFixed(2)}`],
-        ['৭. বাদ: দোকানের মোট পরিচালন ব্যয় (Less: Operating Expenses)', 'দোকানের খরচ', `- ৳ ${totalOperatingExpenses.toFixed(2)}`],
-        ['৮. চূড়ান্ত নিট পরিচালন লাভ / ক্ষতি (Net Operating Profit/Loss)', netProfitOrLoss >= 0 ? '✓ নিট লাভ' : '✕ নিট ক্ষতি', `৳ ${netProfitOrLoss.toFixed(2)}`],
+        ['১. মোট বিক্রয় (Gross Sales Revenue)', 'রাজস্ব / বিক্রয় আয়', `${currencySymbol} ${grossSalesAmount.toFixed(2)}`],
+        ['২. বাদ: ডিসকাউন্ট ও ছাড় (Less: Discounts)', 'কর্তন / ছাড়', `- ${currencySymbol} ${totalDiscounts.toFixed(2)}`],
+        ['৩. নিট বিক্রয় রাজস্ব (Net Sales Revenue)', 'নিট রাজস্ব', `${currencySymbol} ${netSalesRevenue.toFixed(2)}`],
+        ['৪. বাদ: বিক্রিত পণ্যের ক্রয়মূল্য (Less: COGS)', 'পণ্য ক্রয় ব্যয়', `- ${currencySymbol} ${totalCOGS.toFixed(2)}`],
+        ['৫. মোট গ্রস লাভ মার্জিন (Gross Profit Margin)', 'গ্রস লাভ', `${currencySymbol} ${grossProfitMargin.toFixed(2)} (${grossProfitPercent.toFixed(1)}%)`],
+        ['৬. যোগ: MFS, রিচার্জ ও সেবা কমিশন (Add: Other Income)', 'কমিশন আয়', `+ ${currencySymbol} ${totalRechargeCommissions.toFixed(2)}`],
+        ['৭. বাদ: দোকানের মোট পরিচালন ব্যয় (Less: Operating Expenses)', 'দোকানের খরচ', `- ${currencySymbol} ${totalOperatingExpenses.toFixed(2)}`],
+        ['৮. চূড়ান্ত নিট পরিচালন লাভ / ক্ষতি (Net Operating Profit/Loss)', netProfitOrLoss >= 0 ? '✓ নিট লাভ' : '✕ নিট ক্ষতি', `${currencySymbol} ${netProfitOrLoss.toFixed(2)}`],
       ],
-      summaryRow: ['সর্বমোট নিট লাভ / ক্ষতি (Net Operating Balance)', netProfitOrLoss >= 0 ? 'লাভে পরিচালিত' : 'ক্ষতিতে পরিচালিত', `৳ ${netProfitOrLoss.toFixed(2)}`],
+      summaryRow: ['সর্বমোট নিট লাভ / ক্ষতি (Net Operating Balance)', netProfitOrLoss >= 0 ? 'লাভে পরিচালিত' : 'ক্ষতিতে পরিচালিত', `${currencySymbol} ${netProfitOrLoss.toFixed(2)}`],
     });
   };
 
@@ -243,19 +313,19 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
       periodText: filterLabels[dateFilter],
       orientation: 'portrait',
       kpis: [
-        { label: 'মোট খরচের পরিমাণ', value: `৳ ${totalOperatingExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#dc2626' },
+        { label: 'মোট খরচের পরিমাণ', value: `${currencySymbol} ${totalOperatingExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#dc2626' },
         { label: 'মোট ভাউচার সংখ্যা', value: `${filteredExpenses.length} টি`, color: '#0f172a' },
       ],
-      columns: ['ভাউচার #', 'খরচের খাত / শিরোনাম', 'পেমেন্ট মাধ্যম', 'তারিখ', 'টাকার পরিমাণ (৳)'],
+      columns: ['ভাউচার #', 'খরচের খাত / শিরোনাম', 'পেমেন্ট মাধ্যম', 'তারিখ', `টাকার পরিমাণ (${currencySymbol})`],
       columnAlignments: ['left', 'left', 'center', 'center', 'right'],
       rows: filteredExpenses.map(e => [
         e.reference_id,
         e.title,
         e.credit_account,
         new Date(e.created_at).toLocaleDateString('en-GB'),
-        `৳ ${e.amount.toFixed(2)}`
+        `${currencySymbol} ${e.amount.toFixed(2)}`
       ]),
-      summaryRow: ['মোট ব্যয় (Total Expenses)', '-', '-', `${filteredExpenses.length} টি এন্ট্রি`, `৳ ${totalOperatingExpenses.toFixed(2)}`]
+      summaryRow: ['মোট ব্যয় (Total Expenses)', '-', '-', `${filteredExpenses.length} টি এন্ট্রি`, `${currencySymbol} ${totalOperatingExpenses.toFixed(2)}`]
     });
   };
 
@@ -269,24 +339,24 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
       periodText: filterLabels[dateFilter],
       orientation: 'landscape',
       kpis: [
-        { label: 'মোট বিক্রয়', value: `৳ ${netSalesRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#0f172a' },
+        { label: 'মোট বিক্রয়', value: `${currencySymbol} ${netSalesRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#0f172a' },
         { label: 'মোট ইনভয়েস', value: `${filteredSales.length} টি`, color: '#2563eb' },
-        { label: 'মোট ছাড়', value: `৳ ${totalDiscounts.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#dc2626' },
+        { label: 'মোট ছাড়', value: `${currencySymbol} ${totalDiscounts.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#dc2626' },
       ],
-      columns: ['ইনভয়েস নং', 'গ্রাহকের নাম', 'পণ্য সংখ্যা', 'পেমেন্ট মাধ্যম', 'ডিসকাউন্ট', 'মোট বিল (৳)', 'পরিশোধ', 'বকেয়া', 'তারিখ'],
+      columns: ['ইনভয়েস নং', 'গ্রাহকের নাম', 'পণ্য সংখ্যা', 'পেমেন্ট মাধ্যম', 'ডিসকাউন্ট', `মোট বিল (${currencySymbol})`, 'পরিশোধ', 'বকেয়া', 'তারিখ'],
       columnAlignments: ['left', 'left', 'center', 'center', 'right', 'right', 'right', 'right', 'center'],
       rows: filteredSales.map(s => [
         s.invoice_no,
         s.customer_name || 'সাধারণ ক্রেতা',
         `${s.items?.length || 0} টি`,
         s.payment_method,
-        `৳ ${(s.discount_amount || 0).toFixed(2)}`,
-        `৳ ${s.grand_total.toFixed(2)}`,
-        `৳ ${s.paid_amount.toFixed(2)}`,
-        s.due_amount > 0 ? `৳ ${s.due_amount.toFixed(2)}` : '৳ 0.00',
+        `${currencySymbol} ${(s.discount_amount || 0).toFixed(2)}`,
+        `${currencySymbol} ${s.grand_total.toFixed(2)}`,
+        `${currencySymbol} ${s.paid_amount.toFixed(2)}`,
+        s.due_amount > 0 ? `${currencySymbol} ${s.due_amount.toFixed(2)}` : `${currencySymbol} 0.00`,
         new Date(s.created_at).toLocaleDateString('en-GB')
       ]),
-      summaryRow: ['মোট হিসাব (Grand Total)', '-', `${filteredSales.reduce((sum, s) => sum + (s.items?.length || 0), 0)} পণ্য`, '-', `৳ ${totalDiscounts.toFixed(2)}`, `৳ ${netSalesRevenue.toFixed(2)}`, `৳ ${filteredSales.reduce((sum, s) => sum + s.paid_amount, 0).toFixed(2)}`, `৳ ${filteredSales.reduce((sum, s) => sum + s.due_amount, 0).toFixed(2)}`, '-']
+      summaryRow: ['মোট হিসাব (Grand Total)', '-', `${filteredSales.reduce((sum, s) => sum + (s.items?.length || 0), 0)} পণ্য`, '-', `${currencySymbol} ${totalDiscounts.toFixed(2)}`, `${currencySymbol} ${netSalesRevenue.toFixed(2)}`, `${currencySymbol} ${filteredSales.reduce((sum, s) => sum + s.paid_amount, 0).toFixed(2)}`, `${currencySymbol} ${filteredSales.reduce((sum, s) => sum + s.due_amount, 0).toFixed(2)}`, '-']
     });
   };
 
@@ -300,23 +370,23 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
       periodText: 'বর্তমান রিয়েল-টাইম স্টক',
       orientation: 'landscape',
       kpis: [
-        { label: 'মোট স্টক ক্রয় সম্পদ', value: `৳ ${totalStockPurchaseValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#d97706' },
-        { label: 'সম্ভাব্য মোট বিক্রয়মূল্য', value: `৳ ${totalStockRetailValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#059669' },
-        { label: 'সম্ভাব্য গ্রস লাভ', value: `৳ ${(totalStockRetailValue - totalStockPurchaseValue).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#2563eb' },
+        { label: 'মোট স্টক ক্রয় সম্পদ', value: `${currencySymbol} ${totalStockPurchaseValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#d97706' },
+        { label: 'সম্ভাব্য মোট বিক্রয়মূল্য', value: `${currencySymbol} ${totalStockRetailValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#059669' },
+        { label: 'সম্ভাব্য গ্রস লাভ', value: `${currencySymbol} ${(totalStockRetailValue - totalStockPurchaseValue).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#2563eb' },
       ],
-      columns: ['পণ্যের কোড', 'পণ্যের নাম', 'ক্যাটাগরি', 'বর্তমান স্টক', 'ক্রয়মূল্য (Unit)', 'বিক্রয়মূল্য (Unit)', 'মোট ক্রয় সম্পদ (৳)', 'সম্ভাব্য বিক্রয় সম্পদ (৳)'],
+      columns: ['পণ্যের কোড', 'পণ্যের নাম', 'ক্যাটাগরি', 'বর্তমান স্টক', 'ক্রয়মূল্য (Unit)', 'বিক্রয়মূল্য (Unit)', `মোট ক্রয় সম্পদ (${currencySymbol})`, `সম্ভাব্য বিক্রয় সম্পদ (${currencySymbol})`],
       columnAlignments: ['left', 'left', 'left', 'center', 'right', 'right', 'right', 'right'],
       rows: products.map(p => [
         p.code,
         p.name,
         p.category_name || 'সাধারণ',
         `${p.stock_quantity} ${p.unit}`,
-        `৳ ${p.purchase_price.toFixed(2)}`,
-        `৳ ${p.selling_price.toFixed(2)}`,
-        `৳ ${((p.purchase_price || 0) * (p.stock_quantity || 0)).toFixed(2)}`,
-        `৳ ${((p.selling_price || 0) * (p.stock_quantity || 0)).toFixed(2)}`
+        `${currencySymbol} ${p.purchase_price.toFixed(2)}`,
+        `${currencySymbol} ${p.selling_price.toFixed(2)}`,
+        `${currencySymbol} ${((p.purchase_price || 0) * (p.stock_quantity || 0)).toFixed(2)}`,
+        `${currencySymbol} ${((p.selling_price || 0) * (p.stock_quantity || 0)).toFixed(2)}`
       ]),
-      summaryRow: ['সর্বমোট স্টক সম্পদ', '-', `${products.length} আইটেম`, `${products.reduce((sum, p) => sum + (p.stock_quantity || 0), 0)} ইউনিট`, '-', '-', `৳ ${totalStockPurchaseValue.toFixed(2)}`, `৳ ${totalStockRetailValue.toFixed(2)}`]
+      summaryRow: ['সর্বমোট স্টক সম্পদ', '-', `${products.length} আইটেম`, `${products.reduce((sum, p) => sum + (p.stock_quantity || 0), 0)} ইউনিট`, '-', '-', `${currencySymbol} ${totalStockPurchaseValue.toFixed(2)}`, `${currencySymbol} ${totalStockRetailValue.toFixed(2)}`]
     });
   };
 
@@ -331,23 +401,131 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
       periodText: 'বর্তমান বকেয়া স্থিতি',
       orientation: 'portrait',
       kpis: [
-        { label: 'সর্বমোট বকেয়া পাওনা', value: `৳ ${totalCustomerDues.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#dc2626' },
+        { label: 'সর্বমোট বকেয়া পাওনা', value: `${currencySymbol} ${totalCustomerDues.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, color: '#dc2626' },
         { label: 'বকেয়া গ্রাহক সংখ্যা', value: `${dueCustomers.length} জন`, color: '#0f172a' },
       ],
-      columns: ['গ্রাহকের নাম', 'মোবাইল নম্বর', 'ঠিকানা', 'বর্তমান বকেয়া পাওনা (৳)'],
+      columns: ['গ্রাহকের নাম', 'মোবাইল নম্বর', 'ঠিকানা', `বর্তমান বকেয়া পাওনা (${currencySymbol})`],
       columnAlignments: ['left', 'left', 'left', 'right'],
       rows: dueCustomers.map(c => [
         c.name,
         c.phone,
         c.address || 'N/A',
-        `৳ ${(c.current_due || 0).toFixed(2)}`
+        `${currencySymbol} ${(c.current_due || 0).toFixed(2)}`
       ]),
-      summaryRow: ['সর্বমোট বকেয়া বাকি (Total Receivables)', '-', `${dueCustomers.length} জন গ্রাহক`, `৳ ${totalCustomerDues.toFixed(2)}`]
+      summaryRow: ['সর্বমোট বকেয়া বাকি (Total Receivables)', '-', `${dueCustomers.length} জন গ্রাহক`, `${currencySymbol} ${totalCustomerDues.toFixed(2)}`]
     });
   };
 
+  // Generic Pagination Controls Component
+  const renderPaginationFooter = (totalItems: number) => {
+    const totalPages = Math.ceil(totalItems / pageSize) || 1;
+    const startIdx = totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0;
+    const endIdx = Math.min(currentPage * pageSize, totalItems);
+
+    return (
+      <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-3 text-slate-600">
+          <div className="flex items-center gap-1.5">
+            <span>প্রতি পেজে:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="px-2 py-1 bg-white border border-slate-300 rounded font-semibold text-slate-800 focus:ring-1 focus:ring-indigo-500"
+            >
+              <option value={5}>৫</option>
+              <option value={10}>১০</option>
+              <option value={20}>২০</option>
+              <option value={50}>৫০</option>
+              <option value={100}>১০০</option>
+            </select>
+          </div>
+
+          <span className="font-medium text-slate-500">
+            {totalItems > 0 ? (
+              <>
+                প্রদর্শন: <b className="text-slate-800 font-mono">{startIdx} - {endIdx}</b> (সর্বমোট <b className="text-indigo-600 font-mono">{totalItems}</b> টি রেকর্ড)
+              </>
+            ) : (
+              '০ টি রেকর্ড'
+            )}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => setCurrentPage(1)}
+            className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            title="প্রথম পেজ"
+          >
+            <ChevronsLeft className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            title="পূর্ববর্তী পেজ"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          <div className="flex items-center gap-1 px-1">
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum = i + 1;
+              if (totalPages > 5) {
+                if (currentPage > 3 && currentPage < totalPages - 1) {
+                  pageNum = currentPage - 2 + i;
+                } else if (currentPage >= totalPages - 1) {
+                  pageNum = totalPages - 4 + i;
+                }
+              }
+              return (
+                <button
+                  key={pageNum}
+                  type="button"
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`w-7 h-7 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                    currentPage === pageNum
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            title="পরবর্তী পেজ"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage(totalPages)}
+            className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            title="সর্বশেষ পেজ"
+          >
+            <ChevronsRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-4 pb-12 text-xs">
+    <div className="space-y-4 pb-12 text-xs animate-in fade-in duration-200">
+      
       {/* Header & Date Range Filter Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div>
@@ -356,11 +534,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
             <span>লাভ-ক্ষতি ও আর্থিক বিবরণী ড্যাশবোর্ড (Financial Statement V1)</span>
           </h1>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            দোকানের মোট বিক্রয়, পণ্যের ক্রয়মূল্য (COGS), গ্রস মার্জিন, খরচ খাতা ও নিট লাভের সম্পূর্ণ বিবরণী
+            দোকানের মোট বিক্রয়, পণ্যের ক্রয়মূল্য (COGS), গ্রস মার্জিন, খরচ খাতা ও নিট লাভের সম্পূর্ণ বিবরণী ({currencySymbol})
           </p>
         </div>
 
-        {/* Date Filters */}
+        {/* Date Filters & Print */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl font-semibold text-xs">
             {(['today', 'yesterday', 'week', 'month', 'last_month', 'all', 'custom'] as DateFilterRange[]).map(r => (
@@ -425,85 +603,134 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
         </div>
       )}
 
-      {/* Top 6 Executive Financial KPI Cards */}
+      {/* Top 6 Executive Financial KPI Cards (Clickable to switch tabs) */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+        
         {/* 1. Gross Sales */}
-        <div className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-xs">
+        <div 
+          onClick={() => setActiveTab('sales')}
+          className={`p-3.5 rounded-xl border-2 shadow-xs transition-all cursor-pointer ${
+            activeTab === 'sales'
+              ? 'bg-blue-50/50 border-blue-600 ring-2 ring-blue-500/20'
+              : 'bg-white border-slate-200 hover:border-blue-400'
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">মোট বিক্রয়</span>
             <ShoppingBag className="w-3.5 h-3.5 text-blue-600" />
           </div>
           <div className="text-lg font-bold font-mono text-slate-900">
-            ৳{netSalesRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {currencySymbol}{netSalesRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
-          <div className="text-[10px] text-slate-400 mt-0.5 font-medium">{filteredSales.length} টি ইনভয়েস</div>
+          <div className="text-[10px] text-blue-600 font-semibold mt-0.5 flex items-center justify-between">
+            <span>{filteredSales.length} টি ইনভয়েস</span>
+            <span className="text-[9px]">তালিকা &gt;</span>
+          </div>
         </div>
 
         {/* 2. COGS */}
-        <div className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-xs">
+        <div 
+          onClick={() => setActiveTab('inventory')}
+          className={`p-3.5 rounded-xl border-2 shadow-xs transition-all cursor-pointer ${
+            activeTab === 'inventory'
+              ? 'bg-amber-50/50 border-amber-600 ring-2 ring-amber-500/20'
+              : 'bg-white border-slate-200 hover:border-amber-400'
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">পণ্যের ক্রয়মূল্য (COGS)</span>
             <Layers className="w-3.5 h-3.5 text-amber-600" />
           </div>
           <div className="text-lg font-bold font-mono text-slate-900">
-            ৳{totalCOGS.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {currencySymbol}{totalCOGS.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
-          <div className="text-[10px] text-slate-400 mt-0.5 font-medium">বিক্রিত পণ্যের আসল দাম</div>
+          <div className="text-[10px] text-amber-700 font-semibold mt-0.5 flex items-center justify-between">
+            <span>বিক্রিত পণ্যের আসল দাম</span>
+            <span className="text-[9px]">স্টক &gt;</span>
+          </div>
         </div>
 
         {/* 3. Gross Margin */}
-        <div className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-xs">
+        <div 
+          onClick={() => setActiveTab('statement')}
+          className={`p-3.5 rounded-xl border-2 shadow-xs transition-all cursor-pointer ${
+            activeTab === 'statement'
+              ? 'bg-emerald-50/50 border-emerald-600 ring-2 ring-emerald-500/20'
+              : 'bg-white border-slate-200 hover:border-emerald-400'
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">গ্রস লাভ মার্জিন</span>
             <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
           </div>
           <div className="text-lg font-bold font-mono text-emerald-700">
-            ৳{grossProfitMargin.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {currencySymbol}{grossProfitMargin.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
           <div className="text-[10px] text-emerald-600 font-bold mt-0.5">মার্জিন: {grossProfitPercent.toFixed(1)}%</div>
         </div>
 
         {/* 4. MFS / Services Incomes */}
-        <div className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-xs">
+        <div 
+          onClick={() => setActiveTab('statement')}
+          className={`p-3.5 rounded-xl border-2 shadow-xs transition-all cursor-pointer ${
+            activeTab === 'statement'
+              ? 'bg-purple-50/50 border-purple-600 ring-2 ring-purple-500/20'
+              : 'bg-white border-slate-200 hover:border-purple-400'
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">কমিশন আয়</span>
             <Sparkles className="w-3.5 h-3.5 text-purple-600" />
           </div>
           <div className="text-lg font-bold font-mono text-purple-700">
-            +৳{totalRechargeCommissions.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            +{currencySymbol}{totalRechargeCommissions.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
           <div className="text-[10px] text-slate-400 mt-0.5 font-medium">রিচার্জ ও MFS কমিশন</div>
         </div>
 
         {/* 5. Expenses */}
-        <div className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-xs">
+        <div 
+          onClick={() => setActiveTab('expenses')}
+          className={`p-3.5 rounded-xl border-2 shadow-xs transition-all cursor-pointer ${
+            activeTab === 'expenses'
+              ? 'bg-rose-50/50 border-rose-600 ring-2 ring-rose-500/20'
+              : 'bg-white border-slate-200 hover:border-rose-400'
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">দোকানের মোট খরচ</span>
             <TrendingDown className="w-3.5 h-3.5 text-rose-600" />
           </div>
           <div className="text-lg font-bold font-mono text-rose-700">
-            -৳{totalOperatingExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            -{currencySymbol}{totalOperatingExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
-          <div className="text-[10px] text-rose-600 font-medium mt-0.5">{filteredExpenses.length} টি খরচ ভাউচার</div>
+          <div className="text-[10px] text-rose-600 font-medium mt-0.5 flex items-center justify-between">
+            <span>{filteredExpenses.length} টি খরচ ভাউচার</span>
+            <span className="text-[9px]">খরচ খাতা &gt;</span>
+          </div>
         </div>
 
         {/* 6. Net Profit/Loss */}
-        <div className={`p-3.5 rounded-xl border shadow-xs transition-all ${
-          netProfitOrLoss >= 0 
-            ? 'bg-emerald-50/80 border-emerald-300 ring-1 ring-emerald-400/30' 
-            : 'bg-rose-50/80 border-rose-300 ring-1 ring-rose-400/30'
-        }`}>
+        <div 
+          onClick={() => setActiveTab('statement')}
+          className={`p-3.5 rounded-xl border-2 shadow-xs transition-all cursor-pointer ${
+            netProfitOrLoss >= 0 
+              ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-500/20' 
+              : 'bg-rose-50/80 border-rose-400 ring-2 ring-rose-500/20'
+          }`}
+        >
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-800">চূড়ান্ত নিট লাভ</span>
             <DollarSign className={`w-3.5 h-3.5 ${netProfitOrLoss >= 0 ? 'text-emerald-700' : 'text-rose-700'}`} />
           </div>
           <div className={`text-lg font-bold font-mono ${netProfitOrLoss >= 0 ? 'text-emerald-900' : 'text-rose-900'}`}>
-            ৳{netProfitOrLoss.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {currencySymbol}{netProfitOrLoss.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
           <div className={`text-[10px] font-bold mt-0.5 ${netProfitOrLoss >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
             {netProfitOrLoss >= 0 ? `✓ নিট লাভ (${netProfitMarginPercent.toFixed(1)}%)` : `✕ নিট ক্ষতি`}
           </div>
         </div>
+
       </div>
 
       {/* Main Tab Navigation */}
@@ -570,7 +797,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
           }`}
         >
           <Users className="w-3.5 h-3.5 text-purple-600" />
-          <span>৫. কাস্টমার বাকি খাতা (৳{totalCustomerDues.toLocaleString()})</span>
+          <span>৫. কাস্টমার বাকি খাতা ({currencySymbol}{totalCustomerDues.toLocaleString()})</span>
         </button>
       </div>
 
@@ -592,19 +819,26 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
                 </p>
               </div>
 
-              <span className="px-3 py-1 bg-indigo-50 text-indigo-800 rounded-full font-bold text-xs border border-indigo-200">
-                GAAP Standard
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handlePrintStatement}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>প্রিন্ট স্টেটমেন্ট</span>
+                </button>
+              </div>
             </div>
 
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 text-xs">
               {/* Row 1: Gross Sales */}
               <div className="p-3.5 flex items-center justify-between hover:bg-slate-50">
                 <div>
                   <span className="font-bold text-slate-900 block">১. মোট বিক্রয় মূল্য (Gross Sales)</span>
                   <span className="text-[10px] text-slate-500">সকল পণ্যের মুদ্রিত বিক্রয় মূল্য</span>
                 </div>
-                <span className="font-mono font-bold text-slate-900 text-sm">৳{grossSalesAmount.toFixed(2)}</span>
+                <span className="font-mono font-bold text-slate-900 text-sm">{currencySymbol}{grossSalesAmount.toFixed(2)}</span>
               </div>
 
               {/* Row 2: Discounts */}
@@ -613,13 +847,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
                   <span className="font-bold text-rose-800 block">২. বাদ: ডিসকাউন্ট ও ছাড় (Less: Discounts)</span>
                   <span className="text-[10px] text-slate-500">বিক্রয়ের সময় কাস্টমারকে প্রদত্ত ছাড়</span>
                 </div>
-                <span className="font-mono font-bold text-rose-700">- ৳{totalDiscounts.toFixed(2)}</span>
+                <span className="font-mono font-bold text-rose-700">- {currencySymbol}{totalDiscounts.toFixed(2)}</span>
               </div>
 
               {/* Row 3: Net Revenue */}
               <div className="p-3.5 flex items-center justify-between bg-slate-50/80 font-bold border-t border-b border-slate-200">
                 <span className="text-slate-900">৩. নিট বিক্রয় রাজস্ব (Net Sales Revenue)</span>
-                <span className="font-mono text-indigo-700 text-sm">৳{netSalesRevenue.toFixed(2)}</span>
+                <span className="font-mono text-indigo-700 text-sm">{currencySymbol}{netSalesRevenue.toFixed(2)}</span>
               </div>
 
               {/* Row 4: COGS */}
@@ -628,7 +862,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
                   <span className="font-bold text-amber-900 block">৪. বাদ: বিক্রিত পণ্যের ক্রয়মূল্য (Less: COGS)</span>
                   <span className="text-[10px] text-slate-500">বিক্রিত পণ্যের মোট ক্রয়মূল্য বা আসল খরচ</span>
                 </div>
-                <span className="font-mono font-bold text-amber-800">- ৳{totalCOGS.toFixed(2)}</span>
+                <span className="font-mono font-bold text-amber-800">- {currencySymbol}{totalCOGS.toFixed(2)}</span>
               </div>
 
               {/* Row 5: Gross Margin */}
@@ -637,7 +871,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
                   <span className="text-emerald-950 block">৫. মোট গ্রস লাভ মার্জিন (Gross Profit Margin)</span>
                   <span className="text-[10px] text-emerald-700 font-normal">গ্রস প্রফিট রেট: {grossProfitPercent.toFixed(1)}%</span>
                 </div>
-                <span className="font-mono text-emerald-800 text-base">৳{grossProfitMargin.toFixed(2)}</span>
+                <span className="font-mono text-emerald-800 text-base">{currencySymbol}{grossProfitMargin.toFixed(2)}</span>
               </div>
 
               {/* Row 6: Other Income */}
@@ -646,7 +880,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
                   <span className="font-bold text-purple-900 block">৬. যোগ: MFS ও রিচার্জ কমিশন (Add: Other Income)</span>
                   <span className="text-[10px] text-slate-500">ফ্লেক্সিলোড, বিকাশ, নগদ ও ডিজিটাল সেবা কমিশন</span>
                 </div>
-                <span className="font-mono font-bold text-purple-700">+ ৳{totalRechargeCommissions.toFixed(2)}</span>
+                <span className="font-mono font-bold text-purple-700">+ {currencySymbol}{totalRechargeCommissions.toFixed(2)}</span>
               </div>
 
               {/* Row 7: Operating Expenses */}
@@ -655,7 +889,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
                   <span className="font-bold text-rose-900 block">৭. বাদ: দোকানের মোট খরচ (Less: Operating Expenses)</span>
                   <span className="text-[10px] text-slate-500">ভাড়া, বিদ্যুৎ বিল, কর্মচারীর বেতন, চা-নাশতা ইত্যাদি</span>
                 </div>
-                <span className="font-mono font-bold text-rose-700">- ৳{totalOperatingExpenses.toFixed(2)}</span>
+                <span className="font-mono font-bold text-rose-700">- {currencySymbol}{totalOperatingExpenses.toFixed(2)}</span>
               </div>
 
               {/* Row 8: Final Net Profit */}
@@ -668,7 +902,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
                     {netProfitOrLoss >= 0 ? 'দোকান বর্তমানে লাভজনক অবস্থানে রয়েছে' : 'খরচ আয়ের তুলনায় বেশি হয়েছে'}
                   </span>
                 </div>
-                <span className="font-mono text-lg tracking-tight">৳{netProfitOrLoss.toFixed(2)}</span>
+                <span className="font-mono text-lg tracking-tight">{currencySymbol}{netProfitOrLoss.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -700,7 +934,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
                         {new Date(e.created_at).toLocaleDateString()}
                       </span>
                     </div>
-                    <span className="font-mono font-bold text-rose-700">-৳{e.amount}</span>
+                    <span className="font-mono font-bold text-rose-700">-{currencySymbol}{e.amount}</span>
                   </div>
                 ))}
 
@@ -719,15 +953,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
               </span>
               <div className="flex justify-between items-center text-[11px]">
                 <span className="text-slate-600">মজুদ পণ্যের ক্রয়মূল্য (Asset Cost):</span>
-                <span className="font-mono font-bold text-slate-900">৳{totalStockPurchaseValue.toLocaleString()}</span>
+                <span className="font-mono font-bold text-slate-900">{currencySymbol}{totalStockPurchaseValue.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center text-[11px]">
                 <span className="text-slate-600">প্রত্যাশিত বিক্রয়মূল্য (Retail Value):</span>
-                <span className="font-mono font-bold text-emerald-700">৳{totalStockRetailValue.toLocaleString()}</span>
+                <span className="font-mono font-bold text-emerald-700">{currencySymbol}{totalStockRetailValue.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center text-[11px] pt-1 border-t border-slate-100">
                 <span className="text-slate-800 font-bold">সম্ভাব্য মোট স্টক লাভ:</span>
-                <span className="font-mono font-bold text-indigo-700">৳{(totalStockRetailValue - totalStockPurchaseValue).toLocaleString()}</span>
+                <span className="font-mono font-bold text-indigo-700">{currencySymbol}{(totalStockRetailValue - totalStockPurchaseValue).toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -735,249 +969,433 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: EXPENSES LEDGER                                                    */}
+      {/* TAB 2: EXPENSES LEDGER (SEARCH, PRINT, EXPORT, PAGINATION)                */}
       {/* ========================================================================= */}
-      {activeTab === 'expenses' && (
-        <div className="space-y-3.5">
-          <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <span className="font-bold text-slate-900 text-sm">
-              দোকানের খরচের খাতা ({filteredExpenses.length} টি ভাউচার, মোট: ৳{totalOperatingExpenses.toLocaleString()})
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handlePrintExpenses}
-                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl flex items-center gap-1.5 cursor-pointer transition-all text-xs"
-              >
-                <Printer className="w-3.5 h-3.5 text-slate-600" />
-                <span>খরচ রিপোর্ট প্রিন্ট</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsAddExpenseOpen(true)}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl flex items-center gap-1.5 shadow-sm cursor-pointer transition-all text-xs"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ নতুন খরচ এন্ট্রি</span>
-              </button>
+      {activeTab === 'expenses' && (() => {
+        const filtered = filteredExpenses.filter(e =>
+          e.reference_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          e.debit_account.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          e.credit_account.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+
+        const paginatedExpenses = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+        return (
+          <div className="space-y-3.5">
+            
+            {/* Toolbar */}
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+              <div className="relative w-full md:w-80">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="ভাউচার নং, শিরোনাম বা খাত দিয়ে সার্চ..."
+                  className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <button
+                  type="button"
+                  onClick={handlePrintExpenses}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                  title="খরচ রিপোর্ট প্রিন্ট করুন"
+                >
+                  <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>প্রিন্ট রিপোর্ট</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExportExpensesCSV(filtered)}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                  title="এক্সেল বা CSV ফাইলে ডাউনলোড"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>এক্সপোর্ট (CSV)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsAddExpenseOpen(true)}
+                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg flex items-center gap-1 shadow-sm cursor-pointer transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ নতুন খরচ এন্ট্রি</span>
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-700 uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="py-3 px-3.5">ভাউচার নং</th>
-                  <th className="py-3 px-3.5">খরচের খাত / শিরোনাম</th>
-                  <th className="py-3 px-3.5">পেমেন্ট অ্যাকাউন্ট</th>
-                  <th className="py-3 px-3.5 text-right">টাকার পরিমাণ (৳)</th>
-                  <th className="py-3 px-3.5 text-right">তারিখ ও সময়</th>
-                  <th className="py-3 px-3.5 text-center">মুছুন</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredExpenses.map(exp => (
-                  <tr key={exp.id} className="hover:bg-slate-50">
-                    <td className="py-3 px-3.5 font-mono font-bold text-indigo-600">{exp.reference_id}</td>
-                    <td className="py-3 px-3.5 font-bold text-slate-900">{exp.title}</td>
-                    <td className="py-3 px-3.5 text-slate-600">
-                      <span className="px-2 py-0.5 bg-slate-100 rounded text-[10px]">{exp.credit_account}</span>
-                    </td>
-                    <td className="py-3 px-3.5 text-right font-mono font-bold text-rose-700">
-                      -৳{exp.amount.toFixed(2)}
-                    </td>
-                    <td className="py-3 px-3.5 text-right text-[11px] text-slate-500 font-mono">
-                      {new Date(exp.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
-                    </td>
-                    <td className="py-3 px-3.5 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteExpense(exp.id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors"
-                        title="মুছে ফেলুন"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-
-                {filteredExpenses.length === 0 && (
+            {/* Table */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-700 uppercase tracking-wider text-[10px]">
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-400">
-                      কোনো খরচের রেকর্ড পাওয়া যায়নি।
-                    </td>
+                    <th className="py-3 px-3.5 w-12 text-center">SL</th>
+                    <th className="py-3 px-3.5">ভাউচার নং</th>
+                    <th className="py-3 px-3.5">খরচের খাত / শিরোনাম</th>
+                    <th className="py-3 px-3.5">পেমেন্ট অ্যাকাউন্ট</th>
+                    <th className="py-3 px-3.5 text-right">টাকার পরিমাণ ({currencySymbol})</th>
+                    <th className="py-3 px-3.5 text-right">তারিখ ও সময়</th>
+                    <th className="py-3 px-3.5 text-center w-16">মুছুন</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 3: SALES & INVOICES REPORT                                            */}
-      {/* ========================================================================= */}
-      {activeTab === 'sales' && (
-        <div className="space-y-3.5">
-          <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <span className="font-bold text-slate-900 text-sm">
-              বিক্রয় ও ইনভয়েস রিপোর্ট ({filteredSales.length} টি বিক্রয়, মোট: ৳{netSalesRevenue.toLocaleString()})
-            </span>
-            <button
-              type="button"
-              onClick={handlePrintSales}
-              className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl flex items-center gap-1.5 shadow-sm cursor-pointer transition-all text-xs"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>বিক্রয় রেজিস্টার প্রিন্ট (A4)</span>
-            </button>
-          </div>
-
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-700 uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="py-3 px-3.5">ইনভয়েস #</th>
-                  <th className="py-3 px-3.5">কাস্টমার নাম</th>
-                  <th className="py-3 px-3.5">পণ্য সংখ্যা</th>
-                  <th className="py-3 px-3.5">পেমেন্ট মেথড</th>
-                  <th className="py-3 px-3.5 text-right">ডিসকাউন্ট</th>
-                  <th className="py-3 px-3.5 text-right">মোট বিল (৳)</th>
-                  <th className="py-3 px-3.5 text-right">পরিশোধ</th>
-                  <th className="py-3 px-3.5 text-right">বকেয়া</th>
-                  <th className="py-3 px-3.5 text-right">তারিখ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredSales.map(s => (
-                  <tr key={s.id} className="hover:bg-slate-50">
-                    <td className="py-3 px-3.5 font-mono font-bold text-indigo-600">{s.invoice_no}</td>
-                    <td className="py-3 px-3.5 font-bold text-slate-900">{s.customer_name || 'সাধারণ ক্রেতা'}</td>
-                    <td className="py-3 px-3.5 text-slate-600">{s.items?.length || 0} আইটেম</td>
-                    <td className="py-3 px-3.5"><span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded font-bold">{s.payment_method}</span></td>
-                    <td className="py-3 px-3.5 text-right text-rose-600 font-mono">৳{s.discount_amount || 0}</td>
-                    <td className="py-3 px-3.5 text-right font-mono font-bold text-slate-900">৳{s.grand_total.toFixed(2)}</td>
-                    <td className="py-3 px-3.5 text-right font-mono text-emerald-700">৳{s.paid_amount.toFixed(2)}</td>
-                    <td className="py-3 px-3.5 text-right font-mono text-rose-700">{s.due_amount > 0 ? `৳${s.due_amount.toFixed(2)}` : '০'}</td>
-                    <td className="py-3 px-3.5 text-right text-[11px] text-slate-500 font-mono">
-                      {new Date(s.created_at).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 4: STOCK VALUATION                                                    */}
-      {/* ========================================================================= */}
-      {activeTab === 'inventory' && (
-        <div className="space-y-3.5">
-          <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <span className="font-bold text-slate-900 text-sm">
-              পণ্য ও ইনভেন্টরি স্টক ভ্যালুয়েশন (মোট স্টক সম্পদ: ৳{totalStockPurchaseValue.toLocaleString()})
-            </span>
-            <button
-              type="button"
-              onClick={handlePrintInventory}
-              className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl flex items-center gap-1.5 shadow-sm cursor-pointer transition-all text-xs"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>স্টক ভ্যালুয়েশন প্রিন্ট (A4)</span>
-            </button>
-          </div>
-
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-700 uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="py-3 px-3.5">পণ্যের নাম ও কোড</th>
-                  <th className="py-3 px-3.5">ক্যাটেগরি</th>
-                  <th className="py-3 px-3.5 text-center">বর্তমান স্টক</th>
-                  <th className="py-3 px-3.5 text-right">ক্রয়মূল্য (Unit)</th>
-                  <th className="py-3 px-3.5 text-right">বিক্রয়মূল্য (Unit)</th>
-                  <th className="py-3 px-3.5 text-right">মোট ক্রয় সম্পদ (৳)</th>
-                  <th className="py-3 px-3.5 text-right">সম্ভাব্য বিক্রয় মূল্য (৳)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {products.map(p => (
-                  <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="py-3 px-3.5 font-bold text-slate-900">{p.name} ({p.code})</td>
-                    <td className="py-3 px-3.5 text-slate-600">{p.category_name}</td>
-                    <td className="py-3 px-3.5 text-center font-bold text-indigo-700">{p.stock_quantity} {p.unit}</td>
-                    <td className="py-3 px-3.5 text-right font-mono">৳{p.purchase_price}</td>
-                    <td className="py-3 px-3.5 text-right font-mono font-bold text-slate-900">৳{p.selling_price}</td>
-                    <td className="py-3 px-3.5 text-right font-mono font-bold text-amber-800">
-                      ৳{((p.purchase_price || 0) * (p.stock_quantity || 0)).toLocaleString()}
-                    </td>
-                    <td className="py-3 px-3.5 text-right font-mono font-bold text-emerald-800">
-                      ৳{((p.selling_price || 0) * (p.stock_quantity || 0)).toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 5: CUSTOMER DUES                                                      */}
-      {/* ========================================================================= */}
-      {activeTab === 'dues' && (
-        <div className="space-y-3.5">
-          <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <span className="font-bold text-slate-900 text-sm">
-              কাস্টমার বাকি ও দেনাদার খাতা (মোট বকেয়া: ৳{totalCustomerDues.toLocaleString()})
-            </span>
-            <button
-              type="button"
-              onClick={handlePrintDues}
-              className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl flex items-center gap-1.5 shadow-sm cursor-pointer transition-all text-xs"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>বাকি খাতা প্রিন্ট (A4)</span>
-            </button>
-          </div>
-
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-700 uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="py-3 px-3.5">কাস্টমার নাম</th>
-                  <th className="py-3 px-3.5">মোবাইল নম্বর</th>
-                  <th className="py-3 px-3.5">ঠিকানা</th>
-                  <th className="py-3 px-3.5 text-right">বকেয়া বাকি (Due ৳)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {customers
-                  .filter(c => (c.current_due || 0) > 0)
-                  .map(c => (
-                    <tr key={c.id} className="hover:bg-slate-50">
-                      <td className="py-3 px-3.5 font-bold text-slate-900">{c.name}</td>
-                      <td className="py-3 px-3.5 font-mono text-slate-700">{c.phone}</td>
-                      <td className="py-3 px-3.5 text-slate-500">{c.address || 'N/A'}</td>
-                      <td className="py-3 px-3.5 text-right font-mono font-bold text-rose-700">৳{(c.current_due || 0).toLocaleString()}</td>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedExpenses.map((exp, idx) => (
+                    <tr key={exp.id} className="hover:bg-slate-50">
+                      <td className="py-3 px-3.5 text-center text-slate-400 font-mono">
+                        {(currentPage - 1) * pageSize + idx + 1}
+                      </td>
+                      <td className="py-3 px-3.5 font-mono font-bold text-indigo-600">{exp.reference_id}</td>
+                      <td className="py-3 px-3.5 font-bold text-slate-900">{exp.title}</td>
+                      <td className="py-3 px-3.5 text-slate-600">
+                        <span className="px-2 py-0.5 bg-slate-100 rounded text-[10px]">{exp.credit_account}</span>
+                      </td>
+                      <td className="py-3 px-3.5 text-right font-mono font-bold text-rose-700">
+                        -{currencySymbol}{exp.amount.toFixed(2)}
+                      </td>
+                      <td className="py-3 px-3.5 text-right text-[11px] text-slate-500 font-mono">
+                        {new Date(exp.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                      </td>
+                      <td className="py-3 px-3.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteExpense(exp.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors"
+                          title="মুছে ফেলুন"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
                     </tr>
                   ))}
 
-                {customers.filter(c => (c.current_due || 0) > 0).length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="py-8 text-center text-slate-400">
-                      কোনো কাস্টমারের কাছে বকেয়া বাকি নেই।
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  {filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                        কোনো খরচের রেকর্ড পাওয়া যায়নি।
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              {renderPaginationFooter(filtered.length)}
+            </div>
+
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {/* ========================================================================= */}
+      {/* TAB 3: SALES & INVOICES REPORT (SEARCH, PRINT, EXPORT, PAGINATION)        */}
+      {/* ========================================================================= */}
+      {activeTab === 'sales' && (() => {
+        const filtered = filteredSales.filter(s =>
+          s.invoice_no.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          s.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (s.customer_phone && s.customer_phone.includes(searchQuery)) ||
+          s.payment_method.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+
+        const paginatedSales = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+        return (
+          <div className="space-y-3.5">
+            
+            {/* Toolbar */}
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+              <div className="relative w-full md:w-80">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="ইনভয়েস নং, ক্রেতার নাম বা ফোন দিয়ে সার্চ..."
+                  className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <button
+                  type="button"
+                  onClick={handlePrintSales}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                  title="বিক্রয় রেজিস্টার প্রিন্ট (A4)"
+                >
+                  <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>রেজিস্টার প্রিন্ট</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExportSalesCSV(filtered)}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                  title="এক্সেল বা CSV ফাইলে ডাউনলোড"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>এক্সপোর্ট (CSV)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-700 uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="py-3 px-3.5 w-12 text-center">SL</th>
+                    <th className="py-3 px-3.5">ইনভয়েস #</th>
+                    <th className="py-3 px-3.5">কাস্টমার নাম ও ফোন</th>
+                    <th className="py-3 px-3.5 text-center">পণ্য সংখ্যা</th>
+                    <th className="py-3 px-3.5">পেমেন্ট মেথড</th>
+                    <th className="py-3 px-3.5 text-right">ডিসকাউন্ট</th>
+                    <th className="py-3 px-3.5 text-right">মোট বিল ({currencySymbol})</th>
+                    <th className="py-3 px-3.5 text-right">পরিশোধ</th>
+                    <th className="py-3 px-3.5 text-right">বকেয়া</th>
+                    <th className="py-3 px-3.5 text-right">তারিখ ও সময়</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedSales.map((s, idx) => (
+                    <tr key={s.id} className="hover:bg-slate-50">
+                      <td className="py-3 px-3.5 text-center text-slate-400 font-mono">
+                        {(currentPage - 1) * pageSize + idx + 1}
+                      </td>
+                      <td className="py-3 px-3.5 font-mono font-bold text-indigo-600">{s.invoice_no}</td>
+                      <td className="py-3 px-3.5 font-bold text-slate-900">
+                        {s.customer_name || 'সাধারণ ক্রেতা'}
+                        {s.customer_phone && <span className="text-[10px] text-slate-400 font-mono block">{s.customer_phone}</span>}
+                      </td>
+                      <td className="py-3 px-3.5 text-center font-bold text-slate-700">{s.items?.length || 0} টি</td>
+                      <td className="py-3 px-3.5"><span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded font-bold">{s.payment_method}</span></td>
+                      <td className="py-3 px-3.5 text-right text-rose-600 font-mono">{currencySymbol}{s.discount_amount || 0}</td>
+                      <td className="py-3 px-3.5 text-right font-mono font-bold text-slate-900">{currencySymbol}{s.grand_total.toFixed(2)}</td>
+                      <td className="py-3 px-3.5 text-right font-mono text-emerald-700">{currencySymbol}{s.paid_amount.toFixed(2)}</td>
+                      <td className="py-3 px-3.5 text-right font-mono text-rose-700">{s.due_amount > 0 ? `${currencySymbol}${s.due_amount.toFixed(2)}` : '০'}</td>
+                      <td className="py-3 px-3.5 text-right text-[11px] text-slate-500 font-mono">
+                        {new Date(s.created_at).toLocaleDateString('en-GB')} {new Date(s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                    </tr>
+                  ))}
+
+                  {filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={10} className="py-8 text-center text-slate-400">
+                        কোনো বিক্রয় রেকর্ড পাওয়া যায়নি।
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              {renderPaginationFooter(filtered.length)}
+            </div>
+
+          </div>
+        );
+      })()}
+
+      {/* ========================================================================= */}
+      {/* TAB 4: STOCK VALUATION (SEARCH, PRINT, EXPORT, PAGINATION)                */}
+      {/* ========================================================================= */}
+      {activeTab === 'inventory' && (() => {
+        const filtered = products.filter(p =>
+          p.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (p.category_name && p.category_name.toLowerCase().includes(searchQuery.toLowerCase()))
+        );
+
+        const paginatedProducts = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+        return (
+          <div className="space-y-3.5">
+            
+            {/* Toolbar */}
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+              <div className="relative w-full md:w-80">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="পণ্যের নাম, কোড বা ক্যাটাগরি সার্চ..."
+                  className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <button
+                  type="button"
+                  onClick={handlePrintInventory}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                  title="স্টক ভ্যালুয়েশন প্রিন্ট (A4)"
+                >
+                  <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>স্টক প্রিন্ট</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExportInventoryCSV(filtered)}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                  title="এক্সেল বা CSV ফাইলে ডাউনলোড"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>এক্সপোর্ট (CSV)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-700 uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="py-3 px-3.5 w-12 text-center">SL</th>
+                    <th className="py-3 px-3.5">পণ্যের নাম ও কোড</th>
+                    <th className="py-3 px-3.5">ক্যাটেগরি</th>
+                    <th className="py-3 px-3.5 text-center">বর্তমান স্টক</th>
+                    <th className="py-3 px-3.5 text-right">ক্রয়মূল্য (Unit)</th>
+                    <th className="py-3 px-3.5 text-right">বিক্রয়মূল্য (Unit)</th>
+                    <th className="py-3 px-3.5 text-right">মোট ক্রয় সম্পদ ({currencySymbol})</th>
+                    <th className="py-3 px-3.5 text-right">সম্ভাব্য বিক্রয় মূল্য ({currencySymbol})</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedProducts.map((p, idx) => (
+                    <tr key={p.id} className="hover:bg-slate-50">
+                      <td className="py-3 px-3.5 text-center text-slate-400 font-mono">
+                        {(currentPage - 1) * pageSize + idx + 1}
+                      </td>
+                      <td className="py-3 px-3.5 font-bold text-slate-900">{p.name} ({p.code})</td>
+                      <td className="py-3 px-3.5 text-slate-600">{p.category_name}</td>
+                      <td className="py-3 px-3.5 text-center font-bold text-indigo-700">{p.stock_quantity} {p.unit}</td>
+                      <td className="py-3 px-3.5 text-right font-mono">{currencySymbol}{p.purchase_price}</td>
+                      <td className="py-3 px-3.5 text-right font-mono font-bold text-slate-900">{currencySymbol}{p.selling_price}</td>
+                      <td className="py-3 px-3.5 text-right font-mono font-bold text-amber-800">
+                        {currencySymbol}{((p.purchase_price || 0) * (p.stock_quantity || 0)).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3.5 text-right font-mono font-bold text-emerald-800">
+                        {currencySymbol}{((p.selling_price || 0) * (p.stock_quantity || 0)).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+
+                  {filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                        কোনো পণ্য পাওয়া যায়নি।
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              {renderPaginationFooter(filtered.length)}
+            </div>
+
+          </div>
+        );
+      })()}
+
+      {/* ========================================================================= */}
+      {/* TAB 5: CUSTOMER DUES (SEARCH, PRINT, EXPORT, PAGINATION)                  */}
+      {/* ========================================================================= */}
+      {activeTab === 'dues' && (() => {
+        const filtered = customers
+          .filter(c => (c.current_due || 0) > 0)
+          .filter(c =>
+            c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            c.phone.includes(searchQuery) ||
+            (c.address && c.address.toLowerCase().includes(searchQuery.toLowerCase()))
+          );
+
+        const paginatedDues = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+        return (
+          <div className="space-y-3.5">
+            
+            {/* Toolbar */}
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+              <div className="relative w-full md:w-80">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="কাস্টমার নাম, ফোন বা ঠিকানা দিয়ে সার্চ..."
+                  className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <button
+                  type="button"
+                  onClick={handlePrintDues}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                  title="বাকি খাতা প্রিন্ট (A4)"
+                >
+                  <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>বাকি খাতা প্রিন্ট</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExportDuesCSV(filtered)}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                  title="এক্সেল বা CSV ফাইলে ডাউনলোড"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>এক্সপোর্ট (CSV)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-700 uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="py-3 px-3.5 w-12 text-center">SL</th>
+                    <th className="py-3 px-3.5">কাস্টমার নাম</th>
+                    <th className="py-3 px-3.5">মোবাইল নম্বর</th>
+                    <th className="py-3 px-3.5">ঠিকানা</th>
+                    <th className="py-3 px-3.5 text-right">বকেয়া বাকি (Due {currencySymbol})</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedDues.map((c, idx) => (
+                    <tr key={c.id} className="hover:bg-slate-50">
+                      <td className="py-3 px-3.5 text-center text-slate-400 font-mono">
+                        {(currentPage - 1) * pageSize + idx + 1}
+                      </td>
+                      <td className="py-3 px-3.5 font-bold text-slate-900">{c.name}</td>
+                      <td className="py-3 px-3.5 font-mono text-slate-700">{c.phone}</td>
+                      <td className="py-3 px-3.5 text-slate-500">{c.address || 'N/A'}</td>
+                      <td className="py-3 px-3.5 text-right font-mono font-bold text-rose-700">{currencySymbol}{(c.current_due || 0).toLocaleString()}</td>
+                    </tr>
+                  ))}
+
+                  {filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400">
+                        কোনো কাস্টমারের কাছে বকেয়া বাকি নেই।
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              {renderPaginationFooter(filtered.length)}
+            </div>
+
+          </div>
+        );
+      })()}
 
       {/* ========================================================================= */}
       {/* MODAL: ADD EXPENSE                                                        */}
@@ -1011,7 +1429,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">টাকার পরিমাণ (৳) *</label>
+              <label className="block font-semibold text-slate-700 mb-1">টাকার পরিমাণ ({currencySymbol}) *</label>
               <input
                 type="number"
                 required
@@ -1051,34 +1469,34 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">বিবরণ / নোট (ঐচ্ছিক)</label>
+            <label className="block font-semibold text-slate-700 mb-1">বিবরণ / শিরোনাম (ঐচ্ছিক)</label>
             <input
               type="text"
-              placeholder="যেমন: মে মাসের দোকান ভাড়া বাবদ বা অতিথি আপ্যায়ন"
-              value={newExpenseNote}
-              onChange={e => setNewExpenseNote(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg"
+              placeholder="যেমন: জানুয়ারি মাসের দোকান ভাড়া বাবদ..."
+              value={newExpenseTitle}
+              onChange={e => setNewExpenseTitle(e.target.value)}
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-medium"
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+          <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
             <button
               type="button"
               onClick={() => setIsAddExpenseOpen(false)}
-              className="px-4 py-2 text-slate-600 hover:text-slate-900 font-bold cursor-pointer"
+              className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold rounded-lg cursor-pointer transition-colors"
             >
               বাতিল
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
+              className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg cursor-pointer shadow-sm transition-colors"
             >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>খরচ সংরক্ষণ করুন</span>
+              খরচ সংরক্ষণ করুন
             </button>
           </div>
         </form>
       </Modal>
+
     </div>
   );
 };

@@ -421,11 +421,34 @@ class StorageService {
   }
 
   // Custom Fields
-  getCustomFields(categoryId?: string, entityType?: string): CustomFieldDefinition[] {
-    const all = this.get<CustomFieldDefinition[]>(STORAGE_KEYS.CUSTOM_FIELDS, INITIAL_CUSTOM_FIELDS);
+  getCustomFields(categoryId?: string, entityType?: string, subcategoryName?: string): CustomFieldDefinition[] {
+    const stored = this.get<CustomFieldDefinition[]>(STORAGE_KEYS.CUSTOM_FIELDS, []);
+    
+    // Merge stored with INITIAL_CUSTOM_FIELDS to ensure standard category/subcategory fields are always available
+    const combinedMap = new Map<string, CustomFieldDefinition>();
+    INITIAL_CUSTOM_FIELDS.forEach(f => combinedMap.set(f.id, f));
+    stored.forEach(f => combinedMap.set(f.id, f));
+    const all = Array.from(combinedMap.values());
+
     return all.filter(f => {
-      if (categoryId && f.business_category_id && f.business_category_id !== categoryId) return false;
-      if (entityType && f.entity_type !== entityType) return false;
+      if (entityType && f.entity_type && f.entity_type.toLowerCase() !== entityType.toLowerCase()) return false;
+      if (categoryId && categoryId !== 'ALL') {
+        if (f.business_category_id && f.business_category_id !== 'ALL' && f.business_category_id !== categoryId) {
+          return false;
+        }
+      }
+      if (subcategoryName) {
+        if (f.target_subcategories && f.target_subcategories.length > 0) {
+          const matches = f.target_subcategories.some(sub => 
+            sub.trim().toLowerCase() === subcategoryName.trim().toLowerCase() ||
+            subcategoryName.toLowerCase().includes(sub.toLowerCase()) ||
+            sub.toLowerCase().includes(subcategoryName.toLowerCase())
+          );
+          if (!matches) return false;
+        } else if (f.subcategory) {
+          if (f.subcategory.trim().toLowerCase() !== subcategoryName.trim().toLowerCase()) return false;
+        }
+      }
       return true;
     });
   }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Package, 
   Plus, 
@@ -34,6 +34,7 @@ import {
   CustomFieldDefinition
 } from '../../types';
 import { storageService } from '../../services/storageService';
+import { i18n } from '../../services/i18nService';
 import { CatalogInitEngine } from '../../engine/catalogInitEngine';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
@@ -56,65 +57,66 @@ export interface SubcategoryMeta {
   name: string;
   defaultUnit: string;
   suggestedUnits: string[];
+  defaultTracking?: TrackingMode;
 }
 
 export const BUSINESS_PRODUCT_CATEGORIES: Record<string, { label: string; subcategories: SubcategoryMeta[] }> = {
   cat_stationery: {
     label: 'বই-খাতা ও স্টেশনারি',
     subcategories: [
-      { name: 'কাগজ ও অফসেট রিম', defaultUnit: 'রিম', suggestedUnits: ['রিম', 'প্যাকেট', 'শিট', 'বক্স', 'কার্টুন'] },
-      { name: 'খাতা ও নোটবুক', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'ডজন', 'বান্ডিল', 'বক্স'] },
-      { name: 'কলম, পেন্সিল ও মার্কার', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'বক্স', 'ডজন', 'প্যাকেট'] },
-      { name: 'বই, গাইড ও টেস্ট পেপার', defaultUnit: 'কপি', suggestedUnits: ['কপি', 'বই', 'সেট'] },
-      { name: 'অফিস সাপ্লাই ও ফাইল', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'ফাইল', 'বক্স', 'সেট'] },
-      { name: 'আর্ট, ড্রয়িং ও কালার', defaultUnit: 'সেট', suggestedUnits: ['সেট', 'পিস', 'বক্স', 'প্যাক'] },
-      { name: 'ক্যালকুলেটর ও জ্যামিতি বক্স', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'বক্স', 'সেট'] },
-      { name: 'অন্যান্য স্টেশনারি', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'প্যাকেট', 'বক্স'] }
+      { name: 'কাগজ ও অফসেট রিম', defaultUnit: 'রিম', suggestedUnits: ['রিম', 'প্যাকেট', 'শিট', 'বক্স', 'কার্টুন'], defaultTracking: 'TRACKING_QUANTITY' },
+      { name: 'খাতা ও নোটবুক', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'ডজন', 'বান্ডিল', 'বক্স'], defaultTracking: 'TRACKING_QUANTITY' },
+      { name: 'কলম, পেন্সিল ও মার্কার', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'বক্স', 'ডজন', 'প্যাকেট'], defaultTracking: 'TRACKING_QUANTITY' },
+      { name: 'বই, গাইড ও টেস্ট পেপার', defaultUnit: 'কপি', suggestedUnits: ['কপি', 'বই', 'সেট'], defaultTracking: 'TRACKING_BOOK' },
+      { name: 'অফিস সাপ্লাই ও ফাইল', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'ফাইল', 'বক্স', 'সেট'], defaultTracking: 'TRACKING_QUANTITY' },
+      { name: 'আর্ট, ড্রয়িং ও কালার', defaultUnit: 'সেট', suggestedUnits: ['সেট', 'পিস', 'বক্স', 'প্যাক'], defaultTracking: 'TRACKING_QUANTITY' },
+      { name: 'ক্যালকুলেটর ও জ্যামিতি বক্স', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'বক্স', 'সেট'], defaultTracking: 'TRACKING_SERIAL' },
+      { name: 'অন্যান্য স্টেশনারি', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'প্যাকেট', 'বক্স'], defaultTracking: 'TRACKING_QUANTITY' }
     ]
   },
   cat_telecom: {
     label: 'টেলিকম ও মোবাইল শপ',
     subcategories: [
-      { name: 'স্মার্টফোন ও ফিচারফোন', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'সেট', 'বক্স'] },
-      { name: 'চার্জার ও ডেটা কেবল', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'বক্স', 'প্যাকেট'] },
-      { name: 'হেডফোন, বাডস ও স্পিকার', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'সেট', 'বক্স'] },
-      { name: 'গ্লাস ও ব্যাক কভার', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'বক্স', 'প্যাক'] },
-      { name: 'পাওয়ার ব্যাংক ও ব্যাটারি', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'সেট'] },
-      { name: 'সিম, রাউটার ও মেমোরি কার্ড', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'কার্ড', 'প্যাকেট'] },
-      { name: 'অন্যান্য গ্যাজেট', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'সেট'] }
+      { name: 'স্মার্টফোন ও ফিচারফোন', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'সেট', 'বক্স'], defaultTracking: 'TRACKING_IMEI' },
+      { name: 'চার্জার ও ডেটা কেবল', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'বক্স', 'প্যাকেট'], defaultTracking: 'TRACKING_QUANTITY' },
+      { name: 'হেডফোন, বাডস ও স্পিকার', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'সেট', 'বক্স'], defaultTracking: 'TRACKING_SERIAL' },
+      { name: 'গ্লাস ও ব্যাক কভার', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'বক্স', 'প্যাক'], defaultTracking: 'TRACKING_QUANTITY' },
+      { name: 'পাওয়ার ব্যাংক ও ব্যাটারি', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'সেট'], defaultTracking: 'TRACKING_SERIAL' },
+      { name: 'সিম, রাউটার ও মেমোরি কার্ড', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'কার্ড', 'প্যাকেট'], defaultTracking: 'TRACKING_SERIAL' },
+      { name: 'অন্যান্য গ্যাজেট', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'সেট'], defaultTracking: 'TRACKING_QUANTITY' }
     ]
   },
   cat_grocery: {
     label: 'মুদি ও সুপারশপ',
     subcategories: [
-      { name: 'চাল, ডাল ও আটা-ময়দা', defaultUnit: 'কেজি', suggestedUnits: ['কেজি', 'বস্তা', 'গ্রাম', 'প্যাকেট'] },
-      { name: 'তেল, ঘি ও মশলাপাতি', defaultUnit: 'লিটার', suggestedUnits: ['লিটার', 'বোতল', 'কেজি', 'গ্রাম', 'মি.লি.'] },
-      { name: 'স্ন্যাক্স, বিস্কুট ও চানাচুর', defaultUnit: 'প্যাকেট', suggestedUnits: ['প্যাকেট', 'বক্স', 'পিস', 'জার', 'কার্টুন'] },
-      { name: 'পানীয়, চা ও জুস', defaultUnit: 'বোতল', suggestedUnits: ['বোতল', 'ক্যান', 'প্যাকেট', 'কেজি', 'লিটার'] },
-      { name: 'দুধ, ডিম ও ডেইরি', defaultUnit: 'লিটার', suggestedUnits: ['লিটার', 'হালি', 'ডজন', 'পিস', 'প্যাকেট'] },
-      { name: 'সাবান, শ্যাম্পু ও টয়লেট্রিজ', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'বোতল', 'প্যাক', 'বক্স'] },
-      { name: 'অন্যান্য মুদি পণ্য', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'কেজি', 'প্যাকেট'] }
+      { name: 'চাল, ডাল ও আটা-ময়দা', defaultUnit: 'কেজি', suggestedUnits: ['কেজি', 'বস্তা', 'গ্রাম', 'প্যাকেট'], defaultTracking: 'TRACKING_WEIGHT' },
+      { name: 'তেল, ঘি ও মশলাপাতি', defaultUnit: 'লিটার', suggestedUnits: ['লিটার', 'বোতল', 'কেজি', 'গ্রাম', 'মি.লি.'], defaultTracking: 'TRACKING_BATCH' },
+      { name: 'স্ন্যাক্স, বিস্কুট ও চানাচুর', defaultUnit: 'প্যাকেট', suggestedUnits: ['প্যাকেট', 'বক্স', 'পিস', 'জার', 'কার্টুন'], defaultTracking: 'TRACKING_BATCH' },
+      { name: 'পানীয়, চা ও জুস', defaultUnit: 'বোতল', suggestedUnits: ['বোতল', 'ক্যান', 'প্যাকেট', 'কেজি', 'লিটার'], defaultTracking: 'TRACKING_BATCH' },
+      { name: 'দুধ, ডিম ও ডেইরি', defaultUnit: 'লিটার', suggestedUnits: ['লিটার', 'হালি', 'ডজন', 'পিস', 'প্যাকেট'], defaultTracking: 'TRACKING_BATCH' },
+      { name: 'সাবান, শ্যাম্পু ও টয়লেট্রিজ', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'বোতল', 'প্যাক', 'বক্স'], defaultTracking: 'TRACKING_QUANTITY' },
+      { name: 'অন্যান্য মুদি পণ্য', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'কেজি', 'প্যাকেট'], defaultTracking: 'TRACKING_QUANTITY' }
     ]
   },
   cat_services: {
     label: 'ফটোকপি ও ডিজিটাল সেবা',
     subcategories: [
-      { name: 'ফটোকপি ও জেরক্স', defaultUnit: 'পৃষ্ঠা', suggestedUnits: ['পৃষ্ঠা', 'কপি', 'সেট'] },
-      { name: 'কালার ও ব্ল্যাক প্রিন্টিং', defaultUnit: 'পৃষ্ঠা', suggestedUnits: ['পৃষ্ঠা', 'কপি', 'শিট'] },
-      { name: 'অনলাইন আবেদন ও সরকারি ফরম', defaultUnit: 'সেবা', suggestedUnits: ['সেবা', 'আবেদন', 'ফরম'] },
-      { name: 'লেমিনেশন ও স্পাইরাল বাইন্ডিং', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'কপি', 'বুকলেট'] },
-      { name: 'ছবি প্রিন্ট ও পাসপোর্ট সাইজ ছবি', defaultUnit: 'কপি', suggestedUnits: ['কপি', 'সেট', 'পাতা'] },
-      { name: 'অন্যান্য নাগরিক সেবা', defaultUnit: 'সেবা', suggestedUnits: ['সেবা', 'কপি'] }
+      { name: 'ফটোকপি ও জেরক্স', defaultUnit: 'পৃষ্ঠা', suggestedUnits: ['পৃষ্ঠা', 'কপি', 'সেট'], defaultTracking: 'TRACKING_NONE' },
+      { name: 'কালার ও ব্ল্যাক প্রিন্টিং', defaultUnit: 'পৃষ্ঠা', suggestedUnits: ['পৃষ্ঠা', 'কপি', 'শিট'], defaultTracking: 'TRACKING_NONE' },
+      { name: 'অনলাইন আবেদন ও সরকারি ফরম', defaultUnit: 'সেবা', suggestedUnits: ['সেবা', 'আবেদন', 'ফরম'], defaultTracking: 'TRACKING_NONE' },
+      { name: 'লেমিনেশন ও স্পাইরাল বাইন্ডিং', defaultUnit: 'পিস', suggestedUnits: ['পিস', 'কপি', 'বুকলেট'], defaultTracking: 'TRACKING_NONE' },
+      { name: 'ছবি প্রিন্ট ও পাসপোর্ট সাইজ ছবি', defaultUnit: 'কপি', suggestedUnits: ['কপি', 'সেট', 'পাতা'], defaultTracking: 'TRACKING_NONE' },
+      { name: 'অন্যান্য নাগরিক সেবা', defaultUnit: 'সেবা', suggestedUnits: ['সেবা', 'কপি'], defaultTracking: 'TRACKING_NONE' }
     ]
   },
   cat_library: {
     label: 'লাইব্রেরি ও বইঘর',
     subcategories: [
-      { name: 'পাঠ্যবই ও একাডেমিক গাইড', defaultUnit: 'কপি', suggestedUnits: ['কপি', 'বই', 'সেট'] },
-      { name: 'উপন্যাস ও সাহিত্য', defaultUnit: 'কপি', suggestedUnits: ['কপি', 'বই', 'ভলিউম'] },
-      { name: 'ইসলামিক ও ধর্মীয় বই', defaultUnit: 'কপি', suggestedUnits: ['কপি', 'বই', 'সেট'] },
-      { name: 'শিশু-কিশোর ও কমিকস', defaultUnit: 'কপি', suggestedUnits: ['কপি', 'বই'] },
-      { name: 'অন্যান্য বই', defaultUnit: 'কপি', suggestedUnits: ['কপি', 'বই'] }
+      { name: 'পাঠ্যবই ও একাডেমিক গাইড', defaultUnit: 'কপি', suggestedUnits: ['কপি', 'বই', 'সেট'], defaultTracking: 'TRACKING_BOOK' },
+      { name: 'উপন্যাস ও সাহিত্য', defaultUnit: 'কপি', suggestedUnits: ['কপি', 'বই', 'ভলিউম'], defaultTracking: 'TRACKING_BOOK' },
+      { name: 'ইসলামিক ও ধর্মীয় বই', defaultUnit: 'কপি', suggestedUnits: ['কপি', 'বই', 'সেট'], defaultTracking: 'TRACKING_BOOK' },
+      { name: 'শিশু-কিশোর ও কমিকস', defaultUnit: 'কপি', suggestedUnits: ['কপি', 'বই'], defaultTracking: 'TRACKING_BOOK' },
+      { name: 'অন্যান্য বই', defaultUnit: 'কপি', suggestedUnits: ['কপি', 'বই'], defaultTracking: 'TRACKING_BOOK' }
     ]
   }
 };
@@ -123,6 +125,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
   const products = storageService.getProducts(activeTenant.id);
   const categories = storageService.getCategories();
   
+  const [lang, setLang] = useState<'bn' | 'en'>(() => i18n.getLanguage());
+
+  useEffect(() => {
+    const handleLang = () => setLang(i18n.getLanguage());
+    window.addEventListener('dokan_lang_changed', handleLang);
+    return () => window.removeEventListener('dokan_lang_changed', handleLang);
+  }, []);
+
+  const isEn = lang === 'en';
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTrackingMode, setSelectedTrackingMode] = useState<string>('ALL');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('ALL');
@@ -175,8 +187,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
   const [newPropKey, setNewPropKey] = useState('');
   const [newPropVal, setNewPropVal] = useState('');
 
-  // Fetch applicable custom fields for currently selected category in form
-  const categoryFieldDefs = storageService.getCustomFields(formCategoryId, 'product');
+  // Fetch applicable custom fields for currently selected category & subcategory in form
+  const categoryFieldDefs = storageService.getCustomFields(formCategoryId, 'product', formData.category_name);
   const definedFieldCodes = new Set(categoryFieldDefs.map(f => f.code));
 
   // Smart Category Change Handler: Automatically updates tracking mode, unit & properties
@@ -184,47 +196,43 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
     const catObj = categories.find(c => c.id === newCatId);
     setFormCategoryId(newCatId);
 
-    // Determine smart default tracking mode & unit based on selected category
-    let defaultTracking: TrackingMode = 'TRACKING_QUANTITY';
-    let defaultUnit = 'pcs';
-
-    if (newCatId === 'cat_telecom' || catObj?.code === 'TELECOM' || catObj?.code === 'ELECTRONICS') {
-      defaultTracking = 'TRACKING_IMEI';
-      defaultUnit = 'pcs';
-    } else if (newCatId === 'cat_grocery' || catObj?.code === 'GROCERY' || catObj?.code === 'FOOD') {
-      defaultTracking = 'TRACKING_BATCH';
-      defaultUnit = 'kg';
-    } else if (newCatId === 'cat_stationery' || catObj?.code === 'STATIONERY') {
-      defaultTracking = 'TRACKING_QUANTITY';
-      defaultUnit = 'pcs';
-    } else if (newCatId === 'cat_library' || catObj?.code === 'LIBRARY') {
-      defaultTracking = 'TRACKING_BOOK';
-      defaultUnit = 'copy';
-    } else if (newCatId === 'cat_services' || catObj?.code === 'SERVICES') {
-      defaultTracking = 'TRACKING_NONE';
-      defaultUnit = 'service';
-    }
-
     const subcats = BUSINESS_PRODUCT_CATEGORIES[newCatId]?.subcategories || [];
     const firstSubcat = subcats[0];
+
+    // Determine smart default tracking mode & unit based on selected category / subcategory
+    let smartTracking: TrackingMode = firstSubcat?.defaultTracking || 'TRACKING_QUANTITY';
+    if (!firstSubcat?.defaultTracking) {
+      if (newCatId === 'cat_telecom' || catObj?.code === 'TELECOM' || catObj?.code === 'ELECTRONICS') {
+        smartTracking = 'TRACKING_IMEI';
+      } else if (newCatId === 'cat_grocery' || catObj?.code === 'GROCERY' || catObj?.code === 'FOOD') {
+        smartTracking = 'TRACKING_BATCH';
+      } else if (newCatId === 'cat_library' || catObj?.code === 'LIBRARY') {
+        smartTracking = 'TRACKING_BOOK';
+      } else if (newCatId === 'cat_services' || catObj?.code === 'SERVICES') {
+        smartTracking = 'TRACKING_NONE';
+      }
+    }
+
+    const smartUnit = firstSubcat ? firstSubcat.defaultUnit : (newCatId === 'cat_grocery' ? 'kg' : newCatId === 'cat_services' ? 'service' : 'pcs');
 
     setFormData(prev => ({
       ...prev,
       business_category_id: newCatId,
       category_name: firstSubcat ? firstSubcat.name : catObj?.name || 'General',
-      tracking_mode: defaultTracking,
-      unit: firstSubcat ? firstSubcat.defaultUnit : defaultUnit
+      tracking_mode: smartTracking,
+      unit: smartUnit
     }));
   };
 
-  // Smart Subcategory Change Handler: Automatically updates category name and default unit
+  // Smart Subcategory Change Handler: Automatically updates category name, default unit, and tracking mode
   const handleSubcategoryChange = (subcatName: string) => {
     const subcats = BUSINESS_PRODUCT_CATEGORIES[formCategoryId]?.subcategories || [];
     const found = subcats.find(s => s.name === subcatName);
     setFormData(prev => ({
       ...prev,
       category_name: subcatName,
-      unit: found ? found.defaultUnit : prev.unit || 'pcs'
+      unit: found ? found.defaultUnit : prev.unit || 'pcs',
+      tracking_mode: found?.defaultTracking || prev.tracking_mode || 'TRACKING_QUANTITY'
     }));
   };
 
@@ -460,9 +468,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
       case 'TRACKING_WEIGHT':
         return <Badge variant="amber"><Scale className="w-3 h-3 inline mr-1" /> Weight Scale</Badge>;
       case 'TRACKING_BOOK':
-        return <Badge variant="secondary"><BookOpen className="w-3 h-3 inline mr-1" /> Book Master</Badge>;
+        return <Badge variant="secondary"><BookOpen className="w-3 h-3 inline mr-1 text-indigo-600" /> Book Master</Badge>;
+      case 'TRACKING_NONE':
+        return <Badge variant="secondary"><Sparkles className="w-3 h-3 inline mr-1 text-purple-600" /> Service / Rate Card</Badge>;
       default:
-        return <Badge variant="secondary">Standard Quantity</Badge>;
+        return <Badge variant="secondary"><Package className="w-3 h-3 inline mr-1" /> Standard Quantity</Badge>;
     }
   };
 
@@ -521,10 +531,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
             </div>
             <div>
               <h1 className="text-base font-bold text-slate-900 leading-tight">
-                পণ্য ও ইনভেন্টরি ক্যাটালগ (Product & Dynamic Properties)
+                {isEn ? 'Products & Inventory Catalog' : 'পণ্য ও ইনভেন্টরি ক্যাটালগ (Product & Dynamic Properties)'}
               </h1>
               <p className="text-[11px] text-slate-500">
-                দোকানের ক্যাটাগরিভিত্তিক কাস্টম স্কিমা এবং আইটেম লেভেল ডাইনামিক প্রোপার্টি ম্যানেজমেন্ট
+                {isEn ? 'Category-based custom schemas and item-level dynamic properties' : 'দোকানের ক্যাটাগরিভিত্তিক কাস্টম স্কিমা এবং আইটেম লেভেল ডাইনামিক প্রোপার্টি ম্যানেজমেন্ট'}
               </p>
             </div>
           </div>
@@ -536,16 +546,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
             onClick={() => {
               const result = CatalogInitEngine.initializeTenantCatalog(activeTenant);
               if (result.importedCount > 0) {
-                alert(`⚡ ${result.importedCount} টি মাস্টার পণ্য ক্যাটাগরি অনুযায়ী ইমপোর্ট সম্পন্ন!\n\nক্যাটাগরি: ${result.categoriesImported.join(', ')}\n\nপেজ রিফ্রেশ করলে পণ্যগুলো দেখা যাবে।`);
+                alert(`⚡ ${result.importedCount} ${isEn ? 'master products imported!' : 'টি মাস্টার পণ্য ক্যাটাগরি অনুযায়ী ইমপোর্ট সম্পন্ন!'}\n\n${isEn ? 'Categories:' : 'ক্যাটাগরি:'} ${result.categoriesImported.join(', ')}`);
                 window.location.reload();
               } else {
-                alert('✅ সকল মাস্টার পণ্য ইতোমধ্যে ক্যাটালগে রয়েছে।');
+                alert(isEn ? '✅ All master products already exist in catalog.' : '✅ সকল মাস্টার পণ্য ইতোমধ্যে ক্যাটালগে রয়েছে।');
               }
             }}
             className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all cursor-pointer"
           >
             <Zap className="w-4 h-4" />
-            <span>মাস্টার ক্যাটালগ ইমপোর্ট</span>
+            <span>{isEn ? 'Import Catalog' : 'মাস্টার ক্যাটালগ ইমপোর্ট'}</span>
           </button>
 
           <button
@@ -554,7 +564,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
             className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>নতুন স্টক যুক্ত করুন (Stock Inward)</span>
+            <span>{isEn ? 'Stock Inward' : 'নতুন স্টক যুক্ত করুন (Stock Inward)'}</span>
           </button>
 
           <button
@@ -563,7 +573,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
             className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>নতুন পণ্য তৈরি করুন</span>
+            <span>{isEn ? '+ Create Product' : 'নতুন পণ্য তৈরি করুন'}</span>
           </button>
         </div>
       </div>
@@ -575,7 +585,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="পণ্যের নাম, কোড, বারকোড, ব্র্যান্ড বা কাস্টম প্রোপার্টি (যেমন: 512GB, O'Reilly) দিয়ে খুঁজুন..."
+            placeholder={isEn ? "Search by name, SKU, barcode, brand or custom properties..." : "পণ্যের নাম, কোড, বারকোড, ব্র্যান্ড বা কাস্টম প্রোপার্টি (যেমন: 512GB, O'Reilly) দিয়ে খুঁজুন..."}
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
@@ -592,7 +602,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               onChange={e => setSelectedCategoryFilter(e.target.value)}
               className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
             >
-              <option value="ALL">সকল ক্যাটাগরি</option>
+              <option value="ALL">{isEn ? 'All Categories' : 'সকল ক্যাটাগরি'}</option>
               {categories.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -607,13 +617,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               onChange={e => setSelectedTrackingMode(e.target.value)}
               className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
             >
-              <option value="ALL">সকল ট্র্যাকিং মোড</option>
-              <option value="TRACKING_QUANTITY">Quantity (স্ট্যান্ডার্ড)</option>
-              <option value="TRACKING_IMEI">IMEI (টেলিকম হার্ডওয়্যার)</option>
-              <option value="TRACKING_SERIAL">Serial Number (সিরিয়াল)</option>
-              <option value="TRACKING_BATCH">Batch & Expiry (গ্রোসারি ও মেয়াদ)</option>
-              <option value="TRACKING_WEIGHT">Weight Scale (ওজন পরিমাপ)</option>
-              <option value="TRACKING_BOOK">Book Master (বই ও প্রকাশনী)</option>
+              <option value="ALL">{isEn ? 'All Tracking Modes' : 'সকল ট্র্যাকিং মোড'}</option>
+              <option value="TRACKING_QUANTITY">{isEn ? 'Standard Quantity' : 'Quantity (স্ট্যান্ডার্ড)'}</option>
+              <option value="TRACKING_IMEI">{isEn ? 'IMEI Hardware' : 'IMEI (টেলিকম হার্ডওয়্যার)'}</option>
+              <option value="TRACKING_SERIAL">{isEn ? 'Serial Number' : 'Serial Number (সিরিয়াল)'}</option>
+              <option value="TRACKING_BATCH">{isEn ? 'Batch & Expiry' : 'Batch & Expiry (গ্রোসারি ও মেয়াদ)'}</option>
+              <option value="TRACKING_WEIGHT">{isEn ? 'Weight Scale' : 'Weight Scale (ওজন পরিমাপ)'}</option>
+              <option value="TRACKING_BOOK">{isEn ? 'Book Catalog' : 'Book Master (বই ও প্রকাশনী)'}</option>
+              <option value="TRACKING_NONE">{isEn ? 'Service / Rate Card' : 'Service (ডিজিটাল সেবা)'}</option>
             </select>
           </div>
         </div>
@@ -625,13 +636,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-600 uppercase font-bold text-[10px] tracking-wider">
               <tr>
-                <th className="py-3 px-4">পণ্য ও আইটেম কোড</th>
-                <th className="py-3 px-4">ক্যাটাগরি</th>
-                <th className="py-3 px-4">ট্র্যাকিং মোড</th>
-                <th className="py-3 px-4">মূল্য (ক্রয় / বিক্রয়)</th>
-                <th className="py-3 px-4">স্টক পরিমাণ</th>
-                <th className="py-3 px-4">কাস্টম ও ডাইনামিক প্রোপার্টি</th>
-                <th className="py-3 px-4 text-right">একশন</th>
+                <th className="py-3 px-4">{isEn ? 'Product & Code' : 'পণ্য ও আইটেম কোড'}</th>
+                <th className="py-3 px-4">{isEn ? 'Category' : 'ক্যাটাগরি'}</th>
+                <th className="py-3 px-4">{isEn ? 'Tracking Mode' : 'ট্র্যাকিং মোড'}</th>
+                <th className="py-3 px-4">{isEn ? 'Price (Cost / Sell)' : 'মূল্য (ক্রয় / বিক্রয়)'}</th>
+                <th className="py-3 px-4">{isEn ? 'Stock Qty' : 'স্টক পরিমাণ'}</th>
+                <th className="py-3 px-4">{isEn ? 'Custom Properties' : 'কাস্টম ও ডাইনামিক প্রোপার্টি'}</th>
+                <th className="py-3 px-4 text-right">{isEn ? 'Action' : 'একশন'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -933,19 +944,27 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">ট্র্যাকিং মেকানিজম *</label>
+                <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>ট্র্যাকিং মেকানিজম *</span>
+                  <span className="text-[10px] text-indigo-600 font-bold font-mono">
+                    {formData.tracking_mode}
+                  </span>
+                </label>
                 <select
                   value={formData.tracking_mode || 'TRACKING_QUANTITY'}
-                  onChange={e => setFormData({ ...formData, tracking_mode: e.target.value as TrackingMode })}
-                  className="w-full px-3 py-2 bg-indigo-50/70 border border-indigo-300 rounded-lg font-bold text-indigo-900"
+                  onChange={e => {
+                    const newMode = e.target.value as TrackingMode;
+                    setFormData(prev => ({ ...prev, tracking_mode: newMode }));
+                  }}
+                  className="w-full px-3 py-2 bg-indigo-50/70 border-2 border-indigo-300 rounded-lg font-bold text-indigo-900 focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                 >
-                  <option value="TRACKING_QUANTITY">TRACKING_QUANTITY (স্ট্যান্ডার্ড স্টক গণনা)</option>
-                  <option value="TRACKING_IMEI">TRACKING_IMEI (টেলিকম IMEI ট্র্যাকিং)</option>
-                  <option value="TRACKING_SERIAL">TRACKING_SERIAL (ইলেকট্রনিক্স সিরিয়াল)</option>
-                  <option value="TRACKING_BATCH">TRACKING_BATCH (গ্রোসারি ব্যাচ ও মেয়াদ)</option>
-                  <option value="TRACKING_WEIGHT">TRACKING_WEIGHT (ডিজিটাল ওজন স্কেল)</option>
-                  <option value="TRACKING_BOOK">TRACKING_BOOK (বই ও লাইব্রেরি ক্যাটালগ)</option>
-                  <option value="TRACKING_NONE">TRACKING_NONE (সার্ভিস / ডিজিটাল রেট)</option>
+                  <option value="TRACKING_QUANTITY">📦 TRACKING_QUANTITY (স্ট্যান্ডার্ড স্টক গণনা)</option>
+                  <option value="TRACKING_IMEI">📱 TRACKING_IMEI (টেলিকম IMEI ট্র্যাকিং)</option>
+                  <option value="TRACKING_SERIAL">🔢 TRACKING_SERIAL (ইলেকট্রনিক্স সিরিয়াল)</option>
+                  <option value="TRACKING_BATCH">🏷️ TRACKING_BATCH (গ্রোসারি ব্যাচ ও মেয়াদ)</option>
+                  <option value="TRACKING_WEIGHT">⚖️ TRACKING_WEIGHT (ডিজিটাল ওজন স্কেল - কেজি/গ্রাম)</option>
+                  <option value="TRACKING_BOOK">📚 TRACKING_BOOK (বই ও লাইব্রেরি ক্যাটালগ)</option>
+                  <option value="TRACKING_NONE">⚡ TRACKING_NONE (ভার্চুয়াল সেবা / ডিজিটাল রেট)</option>
                 </select>
               </div>
 
@@ -1177,17 +1196,24 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
             )}
           </div>
 
-          {/* SECTION 3: CATEGORY SCHEMA CUSTOM FIELDS */}
+          {/* SECTION 3: CATEGORY & SUBCATEGORY SCHEMA CUSTOM FIELDS */}
           {categoryFieldDefs.length > 0 && (
-            <div className="space-y-3 pt-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-              <div className="flex items-center justify-between">
+            <div className="space-y-3 pt-2 bg-indigo-50/30 p-4 rounded-2xl border border-indigo-200/80 shadow-2xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                  <Tag className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>৩. ক্যাটাগরি ভিত্তিক কাস্টম ফিল্ড ({categoryFieldDefs.length} টি নির্ধারিত)</span>
+                  <Tag className="w-4 h-4 text-indigo-600" />
+                  <span>৩. ক্যাটাগরি ও সাব-ক্যাটাগরি ভিত্তিক কাস্টম ফিল্ড ({categoryFieldDefs.length} টি নির্ধারিত)</span>
                 </h3>
-                <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">
-                  {categories.find(c => c.id === formCategoryId)?.name}
-                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10.5px] bg-indigo-100 text-indigo-700 px-2.5 py-0.5 rounded-full font-bold border border-indigo-200">
+                    📁 {categories.find(c => c.id === formCategoryId)?.name}
+                  </span>
+                  {formData.category_name && (
+                    <span className="text-[10.5px] bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold border border-emerald-200">
+                      🏷️ {formData.category_name}
+                    </span>
+                  )}
+                </div>
               </div>
               
               <CustomFieldRenderer

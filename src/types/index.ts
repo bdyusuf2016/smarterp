@@ -85,6 +85,8 @@ export interface Tenant {
   currency_symbol: string;
   address: string;
   vat_number?: string;
+  tin_number?: string;
+  bin_number?: string;
   subdomain?: string;
   custom_domain?: string;
   status?: 'active' | 'suspended' | 'trial';
@@ -93,6 +95,58 @@ export interface Tenant {
   enabled_modules?: string[];
   created_at: string;
   updated_at?: string;
+}
+
+// ==================================================
+// INVOICE & PRINT TEMPLATE CONFIGURATION
+// ==================================================
+export type InvoiceTemplateStyle = 'modern' | 'classic' | 'thermal' | 'colorful' | 'tax_compliant';
+
+export interface InvoiceTemplateConfig {
+  templateStyle: InvoiceTemplateStyle;
+  defaultPaperSize: '80mm' | '58mm' | 'A4' | 'A5';
+  primaryColor: string;
+  headerNote: string;
+  footerNote: string;
+  termsConditions?: string;
+  showLogo: boolean;
+  showWatermark: boolean;
+  showQrCode: boolean;
+  showCustomerDetails: boolean;
+  showTinBin: boolean;
+  showWarrantyNote: boolean;
+  showSignatures: boolean;
+  showSoftwareBranding: boolean;
+  softwareBrandingText?: string;
+}
+
+// ==================================================
+// CUSTOM PAYMENT METHOD CONFIGURATION
+// ==================================================
+export type CustomPaymentMethodType =
+  | 'MFS'
+  | 'BANK'
+  | 'CARD'
+  | 'DIGITAL_WALLET'
+  | 'CHEQUE'
+  | 'OTHER';
+
+export interface CustomPaymentMethod {
+  id: string;
+  code: string;
+  name: string;
+  type: CustomPaymentMethodType;
+  accountNumber?: string;
+  accountName?: string;
+  bankName?: string;
+  branchName?: string;
+  routingNumber?: string;
+  chargePercent?: number;
+  requireTrxId?: boolean;
+  qrCodeUrl?: string;
+  isActive: boolean;
+  color?: string;
+  instructions?: string;
 }
 
 // ==================================================
@@ -135,6 +189,8 @@ export interface CustomFieldDefinition {
   id: string;
   entity_type: 'product' | 'customer' | 'sale' | 'supplier' | 'repair' | 'borrow';
   business_category_id?: string; // If bound to specific business category
+  subcategory?: string; // Optional target subcategory (e.g. 'কাগজ ও অফসেট রিম')
+  target_subcategories?: string[]; // Multiple target subcategories
   name: string;
   code: string;
   field_type: CustomFieldType;
