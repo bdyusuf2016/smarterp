@@ -9,7 +9,8 @@ import {
   Store, 
   LogOut, 
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  X
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -20,6 +21,8 @@ interface SidebarProps {
   onSelectView: (viewId: string) => void;
   onOpenProfile: () => void;
   onLogout: () => void;
+  isMobileDrawer?: boolean;
+  onCloseMobileDrawer?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -29,7 +32,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeViewId,
   onSelectView,
   onOpenProfile,
-  onLogout
+  onLogout,
+  isMobileDrawer = false,
+  onCloseMobileDrawer
 }) => {
   const [lang, setLang] = useState<'bn' | 'en'>(() => i18n.getLanguage());
   const [isDark, setIsDark] = useState<boolean>(() => {
@@ -37,6 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   });
 
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    if (isMobileDrawer) return false;
     return localStorage.getItem('dokan_sidebar_collapsed') === 'true';
   });
 
@@ -67,6 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }, []);
 
   const toggleCollapse = () => {
+    if (isMobileDrawer) return;
     setIsCollapsed(prev => {
       const next = !prev;
       localStorage.setItem('dokan_sidebar_collapsed', String(next));
@@ -97,10 +104,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return grp;
   };
 
+  const handleItemSelect = (viewId: string) => {
+    onSelectView(viewId);
+    if (isMobileDrawer && onCloseMobileDrawer) {
+      onCloseMobileDrawer();
+    }
+  };
+
   return (
     <aside 
-      className={`relative flex flex-col shrink-0 select-none transition-all duration-300 ease-in-out border-r ${
-        isCollapsed ? 'w-18' : 'w-64'
+      className={`relative flex flex-col shrink-0 select-none transition-all duration-300 ease-in-out h-full ${
+        isMobileDrawer ? 'w-full' : isCollapsed ? 'w-18' : 'w-64'
       } ${
         isDark 
           ? 'bg-[#101319] border-[#222734] text-slate-300' 
@@ -109,7 +123,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     >
       {/* Brand Header */}
       <div className={`border-b flex items-center transition-all ${
-        isCollapsed ? 'p-3 justify-center' : 'p-4 justify-between'
+        !isMobileDrawer && isCollapsed ? 'p-3 justify-center' : 'p-4 justify-between'
       } ${
         isDark 
           ? 'border-[#222734] bg-[#0c0e12]' 
@@ -120,7 +134,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <Store className="w-5 h-5" />
           </div>
           
-          {!isCollapsed && (
+          {(isMobileDrawer || !isCollapsed) && (
             <div className="flex flex-col min-w-0 animate-in fade-in duration-200">
               <span className={`font-bold text-sm leading-tight truncate tracking-tight ${
                 isDark ? 'text-white' : 'text-slate-900'
@@ -136,8 +150,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {/* Collapse Toggle Button */}
-        {!isCollapsed && (
+        {/* Close Button for Mobile Drawer or Collapse Button for Desktop */}
+        {isMobileDrawer ? (
+          <button
+            type="button"
+            onClick={onCloseMobileDrawer}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+              isDark 
+                ? 'text-slate-400 hover:text-white hover:bg-slate-800' 
+                : 'text-slate-400 hover:text-slate-800 hover:bg-slate-200/70'
+            }`}
+            title="বন্ধ করুন (Close Menu)"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        ) : !isCollapsed && (
           <button
             type="button"
             onClick={toggleCollapse}
@@ -154,7 +181,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* When Collapsed: Quick Expand Button at Top */}
-      {isCollapsed && (
+      {!isMobileDrawer && isCollapsed && (
         <div className={`p-2 flex justify-center border-b ${
           isDark ? 'border-[#222734]' : 'border-slate-100'
         }`}>
@@ -198,7 +225,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <div key={item.id} className="relative group">
                     <button
                       type="button"
-                      onClick={() => onSelectView(item.id)}
+                      onClick={() => handleItemSelect(item.id)}
                       className={`w-full flex items-center rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                         isCollapsed 
                           ? 'justify-center p-2.5' 

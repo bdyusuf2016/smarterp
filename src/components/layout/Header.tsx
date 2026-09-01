@@ -15,7 +15,8 @@ import {
   Settings,
   Sun,
   Moon,
-  Globe
+  Globe,
+  Menu
 } from 'lucide-react';
 import { Tenant, UserRole, BusinessCategory } from '../../types';
 import { storageService } from '../../services/storageService';
@@ -36,6 +37,7 @@ interface HeaderProps {
   onOpenStaffManagement?: () => void;
   onOpenTenantProvisioning?: () => void;
   onOpenGlobalSettings?: () => void;
+  onToggleMobileMenu?: () => void;
   onLogout: () => void;
 }
 
@@ -51,6 +53,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenStaffManagement,
   onOpenTenantProvisioning,
   onOpenGlobalSettings,
+  onToggleMobileMenu,
   onLogout
 }) => {
   const [tenantDropdownOpen, setTenantDropdownOpen] = useState(false);
@@ -104,9 +107,19 @@ export const Header: React.FC<HeaderProps> = ({
   const isAdmin = currentUser.role === 'ADMIN';
 
   return (
-    <header className="sticky top-0 z-30 h-14 sm:h-16 bg-white border-b border-[#dee2e6] px-4 sm:px-6 flex items-center justify-between shadow-xs">
-      {/* Left: Brand & Tenant Switcher */}
-      <div className="flex items-center gap-3 sm:gap-4">
+    <header className="sticky top-0 z-30 h-14 sm:h-16 bg-white border-b border-[#dee2e6] px-2.5 sm:px-6 flex items-center justify-between shadow-xs">
+      {/* Left: Hamburger (Mobile) + Brand & Tenant Switcher */}
+      <div className="flex items-center gap-1.5 sm:gap-4">
+        {/* Mobile Menu Hamburger Button */}
+        <button
+          type="button"
+          onClick={onToggleMobileMenu}
+          className="md:hidden p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+          title="মেনু খুলুন (Open Navigation Menu)"
+        >
+          <Menu className="w-5 h-5 text-indigo-600" />
+        </button>
+
         {/* Tenant Profile Dropdown */}
         <div className="relative">
           <button
@@ -115,18 +128,18 @@ export const Header: React.FC<HeaderProps> = ({
               setTenantDropdownOpen(!tenantDropdownOpen);
               setUserDropdownOpen(false);
             }}
-            className="flex items-center gap-2.5 px-3 py-1.5 bg-[#f8f9fa] hover:bg-gray-100 border border-[#dee2e6] rounded-lg text-left transition-colors cursor-pointer"
+            className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 bg-[#f8f9fa] hover:bg-gray-100 border border-[#dee2e6] rounded-lg text-left transition-colors cursor-pointer max-w-[140px] sm:max-w-xs"
           >
-            <Building2 className="w-4 h-4 text-blue-600" />
-            <div>
-              <div className="text-xs font-bold text-[#1a1b1e] leading-tight">
+            <Building2 className="w-4 h-4 text-blue-600 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-bold text-[#1a1b1e] leading-tight truncate">
                 {activeTenant?.name || (currentLang === 'en' ? 'No Shop Connected' : 'কোনো দোকান সংযুক্ত নেই')}
               </div>
-              <div className="flex items-center gap-1 text-[10px] text-[#868e96] font-mono">
+              <div className="hidden sm:flex items-center gap-1 text-[10px] text-[#868e96] font-mono">
                 <span>TENANT: {activeTenant?.code || 'N/A'}</span>
               </div>
             </div>
-            <ChevronDown className="w-3.5 h-3.5 text-[#868e96] ml-1" />
+            <ChevronDown className="w-3.5 h-3.5 text-[#868e96] ml-0.5 shrink-0" />
           </button>
 
           {/* Tenant Menu Dropdown */}

@@ -677,41 +677,41 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* Quick Launch Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2.5 pt-2 xl:pt-0">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:gap-2.5 pt-2 xl:pt-0 w-full xl:w-auto">
             <button
               type="button"
               onClick={() => onNavigate('pos_sales')}
-              className="px-4 py-3 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-bold rounded-2xl flex items-center gap-2 shadow-xl shadow-emerald-950/40 transition-all cursor-pointer hover:scale-[1.03] active:scale-[0.98] border border-emerald-400/30"
+              className="px-3.5 sm:px-4 py-2.5 sm:py-3 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-1.5 sm:gap-2 shadow-xl shadow-emerald-950/40 transition-all cursor-pointer hover:scale-[1.03] active:scale-[0.98] border border-emerald-400/30"
             >
-              <ShoppingCart className="w-4 h-4" />
-              <span>{isEn ? 'POS Quick Billing' : 'POS ক্যাশ কাউন্টার'}</span>
+              <ShoppingCart className="w-4 h-4 shrink-0" />
+              <span className="truncate">{isEn ? 'POS Billing' : 'POS ক্যাশ কাউন্টার'}</span>
             </button>
 
             <button
               type="button"
               onClick={() => onNavigate('products')}
-              className="px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border border-blue-400/30 text-xs font-bold rounded-2xl flex items-center gap-2 shadow-xl shadow-indigo-950/40 backdrop-blur-md transition-all cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
+              className="px-3.5 sm:px-4 py-2.5 sm:py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border border-blue-400/30 text-xs font-bold rounded-2xl flex items-center justify-center gap-1.5 sm:gap-2 shadow-xl shadow-indigo-950/40 backdrop-blur-md transition-all cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
             >
-              <PlusCircle className="w-4 h-4 text-blue-200" />
-              <span>{isEn ? '+ Add Stock' : '+ নতুন পণ্য স্টক'}</span>
+              <PlusCircle className="w-4 h-4 text-blue-200 shrink-0" />
+              <span className="truncate">{isEn ? '+ Add Stock' : '+ নতুন পণ্য স্টক'}</span>
             </button>
 
             <button
               type="button"
               onClick={() => onNavigate('customers')}
-              className="px-4 py-3 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white border border-rose-400/30 text-xs font-bold rounded-2xl flex items-center gap-2 shadow-xl shadow-rose-950/40 backdrop-blur-md transition-all cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
+              className="px-3.5 sm:px-4 py-2.5 sm:py-3 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white border border-rose-400/30 text-xs font-bold rounded-2xl flex items-center justify-center gap-1.5 sm:gap-2 shadow-xl shadow-rose-950/40 backdrop-blur-md transition-all cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
             >
-              <BookMarked className="w-4 h-4 text-rose-200" />
-              <span>{isEn ? 'Due Book (CRM)' : 'বাকি খাতা (CRM)'}</span>
+              <BookMarked className="w-4 h-4 text-rose-200 shrink-0" />
+              <span className="truncate">{isEn ? 'Due (CRM)' : 'বাকি খাতা (CRM)'}</span>
             </button>
 
             <button
               type="button"
               onClick={() => onNavigate('reports')}
-              className="px-4 py-3 bg-white/15 hover:bg-white/25 text-white border border-white/20 text-xs font-bold rounded-2xl flex items-center gap-2 backdrop-blur-md transition-all cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
+              className="px-3.5 sm:px-4 py-2.5 sm:py-3 bg-white/15 hover:bg-white/25 text-white border border-white/20 text-xs font-bold rounded-2xl flex items-center justify-center gap-1.5 sm:gap-2 backdrop-blur-md transition-all cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
             >
-              <FileSpreadsheet className="w-4 h-4 text-amber-300" />
-              <span>{isEn ? 'P&L & Reports' : 'লাভ-ক্ষতি ও রিপোর্ট'}</span>
+              <FileSpreadsheet className="w-4 h-4 text-amber-300 shrink-0" />
+              <span className="truncate">{isEn ? 'P&L Reports' : 'লাভ-ক্ষতি ও রিপোর্ট'}</span>
             </button>
           </div>
         </div>
@@ -720,43 +720,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* 2. CORE FINANCIAL & OPERATIONAL KPIS */}
       <div>
         <div className="flex items-center justify-between mb-2.5">
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+          <span className="text-[10.5px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 truncate">
             <span>📊</span>
-            <span>{isEn ? 'Business Metric Cards (Click to inspect detailed inline table)' : 'বিজনেস মেট্রিক্স কার্ড (ক্লিক করলে নিচে সরাসরি বিস্তারিত টেবিল প্রদর্শিত হবে)'}</span>
+            <span>{isEn ? 'Business Metric Cards' : 'বিজনেস মেট্রিক্স কার্ড'}</span>
           </span>
-          <span className="text-[10px] text-indigo-700 font-bold bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200 flex items-center gap-1.5 shadow-2xs">
+          <span className="text-[9.5px] sm:text-[10px] text-indigo-700 font-bold bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200 flex items-center gap-1.5 shadow-2xs shrink-0">
             <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-ping" />
-            {isEn ? 'Click card to switch table' : 'কার্ডে ক্লিক করে টেবিল সিলেক্ট করুন'}
+            {isEn ? 'Tap to view table' : 'ক্লিক করে টেবিল দেখুন'}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-3.5">
           
           {/* Card 1: Today's Sales */}
           <div 
             onClick={() => handleCardClick('today_sales')}
-            className={`p-4 rounded-2xl border-2 transition-all group cursor-pointer active:scale-[0.98] ${
+            className={`p-3 sm:p-4 rounded-2xl border-2 transition-all group cursor-pointer active:scale-[0.98] ${
               activeInlineTab === 'today_sales'
                 ? 'bg-emerald-50/70 border-emerald-600 shadow-lg ring-4 ring-emerald-500/20'
                 : 'bg-white border-slate-200 hover:border-emerald-500 shadow-sm hover:shadow-md'
             }`}
           >
-            <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700">{isEn ? "Today's Sales" : 'আজকের বিক্রি'}</span>
-              <div className={`p-2 rounded-xl transition-all ${activeInlineTab === 'today_sales' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white'}`}>
-                <Coins className="w-4 h-4" />
+            <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-700 truncate">{isEn ? "Today's Sales" : 'আজকের বিক্রি'}</span>
+              <div className={`p-1.5 sm:p-2 rounded-xl transition-all ${activeInlineTab === 'today_sales' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white'}`}>
+                <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
             </div>
-            <div className="text-xl font-black text-slate-900 font-mono tracking-tight group-hover:text-emerald-700 transition-colors">
+            <div className="text-base sm:text-xl font-black text-slate-900 font-mono tracking-tight group-hover:text-emerald-700 transition-colors">
               {currencySymbol}{todayRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <div className="flex items-center justify-between text-[10px] text-emerald-600 font-semibold mt-2 pt-1.5 border-t border-slate-100">
-              <span className="flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" />
-                <span>{todaySales.length} {isEn ? 'Invoices' : 'টি ইনভয়েস'}</span>
+            <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-emerald-600 font-semibold mt-1.5 sm:mt-2 pt-1 sm:pt-1.5 border-t border-slate-100">
+              <span className="flex items-center gap-1 truncate">
+                <TrendingUp className="w-3 h-3 shrink-0" />
+                <span>{todaySales.length} {isEn ? 'Inv' : 'ইনভয়েস'}</span>
               </span>
-              <span className={`text-[9.5px] font-bold flex items-center gap-0.5 ${activeInlineTab === 'today_sales' ? 'text-emerald-700 underline' : 'text-slate-400 group-hover:text-emerald-600'}`}>
-                {activeInlineTab === 'today_sales' ? (isEn ? 'Active Table ▼' : 'সক্রিয় টেবিল ▼') : (isEn ? 'View Table ▼' : 'টেবিল দেখুন ▼')}
+              <span className={`text-[9px] sm:text-[9.5px] font-bold shrink-0 ${activeInlineTab === 'today_sales' ? 'text-emerald-700 underline' : 'text-slate-400 group-hover:text-emerald-600'}`}>
+                {activeInlineTab === 'today_sales' ? '▼' : '▼'}
               </span>
             </div>
           </div>
@@ -764,25 +764,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Card 2: Current Month Sales */}
           <div 
             onClick={() => handleCardClick('month_sales')}
-            className={`p-4 rounded-2xl border-2 transition-all group cursor-pointer active:scale-[0.98] ${
+            className={`p-3 sm:p-4 rounded-2xl border-2 transition-all group cursor-pointer active:scale-[0.98] ${
               activeInlineTab === 'month_sales'
                 ? 'bg-indigo-50/70 border-indigo-600 shadow-lg ring-4 ring-indigo-500/20'
                 : 'bg-white border-slate-200 hover:border-indigo-500 shadow-sm hover:shadow-md'
             }`}
           >
-            <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700">{isEn ? 'Monthly Sales' : 'চলতি মাসের বিক্রি'}</span>
-              <div className={`p-2 rounded-xl transition-all ${activeInlineTab === 'month_sales' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white'}`}>
-                <Calendar className="w-4 h-4" />
+            <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-700 truncate">{isEn ? 'Monthly Sales' : 'মাসের বিক্রি'}</span>
+              <div className={`p-1.5 sm:p-2 rounded-xl transition-all ${activeInlineTab === 'month_sales' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white'}`}>
+                <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
             </div>
-            <div className="text-xl font-black text-slate-900 font-mono tracking-tight group-hover:text-indigo-700 transition-colors">
+            <div className="text-base sm:text-xl font-black text-slate-900 font-mono tracking-tight group-hover:text-indigo-700 transition-colors">
               {currencySymbol}{monthRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <div className="flex items-center justify-between text-[10px] text-indigo-600 font-semibold mt-2 pt-1.5 border-t border-slate-100">
-              <span>{currentMonthSales.length} {isEn ? 'Sales' : 'টি বিক্রি'}</span>
-              <span className={`text-[9.5px] font-bold flex items-center gap-0.5 ${activeInlineTab === 'month_sales' ? 'text-indigo-700 underline' : 'text-slate-400 group-hover:text-indigo-600'}`}>
-                {activeInlineTab === 'month_sales' ? (isEn ? 'Active Table ▼' : 'সক্রিয় টেবিল ▼') : (isEn ? 'View Table ▼' : 'টেবিল দেখুন ▼')}
+            <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-indigo-600 font-semibold mt-1.5 sm:mt-2 pt-1 sm:pt-1.5 border-t border-slate-100">
+              <span className="truncate">{currentMonthSales.length} {isEn ? 'Sales' : 'টি বিক্রি'}</span>
+              <span className={`text-[9px] sm:text-[9.5px] font-bold shrink-0 ${activeInlineTab === 'month_sales' ? 'text-indigo-700 underline' : 'text-slate-400 group-hover:text-indigo-600'}`}>
+                {activeInlineTab === 'month_sales' ? '▼' : '▼'}
               </span>
             </div>
           </div>
@@ -790,28 +790,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Card 3: Estimated Net Profit */}
           <div 
             onClick={() => handleCardClick('profit_breakdown')}
-            className={`p-4 rounded-2xl border-2 transition-all group cursor-pointer active:scale-[0.98] ${
+            className={`p-3 sm:p-4 rounded-2xl border-2 transition-all group cursor-pointer active:scale-[0.98] ${
               activeInlineTab === 'profit_breakdown'
                 ? 'bg-teal-50/70 border-teal-600 shadow-lg ring-4 ring-teal-500/20'
                 : 'bg-white border-slate-200 hover:border-teal-500 shadow-sm hover:shadow-md'
             }`}
           >
-            <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700">{isEn ? 'Estimated Profit' : 'আনুমানিক নিট লাভ'}</span>
-              <div className={`p-2 rounded-xl transition-all ${activeInlineTab === 'profit_breakdown' ? 'bg-teal-600 text-white shadow-sm' : 'bg-teal-50 text-teal-600 group-hover:bg-teal-600 group-hover:text-white'}`}>
-                <Sparkles className="w-4 h-4" />
+            <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-700 truncate">{isEn ? 'Est. Profit' : 'আনুমানিক লাভ'}</span>
+              <div className={`p-1.5 sm:p-2 rounded-xl transition-all ${activeInlineTab === 'profit_breakdown' ? 'bg-teal-600 text-white shadow-sm' : 'bg-teal-50 text-teal-600 group-hover:bg-teal-600 group-hover:text-white'}`}>
+                <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
             </div>
-            <div className="text-xl font-black text-teal-700 font-mono tracking-tight group-hover:text-teal-800 transition-colors">
+            <div className="text-base sm:text-xl font-black text-teal-700 font-mono tracking-tight group-hover:text-teal-800 transition-colors">
               {currencySymbol}{totalEstimatedProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <div className="flex items-center justify-between text-[10px] text-teal-600 font-semibold mt-2 pt-1.5 border-t border-slate-100">
-              <span className="flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" />
-                <span>{isEn ? 'Margin Analysis' : 'মার্জিন বিশ্লেষণ'}</span>
+            <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-teal-600 font-semibold mt-1.5 sm:mt-2 pt-1 sm:pt-1.5 border-t border-slate-100">
+              <span className="flex items-center gap-1 truncate">
+                <CheckCircle2 className="w-3 h-3 shrink-0" />
+                <span>{isEn ? 'Margin' : 'মার্জিন'}</span>
               </span>
-              <span className={`text-[9.5px] font-bold flex items-center gap-0.5 ${activeInlineTab === 'profit_breakdown' ? 'text-teal-700 underline' : 'text-slate-400 group-hover:text-teal-600'}`}>
-                {activeInlineTab === 'profit_breakdown' ? (isEn ? 'Active Table ▼' : 'সক্রিয় টেবিল ▼') : (isEn ? 'View Table ▼' : 'টেবিল দেখুন ▼')}
+              <span className={`text-[9px] sm:text-[9.5px] font-bold shrink-0 ${activeInlineTab === 'profit_breakdown' ? 'text-teal-700 underline' : 'text-slate-400 group-hover:text-teal-600'}`}>
+                {activeInlineTab === 'profit_breakdown' ? '▼' : '▼'}
               </span>
             </div>
           </div>
@@ -819,25 +819,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Card 4: Customer Due Book */}
           <div 
             onClick={() => handleCardClick('customer_dues')}
-            className={`p-4 rounded-2xl border-2 transition-all group cursor-pointer active:scale-[0.98] ${
+            className={`p-3 sm:p-4 rounded-2xl border-2 transition-all group cursor-pointer active:scale-[0.98] ${
               activeInlineTab === 'customer_dues'
                 ? 'bg-rose-50/70 border-rose-600 shadow-lg ring-4 ring-rose-500/20'
                 : 'bg-white border-slate-200 hover:border-rose-500 shadow-sm hover:shadow-md'
             }`}
           >
-            <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700">{isEn ? 'Due Book (CRM)' : 'মোট বাকি / খাতা'}</span>
-              <div className={`p-2 rounded-xl transition-all ${activeInlineTab === 'customer_dues' ? 'bg-rose-600 text-white shadow-sm' : 'bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white'}`}>
-                <Users className="w-4 h-4" />
+            <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-700 truncate">{isEn ? 'Due (CRM)' : 'মোট বাকি'}</span>
+              <div className={`p-1.5 sm:p-2 rounded-xl transition-all ${activeInlineTab === 'customer_dues' ? 'bg-rose-600 text-white shadow-sm' : 'bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white'}`}>
+                <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
             </div>
-            <div className="text-xl font-black text-rose-600 font-mono tracking-tight group-hover:text-rose-700 transition-colors">
+            <div className="text-base sm:text-xl font-black text-rose-600 font-mono tracking-tight group-hover:text-rose-700 transition-colors">
               {currencySymbol}{totalDueAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <div className="flex items-center justify-between text-[10px] text-rose-600 font-medium mt-2 pt-1.5 border-t border-slate-100">
-              <span>{dueCustomersCount} {isEn ? 'Customers' : 'জন কাস্টমার'}</span>
-              <span className={`text-[9.5px] font-bold flex items-center gap-0.5 ${activeInlineTab === 'customer_dues' ? 'text-rose-700 underline' : 'text-slate-400 group-hover:text-rose-600'}`}>
-                {activeInlineTab === 'customer_dues' ? (isEn ? 'Active Table ▼' : 'সক্রিয় টেবিল ▼') : (isEn ? 'View Table ▼' : 'টেবিল দেখুন ▼')}
+            <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-rose-600 font-medium mt-1.5 sm:mt-2 pt-1 sm:pt-1.5 border-t border-slate-100">
+              <span className="truncate">{dueCustomersCount} {isEn ? 'Cust' : 'জন বাকি'}</span>
+              <span className={`text-[9px] sm:text-[9.5px] font-bold shrink-0 ${activeInlineTab === 'customer_dues' ? 'text-rose-700 underline' : 'text-slate-400 group-hover:text-rose-600'}`}>
+                {activeInlineTab === 'customer_dues' ? '▼' : '▼'}
               </span>
             </div>
           </div>
@@ -845,25 +845,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Card 5: Inventory Valuation */}
           <div 
             onClick={() => handleCardClick('stock_valuation')}
-            className={`p-4 rounded-2xl border-2 transition-all group cursor-pointer active:scale-[0.98] ${
+            className={`p-3 sm:p-4 rounded-2xl border-2 transition-all group cursor-pointer active:scale-[0.98] ${
               activeInlineTab === 'stock_valuation'
                 ? 'bg-blue-50/70 border-blue-600 shadow-lg ring-4 ring-blue-500/20'
                 : 'bg-white border-slate-200 hover:border-blue-500 shadow-sm hover:shadow-md'
             }`}
           >
-            <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700">{isEn ? 'Stock Valuation' : 'স্টক পণ্যের মান'}</span>
-              <div className={`p-2 rounded-xl transition-all ${activeInlineTab === 'stock_valuation' ? 'bg-blue-600 text-white shadow-sm' : 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white'}`}>
-                <Package className="w-4 h-4" />
+            <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-700 truncate">{isEn ? 'Stock Val' : 'স্টক মূল্য'}</span>
+              <div className={`p-1.5 sm:p-2 rounded-xl transition-all ${activeInlineTab === 'stock_valuation' ? 'bg-blue-600 text-white shadow-sm' : 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white'}`}>
+                <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
             </div>
-            <div className="text-xl font-black text-slate-900 font-mono tracking-tight group-hover:text-blue-700 transition-colors">
+            <div className="text-base sm:text-xl font-black text-slate-900 font-mono tracking-tight group-hover:text-blue-700 transition-colors">
               {currencySymbol}{totalStockSellingValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
             </div>
-            <div className="flex items-center justify-between text-[10px] text-blue-600 font-medium mt-2 pt-1.5 border-t border-slate-100">
-              <span>{totalStockUnits.toLocaleString()} {isEn ? 'Items' : 'পিস'} ({products.length} SKU)</span>
-              <span className={`text-[9.5px] font-bold flex items-center gap-0.5 ${activeInlineTab === 'stock_valuation' ? 'text-blue-700 underline' : 'text-slate-400 group-hover:text-blue-600'}`}>
-                {activeInlineTab === 'stock_valuation' ? (isEn ? 'Active Table ▼' : 'সক্রিয় টেবিল ▼') : (isEn ? 'View Table ▼' : 'টেবিল দেখুন ▼')}
+            <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-blue-600 font-medium mt-1.5 sm:mt-2 pt-1 sm:pt-1.5 border-t border-slate-100">
+              <span className="truncate">{totalStockUnits.toLocaleString()} {isEn ? 'Items' : 'পিস'}</span>
+              <span className={`text-[9px] sm:text-[9.5px] font-bold shrink-0 ${activeInlineTab === 'stock_valuation' ? 'text-blue-700 underline' : 'text-slate-400 group-hover:text-blue-600'}`}>
+                {activeInlineTab === 'stock_valuation' ? '▼' : '▼'}
               </span>
             </div>
           </div>
@@ -871,29 +871,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Card 6: Low Stock Alert */}
           <div 
             onClick={() => handleCardClick('low_stock')}
-            className={`p-4 rounded-2xl border-2 transition-all group cursor-pointer active:scale-[0.98] ${
+            className={`p-3 sm:p-4 rounded-2xl border-2 transition-all group cursor-pointer active:scale-[0.98] ${
               activeInlineTab === 'low_stock'
                 ? 'bg-amber-50/70 border-amber-600 shadow-lg ring-4 ring-amber-500/20'
                 : 'bg-white border-slate-200 hover:border-amber-500 shadow-sm hover:shadow-md'
             }`}
           >
-            <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700">{isEn ? 'Low Stock Alert' : 'স্টক সতর্কতা'}</span>
-              <div className={`p-2 rounded-xl transition-all ${activeInlineTab === 'low_stock' ? 'bg-amber-600 text-white shadow-sm' : lowStockProducts.length > 0 ? 'bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white' : 'bg-slate-100 text-slate-400'}`}>
-                <AlertTriangle className="w-4 h-4" />
+            <div className="flex items-center justify-between text-slate-500 mb-1.5 sm:mb-2">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-700 truncate">{isEn ? 'Low Stock' : 'লো-স্টক'}</span>
+              <div className={`p-1.5 sm:p-2 rounded-xl transition-all ${activeInlineTab === 'low_stock' ? 'bg-amber-600 text-white shadow-sm' : 'bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white'}`}>
+                <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
             </div>
-            <div className={`text-xl font-black font-mono tracking-tight transition-colors ${lowStockProducts.length > 0 ? 'text-amber-600 group-hover:text-amber-700' : 'text-slate-900'}`}>
-              {lowStockProducts.length} {isEn ? 'Items' : 'টি আইটেম'}
+            <div className="text-base sm:text-xl font-black text-amber-700 font-mono tracking-tight group-hover:text-amber-800 transition-colors">
+              {lowStockProducts.length} <span className="text-xs font-semibold text-slate-500">{isEn ? 'SKUs' : 'টি পণ্য'}</span>
             </div>
-            <div className="flex items-center justify-between text-[10px] text-amber-600 font-semibold mt-2 pt-1.5 border-t border-slate-100">
-              <span>{isEn ? 'Reorder Alert' : 'রি-অর্ডার সতর্কতা'}</span>
-              <span className={`text-[9.5px] font-bold flex items-center gap-0.5 ${activeInlineTab === 'low_stock' ? 'text-amber-700 underline' : 'text-slate-400 group-hover:text-amber-600'}`}>
-                {activeInlineTab === 'low_stock' ? (isEn ? 'Active Table ▼' : 'সক্রিয় টেবিল ▼') : (isEn ? 'View Table ▼' : 'টেবিল দেখুন ▼')}
+            <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-amber-600 font-medium mt-1.5 sm:mt-2 pt-1 sm:pt-1.5 border-t border-slate-100">
+              <span className="truncate">{lowStockProducts.reduce((s, p) => s + Math.max(0, p.min_stock_alert - p.stock_quantity), 0)} {isEn ? 'Short' : 'ঘাটতি'}</span>
+              <span className={`text-[9px] sm:text-[9.5px] font-bold shrink-0 ${activeInlineTab === 'low_stock' ? 'text-amber-700 underline' : 'text-slate-400 group-hover:text-amber-600'}`}>
+                {activeInlineTab === 'low_stock' ? '▼' : '▼'}
               </span>
             </div>
           </div>
-
         </div>
       </div>
 
@@ -993,55 +992,57 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             {/* Print, Export & Navigation Buttons */}
-            <div className="flex items-center gap-2 flex-wrap w-full md:w-auto justify-end">
+            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full md:w-auto justify-end">
               <button
                 type="button"
                 onClick={handlePrintTableReport}
-                className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs hover:text-indigo-600 transition-colors"
+                className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs hover:text-indigo-600 transition-colors"
                 title={isEn ? "Print Table Report" : "সম্পূর্ণ টেবিল রিপোর্ট প্রিন্ট করুন"}
               >
                 <Printer className="w-3.5 h-3.5 text-indigo-600" />
-                <span>{isEn ? 'Print Report' : 'প্রিন্ট রিপোর্ট'}</span>
+                <span className="truncate">{isEn ? 'Print Report' : 'প্রিন্ট রিপোর্ট'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleExportCSV}
-                className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs hover:text-emerald-600 transition-colors"
+                className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs hover:text-emerald-600 transition-colors"
                 title={isEn ? "Download CSV / Excel file" : "CSV / Excel ফাইলে ডাউনলোড করুন"}
               >
                 <Download className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{isEn ? 'Export (Excel/CSV)' : 'এক্সপোর্ট (Excel/CSV)'}</span>
+                <span className="truncate">{isEn ? 'Export (CSV)' : 'এক্সপোর্ট (CSV)'}</span>
               </button>
 
               {activeInlineTab === 'customer_dues' && (
                 <button
                   type="button"
                   onClick={() => onNavigate('customers')}
-                  className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
+                  className="col-span-2 sm:col-span-1 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
                 >
-                  <span>{isEn ? 'CRM Due Ledger' : 'CRM বাকি খাতা'}</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <Users className="w-3.5 h-3.5" />
+                  <span className="truncate">{isEn ? 'Open Due Book' : 'বাকি খাতা খুলুন'}</span>
                 </button>
               )}
+
               {activeInlineTab === 'stock_valuation' && (
                 <button
                   type="button"
                   onClick={() => onNavigate('products')}
-                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
+                  className="col-span-2 sm:col-span-1 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
                 >
-                  <span>{isEn ? 'Products & Stock' : 'পণ্য ও স্টক'}</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <Package className="w-3.5 h-3.5" />
+                  <span className="truncate">{isEn ? 'Stock Manager' : 'স্টক ম্যানেজার'}</span>
                 </button>
               )}
-              {(activeInlineTab === 'today_sales' || activeInlineTab === 'month_sales') && (
+
+              {activeInlineTab === 'low_stock' && (
                 <button
                   type="button"
-                  onClick={() => onNavigate('reports')}
-                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
+                  onClick={() => onNavigate('products')}
+                  className="col-span-2 sm:col-span-1 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
                 >
-                  <span>{isEn ? 'Full Sales Report' : 'সম্পূর্ণ সেলস রিপোর্ট'}</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span className="truncate">{isEn ? 'Purchase Stock' : 'পণ্য ক্রয় / স্টক ইন'}</span>
                 </button>
               )}
             </div>

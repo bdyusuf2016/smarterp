@@ -237,6 +237,9 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
   const [previewPaperSize, setPreviewPaperSize] = useState<'80mm' | '58mm' | 'A4' | 'A5'>('80mm');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Mobile Tab Switcher ('catalog' | 'cart') for phone screens
+  const [mobileTab, setMobileTab] = useState<'catalog' | 'cart'>('catalog');
+
   // Category filters
   const categoriesList = Array.from(new Set(products.map(p => p.category_name))).filter(Boolean);
 
@@ -471,12 +474,50 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
   const isPreviewThermal = previewPaperSize === '80mm' || previewPaperSize === '58mm';
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-[calc(100vh-105px)] min-h-[640px]">
-      
-      {/* ========================================================================= */}
-      {/* LEFT COLUMN: PRODUCT CATALOG & QUICK FILTER BAR (7 Cols)                  */}
-      {/* ========================================================================= */}
-      <div className="lg:col-span-7 flex flex-col h-full bg-white border border-[#dee2e6] rounded-xl p-3.5 shadow-xs overflow-hidden">
+    <div className="space-y-3 pb-16 lg:pb-0">
+      {/* Mobile Segment Tab Switcher (< lg screens) */}
+      <div className="lg:hidden flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-2xs">
+        <button
+          type="button"
+          onClick={() => setMobileTab('catalog')}
+          className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            mobileTab === 'catalog'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          <span>পণ্য ক্যাটালগ (Products)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMobileTab('cart')}
+          className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer relative ${
+            mobileTab === 'cart'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <ShoppingCart className="w-4 h-4" />
+          <span>কার্ট ও বিল (Cart)</span>
+          {cart.length > 0 && (
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+              mobileTab === 'cart' ? 'bg-white text-blue-700' : 'bg-blue-600 text-white'
+            }`}>
+              {cart.reduce((s, i) => s + i.quantity, 0)}
+            </span>
+          )}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-[560px] lg:h-[calc(100vh-105px)]">
+        {/* ========================================================================= */}
+        {/* LEFT COLUMN: PRODUCT CATALOG & QUICK FILTER BAR (7 Cols)                  */}
+        {/* ========================================================================= */}
+        <div className={`lg:col-span-7 flex flex-col h-full bg-white border border-[#dee2e6] rounded-xl p-3 sm:p-3.5 shadow-xs overflow-hidden ${
+          mobileTab === 'catalog' ? 'flex' : 'hidden lg:flex'
+        }`}>
         
         {/* Filter Bar */}
         <div className="space-y-2.5 pb-2.5 border-b border-[#dee2e6]">
@@ -601,7 +642,9 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
       {/* ========================================================================= */}
       {/* RIGHT COLUMN: POS CART & CHECKOUT LEDGER (5 Cols)                         */}
       {/* ========================================================================= */}
-      <div className="lg:col-span-5 flex flex-col h-full bg-white border border-[#dee2e6] rounded-xl p-3.5 shadow-xs overflow-hidden">
+      <div className={`lg:col-span-5 flex flex-col h-full bg-white border border-[#dee2e6] rounded-xl p-3 sm:p-3.5 shadow-xs overflow-hidden ${
+        mobileTab === 'cart' ? 'flex' : 'hidden lg:flex'
+      }`}>
         
         {/* Cart Header */}
         <div className="flex items-center justify-between pb-2.5 border-b border-[#dee2e6]">
@@ -1011,6 +1054,32 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant }) => {
           </button>
         </div>
       </div>
+    </div>
+
+    {/* Mobile Floating Cart Summary Button when on catalog view */}
+    {mobileTab === 'catalog' && cart.length > 0 && (
+      <div className="lg:hidden fixed bottom-16 inset-x-3 z-20 animate-in slide-in-from-bottom duration-200">
+        <button
+          type="button"
+          onClick={() => setMobileTab('cart')}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-2xl font-bold shadow-xl shadow-blue-600/30 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-all"
+        >
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+              <ShoppingCart className="w-4 h-4 text-white" />
+            </div>
+            <div className="text-left">
+              <div className="text-xs font-extrabold">{cart.reduce((s, i) => s + i.quantity, 0)} টি আইটেম কার্টে</div>
+              <div className="text-[10px] text-blue-100 font-medium">ক্লিক করে বিল সম্পন্ন করুন</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-black font-mono">৳{grandTotal.toFixed(2)}</span>
+            <span className="text-xs font-bold bg-white text-blue-700 px-2.5 py-1 rounded-xl shadow-xs">বিল →</span>
+          </div>
+        </button>
+      </div>
+    )}
 
       {/* ========================================================================= */}
       {/* 1. Quick Customer Registration Modal                                      */}
