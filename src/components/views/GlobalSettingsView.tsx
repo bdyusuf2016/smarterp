@@ -395,6 +395,18 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
     i18n.setLanguage(language);
   }, [language]);
 
+  // Listen for language change events from top header / external components
+  useEffect(() => {
+    const handleLangChange = (e: any) => {
+      const newLang = e.detail?.lang;
+      if (newLang && (newLang === "bn" || newLang === "en") && newLang !== language) {
+        setLanguage(newLang);
+      }
+    };
+    window.addEventListener("dokan_lang_changed", handleLangChange as any);
+    return () => window.removeEventListener("dokan_lang_changed", handleLangChange as any);
+  }, [language]);
+
   const showSuccess = (msg: string) => {
     setSaveSuccessMessage(msg);
     setTimeout(() => setSaveSuccessMessage(null), 3000);
@@ -1032,21 +1044,23 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
     setTimeout(() => setCopiedSchema(false), 3000);
   };
 
-  // Settings Navigation Tabs
+  const isEn = language === "en";
+
+  // Settings Navigation Tabs with dynamic language
   const settingsTabs = [
-    { id: "theme", label: "থিম ও ইউজার ইন্টারফেস", icon: Sun },
-    { id: "shop", label: "দোকান ও ব্যবসা প্রোফাইল", icon: Building2 },
-    { id: "templates", label: "টেমপ্লেট ও ইনভয়েস ডিজাইন", icon: LayoutTemplate },
-    { id: "payment", label: "পেমেন্ট মেথড ও অ্যাকাউন্টস", icon: CreditCard },
+    { id: "theme", label: isEn ? "Theme & Localization" : "থিম ও ইউজার ইন্টারফেস", icon: Sun },
+    { id: "shop", label: isEn ? "Shop & Business Profile" : "দোকান ও ব্যবসা প্রোফাইল", icon: Building2 },
+    { id: "templates", label: isEn ? "Invoice & Print Studio" : "টেমপ্লেট ও ইনভয়েস ডিজাইন", icon: LayoutTemplate },
+    { id: "payment", label: isEn ? "Payment Methods & Accounts" : "পেমেন্ট মেথড ও অ্যাকাউন্টস", icon: CreditCard },
     {
       id: "categories",
-      label: "ক্যাটাগরি ও কাস্টম প্রোপার্টিজ",
+      label: isEn ? "Categories & Custom Props" : "ক্যাটাগরি ও কাস্টম প্রোপার্টিজ",
       icon: Sliders,
     },
-    { id: "pos", label: "POS ও প্রিন্ট ডিফল্টস", icon: Printer },
-    { id: "footer", label: "ফুটার ও ব্র্যান্ডিং সেটিংস", icon: Sparkles },
-    { id: "supabase", label: "ক্লাউড ডেটাবেজ ও Supabase", icon: Cloud },
-    { id: "backup", label: "ডাটা ব্যাকআপ ও সিস্টেম", icon: Database },
+    { id: "pos", label: isEn ? "POS & Print Defaults" : "POS ও প্রিন্ট ডিফল্টস", icon: Printer },
+    { id: "footer", label: isEn ? "Footer & Branding Settings" : "ফুটার ও ব্র্যান্ডিং সেটিংস", icon: Sparkles },
+    { id: "supabase", label: isEn ? "Cloud Database & Supabase" : "ক্লাউড ডেটাবেজ ও Supabase", icon: Cloud },
+    { id: "backup", label: isEn ? "Data Backup & System" : "ডাটা ব্যাকআপ ও সিস্টেম", icon: Database },
   ];
 
   return (
@@ -1056,11 +1070,12 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
         <div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
             <Settings className="w-6 h-6 text-indigo-600" />
-            <span>গ্লোবাল অ্যাডমিন সেটিংস (Global System Settings)</span>
+            <span>{isEn ? "Global System Settings" : "গ্লোবাল অ্যাডমিন সেটিংস (Global System Settings)"}</span>
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            থিম, ভাষা, দোকান প্রোফাইল, পেমেন্ট চ্যানেল, ক্যাটাগরি, ফুটার,
-            Supabase ক্লাউড ডেটাবেজ ও ব্যাকআপ নিয়ন্ত্রণ করুন
+            {isEn
+              ? "Configure theme, language, store branding, payment channels, categories, cloud database & backup."
+              : "থিম, ভাষা, দোকান প্রোফাইল, পেমেন্ট চ্যানেল, ক্যাটাগরি, ফুটার, Supabase ক্লাউড ডেটাবেজ ও ব্যাকআপ নিয়ন্ত্রণ করুন"}
           </p>
         </div>
 
@@ -1078,13 +1093,21 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
             ) : (
               <Sun className="w-4 h-4 text-amber-500" />
             )}
-            <span>{themeMode === "light" ? "ডার্ক মোড" : "লাইট মোড"}</span>
+            <span>
+              {themeMode === "light"
+                ? isEn ? "Dark Mode" : "ডার্ক মোড"
+                : isEn ? "Light Mode" : "লাইট মোড"}
+            </span>
           </button>
 
           {/* Language Toggle */}
           <button
             type="button"
-            onClick={() => setLanguage(language === "bn" ? "en" : "bn")}
+            onClick={() => {
+              const newLang = language === "bn" ? "en" : "bn";
+              setLanguage(newLang);
+              i18n.setLanguage(newLang);
+            }}
             className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl flex items-center gap-1.5 border border-indigo-200 cursor-pointer transition-all"
           >
             <Globe className="w-4 h-4" />
@@ -1201,10 +1224,13 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setLanguage("bn")}
+                  onClick={() => {
+                    setLanguage("bn");
+                    i18n.setLanguage("bn");
+                  }}
                   className={`p-3 rounded-xl border text-center font-bold transition-all cursor-pointer ${
                     language === "bn"
-                      ? "bg-indigo-600 text-white border-indigo-600"
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
                       : "bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200"
                   }`}
                 >
@@ -1212,10 +1238,13 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                 </button>
                 <button
                   type="button"
-                  onClick={() => setLanguage("en")}
+                  onClick={() => {
+                    setLanguage("en");
+                    i18n.setLanguage("en");
+                  }}
                   className={`p-3 rounded-xl border text-center font-bold transition-all cursor-pointer ${
                     language === "en"
-                      ? "bg-indigo-600 text-white border-indigo-600"
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
                       : "bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200"
                   }`}
                 >
