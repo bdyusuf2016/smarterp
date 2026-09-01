@@ -842,7 +842,7 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
 
     setIsSyncing(true);
     try {
-      const res = await supabaseService.syncToCloud(activeTenant.id);
+      const res = await supabaseService.syncToCloud(activeTenant);
       if (res.success) {
         setSaveSuccessMessage(res.message);
       } else {

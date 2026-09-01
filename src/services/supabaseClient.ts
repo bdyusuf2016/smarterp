@@ -237,45 +237,36 @@ class SupabaseService {
    * Sync Local Tenant State to Supabase
    */
   public async syncToCloud(
-    tenantId?: string,
+    tenantOrId?: string | any,
   ): Promise<{ success: boolean; message: string }> {
-    const requestedTenantId = tenantId?.trim();
     const availableTenants = storageService.getTenants();
+    const activeTenantFromStorage = storageService.getActiveTenant();
 
-    if (
-      requestedTenantId &&
-      !availableTenants.some((item) => item.id === requestedTenantId)
-    ) {
+    let tenant: any;
+
+    if (tenantOrId && typeof tenantOrId === "object" && tenantOrId.id) {
+      tenant = tenantOrId;
+    } else if (typeof tenantOrId === "string" && tenantOrId.trim()) {
+      const tid = tenantOrId.trim();
+      tenant =
+        availableTenants.find(
+          (item) => item.id === tid || item.code?.toLowerCase() === tid.toLowerCase()
+        ) || (activeTenantFromStorage?.id === tid ? activeTenantFromStorage : undefined);
+    }
+
+    if (!tenant) {
+      tenant = activeTenantFromStorage || availableTenants[0];
+    }
+
+    if (!tenant || !tenant.id) {
       return {
         success: false,
         message:
-          "সিঙ্কের জন্য নির্বাচিত টেন্যান্টটি পাওয়া যায়নি। অনুগ্রহ করে একটি বৈধ টেন্যান্ট নির্বাচন করুন।",
+          "সিঙ্ক করতে কোনো সক্রিয় দোকান (Tenant) নির্বাচন করা নেই। অনুগ্রহ করে একটি দোকান নির্বাচন করুন।",
       };
     }
 
-    const effectiveTenantId = (
-      requestedTenantId ||
-      storageService.getActiveTenant()?.id ||
-      ""
-    ).trim();
-    if (!effectiveTenantId) {
-      return {
-        success: false,
-        message:
-          "সিঙ্ক করতে কোনো active tenant নির্বাচন করা নেই। অনুগ্রহ করে আগে একটি টেন্যান্ট নির্বাচন করুন।",
-      };
-    }
-
-    const tenant =
-      availableTenants.find((item) => item.id === effectiveTenantId) ||
-      storageService.getActiveTenant();
-    if (!tenant?.id) {
-      return {
-        success: false,
-        message:
-          "সিঙ্কের জন্য টেন্যান্ট পাওয়া যায়নি। অনুগ্রহ করে আবার টেন্যান্ট নির্বাচন করুন।",
-      };
-    }
+    const effectiveTenantId = tenant.id;
 
     const client = this.getClient();
     if (!client) {
