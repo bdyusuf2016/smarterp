@@ -136,6 +136,51 @@ export const AppLayout: React.FC = () => {
     }
   }, []);
 
+  // Dynamic Browser Tab & Page Title Engine per Tenant & View
+  useEffect(() => {
+    const viewTitleMap: Record<string, { bn: string; en: string }> = {
+      dashboard: { bn: 'ড্যাশবোর্ড', en: 'Dashboard' },
+      pos_sales: { bn: 'POS কুইক বিলিং', en: 'POS Quick Billing' },
+      billing_calc: { bn: 'ক্যাশ ও বিলিং ক্যালকুলেটর', en: 'Billing Calculator' },
+      products: { bn: 'পণ্য ও স্টক ইনওয়ার্ড', en: 'Products & Inventory' },
+      digital_services: { bn: 'সেবা ও মূল্যহার তালিকা', en: 'Digital Services' },
+      barcode_studio: { bn: 'বারকোড স্টিকার প্রিন্ট', en: 'Barcode Studio' },
+      telecom_imei: { bn: 'IMEI হ্যান্ডসেট স্টক', en: 'IMEI Registry' },
+      telecom_repairs: { bn: 'মোবাইল সার্ভিসিং', en: 'Repairs & Servicing' },
+      telecom_recharge: { bn: 'রিচার্জ ও MFS রেজিস্টার', en: 'Recharge & MFS' },
+      grocery_batches: { bn: 'ব্যাচ ও মেয়াদ ট্র্যাকিং', en: 'Batch & Expiry' },
+      grocery_scale: { bn: 'ডিজিটাল ওয়েট স্কেল', en: 'Weighing Scale' },
+      library_circulation: { bn: 'বুকস্টোর সেলস ও সাপ্লাই', en: 'Book Circulation' },
+      library_catalog: { bn: 'বই-খাতা ক্যাটালগ', en: 'Book Catalog' },
+      customers: { bn: 'কাস্টমার বাকির খাতা', en: 'Customer Ledger' },
+      suppliers: { bn: 'সাপ্লায়ার ও ভেন্ডর লেজার', en: 'Suppliers & Vendors' },
+      accounting: { bn: 'হিসাব ও ক্যাশ খাতা', en: 'Accounting & Ledger' },
+      reports: { bn: 'লাভ-ক্ষতি ও আর্থিক রিপোর্ট', en: 'Financial Reports' },
+      staff_management: { bn: 'কর্মচারী ও পারমিশন', en: 'Staff & Roles' },
+      global_settings: { bn: 'গ্লোবাল সেটিংস', en: 'Global Settings' },
+      category_studio: { bn: 'ক্যাটাগরি স্টুডিও', en: 'Category Studio' },
+      rbac_matrix: { bn: 'রোল পারমিশন ম্যাট্রিক্স', en: 'RBAC Matrix' },
+      tenant_management: { bn: 'দোকান ও শাখা ব্যবস্থাপনা', en: 'Shop Branches' },
+      audit: { bn: 'সিকিউরিটি অডিট লগ', en: 'Security Audit' }
+    };
+
+    const isEn = currentLang === 'en';
+    const pageName = viewTitleMap[activeViewId] ? (isEn ? viewTitleMap[activeViewId].en : viewTitleMap[activeViewId].bn) : activeViewId;
+    const shopName = activeTenant.name || (isEn ? 'Smart Store' : 'স্মার্ট দোকান');
+    const branding = activeTenant.system_branding || 'SmartERP';
+    const tagline = activeTenant.tagline || '';
+    const format = activeTenant.page_title_format || '{{page}} | {{shop}} - {{branding}}';
+
+    const formattedTitle = format
+      .replace(/{{page}}/g, pageName)
+      .replace(/{{shop}}/g, shopName)
+      .replace(/{{shop_name}}/g, shopName)
+      .replace(/{{branding}}/g, branding)
+      .replace(/{{tagline}}/g, tagline);
+
+    document.title = formattedTitle;
+  }, [activeTenant, activeViewId, currentLang]);
+
   // Sync full URL routing and parameter changes
   useEffect(() => {
     const handleLocation = () => {

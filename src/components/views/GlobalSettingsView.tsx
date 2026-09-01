@@ -161,6 +161,13 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
   const [vatRegNo, setVatRegNo] = useState(
     activeTenant.bin_number || activeTenant.vat_number || "BIN-123456789-001",
   );
+  const [tagline, setTagline] = useState(activeTenant.tagline || "");
+  const [pageTitleFormat, setPageTitleFormat] = useState(
+    activeTenant.page_title_format || "{{page}} | {{shop}} - {{branding}}"
+  );
+  const [systemBranding, setSystemBranding] = useState(
+    activeTenant.system_branding || "SmartERP"
+  );
   const [invoiceHeaderNote, setInvoiceHeaderNote] = useState(
     "বিসমিল্লাহির রাহমানির রাহিম",
   );
@@ -180,6 +187,9 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
     setTinNo(activeTenant.tin_number || "");
     setBinNo(activeTenant.bin_number || activeTenant.vat_number || "");
     setVatRegNo(activeTenant.bin_number || activeTenant.vat_number || "BIN-123456789-001");
+    setTagline(activeTenant.tagline || "");
+    setPageTitleFormat(activeTenant.page_title_format || "{{page}} | {{shop}} - {{branding}}");
+    setSystemBranding(activeTenant.system_branding || "SmartERP");
   }, [activeTenant]);
 
   // Invoice & Print Template Settings
@@ -401,6 +411,9 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
       phone: phone.trim(),
       email: email.trim(),
       address: address.trim(),
+      tagline: tagline.trim(),
+      page_title_format: pageTitleFormat.trim() || "{{page}} | {{shop}} - {{branding}}",
+      system_branding: systemBranding.trim() || "SmartERP",
       currency_symbol: currencySymbol.trim() || "৳",
       currency:
         currencySymbol.trim() === "$"
@@ -1346,6 +1359,103 @@ CREATE TABLE IF NOT EXISTS accounting_entries (
                 onChange={(e) => setInvoiceFooterNote(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-medium text-xs"
               />
+            </div>
+          </div>
+
+          {/* ================================================== */}
+          {/* PAGE TITLE & BROWSER TAB BRANDING ENGINE           */}
+          {/* ================================================== */}
+          <div className="p-4 bg-gradient-to-r from-indigo-50/80 to-blue-50/80 rounded-xl border border-indigo-200 space-y-3">
+            <div className="flex items-center justify-between pb-1.5 border-b border-indigo-200/80">
+              <span className="font-bold text-indigo-900 text-xs flex items-center gap-2">
+                <Globe className="w-4 h-4 text-indigo-600" />
+                <span>পেজ প্রোফাইল ও ব্রাউজার ট্যাব টাইটেল সেটিংস (Page Title & Branding Engine)</span>
+              </span>
+              <span className="text-[10px] text-indigo-700 bg-white px-2 py-0.5 rounded-full border border-indigo-200 font-bold shadow-2xs">
+                প্রতিটি Tenant অনুযায়ী স্বয়ংক্রিয়
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">
+                  দোকানের স্লোগান / ট্যাগলাইন (Tagline / Slogan)
+                </label>
+                <input
+                  type="text"
+                  value={tagline}
+                  onChange={(e) => setTagline(e.target.value)}
+                  placeholder="যেমন: আপনার বিশ্বস্ত গ্যাজেট ও ডিজিটাল সেবা কেন্দ্র"
+                  className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-lg text-xs font-medium text-slate-900 focus:ring-2 focus:ring-indigo-500"
+                />
+                <span className="text-[10px] text-slate-400">টাইটেল এবং ইনভয়েস হেডারে ব্যবহৃত হবে</span>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">
+                  সিস্টেম ব্র্যান্ডিং নাম (Platform Branding)
+                </label>
+                <input
+                  type="text"
+                  value={systemBranding}
+                  onChange={(e) => setSystemBranding(e.target.value)}
+                  placeholder="SmartERP Enterprise"
+                  className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-lg text-xs font-medium text-slate-900 focus:ring-2 focus:ring-indigo-500"
+                />
+                <span className="text-[10px] text-slate-400">সফটওয়্যারের গ্লোবাল ব্র্যান্ডিং ট্যাগ</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">
+                পেজ টাইটেল ফরম্যাট টেমপ্লেট (Page Title Template) *
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  required
+                  value={pageTitleFormat}
+                  onChange={(e) => setPageTitleFormat(e.target.value)}
+                  placeholder="{{page}} | {{shop}} - {{branding}}"
+                  className="flex-1 px-3 py-2 bg-white border border-indigo-300 rounded-lg font-mono text-xs font-bold text-indigo-900 focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap pt-1.5">
+                <span className="text-[10px] text-slate-500 font-semibold">কুইক প্রিসেট ফরম্যাট:</span>
+                {[
+                  { label: 'ডিফল্ট: {{page}} | {{shop}} - {{branding}}', val: '{{page}} | {{shop}} - {{branding}}' },
+                  { label: 'দোকান আগে: {{shop}} | {{page}}', val: '{{shop}} | {{page}}' },
+                  { label: 'সংক্ষিপ্ত: {{page}} - {{shop}}', val: '{{page}} - {{shop}}' },
+                  { label: 'ট্যাগলাইনসহ: {{shop}} - {{tagline}} ({{page}})', val: '{{shop}} - {{tagline}} ({{page}})' }
+                ].map((preset) => (
+                  <button
+                    key={preset.val}
+                    type="button"
+                    onClick={() => setPageTitleFormat(preset.val)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
+                      pageTitleFormat === preset.val
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                        : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Live Browser Tab Preview */}
+            <div className="p-2.5 bg-slate-900 text-white rounded-lg flex items-center gap-2 text-xs shadow-inner">
+              <Globe className="w-4 h-4 text-blue-400 shrink-0" />
+              <span className="text-slate-400 text-[10px] font-bold">লাইভ ব্রাউজার ট্যাব প্রিভিউ:</span>
+              <span className="font-mono text-emerald-300 font-bold truncate">
+                {pageTitleFormat
+                  .replace(/{{page}}/g, 'POS কুইক বিলিং')
+                  .replace(/{{shop}}/g, shopName || 'স্মার্ট দোকান')
+                  .replace(/{{shop_name}}/g, shopName || 'স্মার্ট দোকান')
+                  .replace(/{{branding}}/g, systemBranding || 'SmartERP')
+                  .replace(/{{tagline}}/g, tagline || 'আপনার বিশ্বস্ত প্রতিষ্ঠান')}
+              </span>
             </div>
           </div>
 

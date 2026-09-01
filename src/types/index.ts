@@ -91,6 +91,9 @@ export interface Tenant {
   custom_domain?: string;
   status?: 'active' | 'suspended' | 'trial';
   system_branding?: string;
+  tagline?: string;
+  page_title_format?: string;
+  brand_logo_url?: string;
   active_categories: TenantBusinessCategory[];
   enabled_modules?: string[];
   created_at: string;
