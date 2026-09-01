@@ -347,6 +347,22 @@ class StorageService {
     this.addAuditLog('CUSTOMER_SAVED', 'CUSTOMERS', `Customer ${customer.name} saved.`);
   }
 
+  deleteCustomer(customerId: string): void {
+    const list = this.get<CustomerMember[]>(STORAGE_KEYS.CUSTOMERS, INITIAL_CUSTOMERS).filter(c => c.id !== customerId);
+    this.set(STORAGE_KEYS.CUSTOMERS, list);
+    this.addAuditLog('CUSTOMER_DELETED', 'CUSTOMERS', `Customer ${customerId} deleted.`);
+  }
+
+  clearCustomers(tenantId?: string): void {
+    if (tenantId) {
+      const list = this.get<CustomerMember[]>(STORAGE_KEYS.CUSTOMERS, INITIAL_CUSTOMERS).filter(c => c.tenant_id !== tenantId);
+      this.set(STORAGE_KEYS.CUSTOMERS, list);
+    } else {
+      this.set(STORAGE_KEYS.CUSTOMERS, []);
+    }
+    this.addAuditLog('CUSTOMERS_CLEARED', 'CUSTOMERS', `Customer ledger wiped for tenant ${tenantId || 'all'}.`);
+  }
+
   // Suppliers
   getSuppliers(tenantId?: string): Supplier[] {
     const all = this.get<Supplier[]>(STORAGE_KEYS.SUPPLIERS, INITIAL_SUPPLIERS);

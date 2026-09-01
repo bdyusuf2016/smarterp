@@ -837,13 +837,26 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
     }
   };
 
+  const [supabaseSaveMsg, setSupabaseSaveMsg] = useState<string | null>(null);
+
   const handleSaveSupabaseConfig = (e: React.FormEvent) => {
     e.preventDefault();
-    supabaseService.saveConfig(supabaseUrl, supabaseAnonKey);
+    if (!supabaseUrl.trim() || !supabaseAnonKey.trim()) {
+      alert("অনুগ্রহ করে Supabase Project URL এবং Anon Key উভয় ফিল্ড পূরণ করুন।");
+      return;
+    }
+    supabaseService.saveConfig(supabaseUrl.trim(), supabaseAnonKey.trim());
+    setSupabaseSaveMsg("✓ কনফিগারেশন সফলভাবে সংরক্ষিত হয়েছে!");
     setSaveSuccessMessage(
       "Supabase ক্লাউড ডেটাবেজ কনফিগারেশন সফলভাবে সংরক্ষিত হয়েছে!",
     );
-    setTimeout(() => setSaveSuccessMessage(null), 4000);
+    setTimeout(() => {
+      setSupabaseSaveMsg(null);
+      setSaveSuccessMessage(null);
+    }, 4000);
+
+    // Auto-ping connection to give immediate live feedback
+    handleTestSupabaseConnection();
   };
 
   const handleSyncToCloud = async () => {
@@ -4318,10 +4331,17 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                 </span>
               </div>
 
-              <div className="flex justify-between items-center pt-2">
+              {supabaseSaveMsg && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-lg text-xs font-bold flex items-center gap-1.5 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{supabaseSaveMsg}</span>
+                </div>
+              )}
+
+              <div className="flex flex-wrap justify-between items-center gap-2 pt-2">
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs flex items-center gap-2 shadow-sm cursor-pointer"
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white rounded-xl font-bold text-xs flex items-center gap-2 shadow-sm cursor-pointer transition-all"
                 >
                   <Save className="w-4 h-4" />
                   <span>কনফিগারেশন সংরক্ষণ করুন</span>
