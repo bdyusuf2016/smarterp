@@ -3,6 +3,7 @@ import { Tenant, UserRole } from '../../types';
 import { storageService } from '../../services/storageService';
 import { authService, UserProfile } from '../../services/authService';
 import { i18n } from '../../services/i18nService';
+import { routerService, ParsedRoute } from '../../services/routerService';
 import { RbacEngine } from '../../engine/rbacEngine';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
@@ -48,9 +49,15 @@ export const AppLayout: React.FC = () => {
   const tenants = storageService.getTenants();
   const categories = storageService.getCategories();
 
+  const initialRoute = routerService.parseCurrentRoute();
+  const [currentRoute, setCurrentRoute] = useState<ParsedRoute>(initialRoute);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => authService.getCurrentUser());
   const [activeTenant, setActiveTenant] = useState<Tenant>(() => {
     const user = authService.getCurrentUser();
+    if (initialRoute.tenantId) {
+      const foundParam = tenants.find(t => t.id === initialRoute.tenantId || t.code.toLowerCase() === initialRoute.tenantId?.toLowerCase());
+      if (foundParam) return foundParam;
+    }
     if (user?.tenantId) {
       const found = tenants.find(t => t.id === user.tenantId);
       if (found) return found;
@@ -58,11 +65,17 @@ export const AppLayout: React.FC = () => {
     return tenants.length > 0 ? tenants[0] : fallbackTenant;
   });
 
-  const [activeViewId, setActiveViewId] = useState<string>('dashboard');
+  const [activeViewId, setActiveViewIdState] = useState<string>(() => initialRoute.viewId || 'dashboard');
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isAuthRoute, setIsAuthRoute] = useState(false);
+  const [isAuthRoute, setIsAuthRoute] = useState<boolean>(() => initialRoute.isAuthRoute);
   const [currentLang, setCurrentLang] = useState<'bn' | 'en'>(() => i18n.getLanguage());
+
+  // Function to navigate and update URL parameter / routes
+  const setActiveViewId = (viewId: string, params: Record<string, string> = {}) => {
+    setActiveViewIdState(viewId);
+    routerService.navigate(viewId, params);
+  };
 
   useEffect(() => {
     const handleLang = () => setCurrentLang(i18n.getLanguage());
@@ -123,27 +136,33 @@ export const AppLayout: React.FC = () => {
     }
   }, []);
 
-  // Sync hash routing for login and system-admin routes
+  // Sync full URL routing and parameter changes
   useEffect(() => {
     const handleLocation = () => {
-      const hash = window.location.hash;
-      const path = window.location.pathname;
-
-      if (hash.includes('system-admin') || hash.includes('login') || path.includes('system-admin') || path.includes('login')) {
-        setIsAuthRoute(true);
-      } else {
-        setIsAuthRoute(false);
+      const route = routerService.parseCurrentRoute();
+      setCurrentRoute(route);
+      setIsAuthRoute(route.isAuthRoute);
+      if (route.viewId) {
+        setActiveViewIdState(route.viewId);
+      }
+      if (route.tenantId) {
+        const found = tenants.find(t => t.id === route.tenantId || t.code.toLowerCase() === route.tenantId?.toLowerCase());
+        if (found && found.id !== activeTenant.id) {
+          setActiveTenant(found);
+        }
       }
     };
 
     handleLocation();
     window.addEventListener('hashchange', handleLocation);
     window.addEventListener('popstate', handleLocation);
+    window.addEventListener('dokan_route_changed', handleLocation);
     return () => {
       window.removeEventListener('hashchange', handleLocation);
       window.removeEventListener('popstate', handleLocation);
+      window.removeEventListener('dokan_route_changed', handleLocation);
     };
-  }, []);
+  }, [tenants, activeTenant.id]);
 
   const handleLoginSuccess = (user: UserProfile, tenantId?: string) => {
     setCurrentUser(user);
@@ -152,7 +171,6 @@ export const AppLayout: React.FC = () => {
       if (t) setActiveTenant(t);
     }
     setIsAuthRoute(false);
-    window.location.hash = '';
     setActiveViewId('dashboard');
   };
 
@@ -160,7 +178,7 @@ export const AppLayout: React.FC = () => {
     authService.logout();
     setCurrentUser(null);
     setIsAuthRoute(true);
-    window.location.hash = '#login';
+    routerService.navigate('login');
   };
 
   const handleTenantChange = (tenant: Tenant) => {
