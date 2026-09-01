@@ -111,10 +111,6 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
     setTimeout(() => setNotification(null), 4000);
   };
 
-  const loadTenants = () => {
-    setTenants(storageService.getTenants());
-  };
-
   const handleOpenNewModal = () => {
     setEditingTenant(null);
     setShopName('');
