@@ -29,6 +29,7 @@ import { DigitalServicesView } from '../views/DigitalServicesView';
 import { GlobalSettingsView } from '../views/GlobalSettingsView';
 import { SuppliersView } from '../views/SuppliersView';
 import { ShieldAlert, ArrowLeft, LayoutDashboard, ShoppingBag, Package, Users, Menu as MenuIcon, X } from 'lucide-react';
+import { supabaseService } from '../../services/supabaseClient';
 
 const fallbackTenant: Tenant = {
   id: 'tenant_empty',
@@ -81,6 +82,21 @@ export const AppLayout: React.FC = () => {
     const handleLang = () => setCurrentLang(i18n.getLanguage());
     window.addEventListener('dokan_lang_changed', handleLang);
     return () => window.removeEventListener('dokan_lang_changed', handleLang);
+  }, []);
+
+  // Auto-pull existing cloud tenants and data when opened on a fresh device / phone
+  useEffect(() => {
+    const localTenants = storageService.getTenants();
+    if (localTenants.length === 0) {
+      supabaseService.pullFromCloud().then(res => {
+        if (res.success) {
+          const fresh = storageService.getTenants();
+          if (fresh.length > 0) {
+            handleTenantChange(fresh[0]);
+          }
+        }
+      }).catch(console.error);
+    }
   }, []);
 
   // Footer & Branding Configuration State

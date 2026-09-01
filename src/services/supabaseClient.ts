@@ -366,6 +366,99 @@ class SupabaseService {
       };
     }
   }
+
+  /**
+   * Pull All Cloud Data (Tenants, Products, Customers, Sales, Accounts) from Supabase
+   * This is critical when opening the app on a new device or phone!
+   */
+  public async pullFromCloud(): Promise<{ success: boolean; message: string; count?: number }> {
+    const client = this.getClient();
+    if (!client) {
+      return { success: false, message: "Supabase ক্লাউড ডেটাবেজ কনফিগার করা নেই।" };
+    }
+
+    try {
+      // 1. Fetch Tenants
+      const { data: cloudTenants, error: tenantErr } = await client
+        .from('tenants')
+        .select('*');
+
+      if (tenantErr) {
+        return { success: false, message: `টেন্যান্ট ডাউনলোড ত্রুটি: ${tenantErr.message}` };
+      }
+
+      if (cloudTenants && cloudTenants.length > 0) {
+        cloudTenants.forEach((t: any) => {
+          const formattedTenant: any = {
+            id: t.id,
+            code: t.code || 'SHOP-01',
+            name: t.name || 'দোকান',
+            owner_name: t.owner_name || 'দোকান মালিক',
+            email: t.email || '',
+            phone: t.phone || '',
+            currency: t.currency || 'BDT',
+            currency_symbol: t.currency_symbol || '৳',
+            address: t.address || '',
+            status: t.status || 'active',
+            subdomain: t.subdomain || `${t.code?.toLowerCase()}.dokanmanager.io`,
+            custom_domain: t.custom_domain || '',
+            active_categories: t.active_categories || [
+              {
+                id: `tbc_${t.id}_telecom`,
+                tenant_id: t.id,
+                business_category_id: 'cat_telecom',
+                is_primary: true,
+                is_active: true,
+                created_at: new Date().toISOString()
+              }
+            ],
+            enabled_modules: t.enabled_modules || ['SALES', 'PRODUCTS', 'INVENTORY', 'CUSTOMERS', 'ACCOUNTING', 'REPORTS'],
+            created_at: t.created_at || new Date().toISOString(),
+            updated_at: t.updated_at || new Date().toISOString(),
+          };
+          storageService.saveTenant(formattedTenant);
+        });
+
+        // Set active tenant if none exists
+        const currentActive = storageService.getActiveTenant();
+        if (!currentActive?.id && cloudTenants[0]) {
+          storageService.setActiveTenantId(cloudTenants[0].id);
+        }
+      }
+
+      // 2. Fetch other tables in parallel
+      const tables = ['products', 'customers', 'suppliers', 'sales', 'accounting_entries'];
+      const fetches = tables.map(async (table) => {
+        try {
+          const { data } = await client.from(table).select('*');
+          if (data && Array.isArray(data)) {
+            if (table === 'products') data.forEach((p: any) => storageService.saveProduct(p));
+            if (table === 'customers') data.forEach((c: any) => storageService.saveCustomer(c));
+            if (table === 'suppliers') data.forEach((s: any) => storageService.saveSupplier(s));
+            if (table === 'sales') data.forEach((s: any) => storageService.saveSale(s));
+            if (table === 'accounting_entries') data.forEach((a: any) => storageService.saveAccounting(a));
+          }
+        } catch (e) {
+          console.warn(`Table fetch ${table} warning:`, e);
+        }
+      });
+
+      await Promise.allSettled(fetches);
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('dokan_storage_updated', { detail: { key: 'all' } }));
+        window.dispatchEvent(new CustomEvent('dokan_tenant_changed', { detail: { tenant: storageService.getActiveTenant() } }));
+      }
+
+      return {
+        success: true,
+        count: cloudTenants?.length || 0,
+        message: `ক্লাউড থেকে সফলভাবে ${cloudTenants?.length || 0} টি দোকান ও যাবতীয় ডেটা লোড সম্পন্ন হয়েছে!`
+      };
+    } catch (err: any) {
+      return { success: false, message: `ক্লাউড ডাটা পুল ত্রুটি: ${err?.message || 'Unknown error'}` };
+    }
+  }
 }
 
 export const supabaseService = new SupabaseService();

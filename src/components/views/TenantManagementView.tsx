@@ -21,11 +21,15 @@ import {
   ArrowRight,
   SlidersHorizontal,
   Lock,
-  PackagePlus
+  PackagePlus,
+  Cloud,
+  RefreshCw,
+  Download
 } from 'lucide-react';
 import { Tenant, UserRole, BusinessCategory, Module } from '../../types';
 import { storageService } from '../../services/storageService';
 import { authService, UserProfile } from '../../services/authService';
+import { supabaseService } from '../../services/supabaseClient';
 import { RbacEngine } from '../../engine/rbacEngine';
 import { CatalogInitEngine } from '../../engine/catalogInitEngine';
 import { IconRenderer } from '../common/IconRenderer';
@@ -46,6 +50,7 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [isProvisionModalOpen, setIsProvisionModalOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
+  const [isPulling, setIsPulling] = useState(false);
 
   // Wizard Form State
   const [shopName, setShopName] = useState('');
@@ -58,6 +63,35 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
   const [currencySymbol, setCurrencySymbol] = useState('৳');
   const [tinNumber, setTinNumber] = useState('');
   const [binNumber, setBinNumber] = useState('');
+
+  const loadTenants = () => {
+    const list = storageService.getTenants();
+    setTenants(list);
+  };
+
+  const handlePullFromCloud = async (silent = false) => {
+    setIsPulling(true);
+    try {
+      const res = await supabaseService.pullFromCloud();
+      loadTenants();
+      if (!silent || (res.count && res.count > 0)) {
+        showNotification(res.message, res.success ? 'success' : 'error');
+      }
+    } catch (err: any) {
+      if (!silent) {
+        showNotification(err?.message || 'ক্লাউড থেকে ডাটা আনা যায়নি', 'error');
+      }
+    } finally {
+      setIsPulling(false);
+    }
+  };
+
+  // Auto-pull existing tenants from Supabase when opening on a new device/phone
+  React.useEffect(() => {
+    if (tenants.length === 0) {
+      handlePullFromCloud(true);
+    }
+  }, []);
   
   // Domain Setup
   const [subdomain, setSubdomain] = useState('');
@@ -258,14 +292,31 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenNewModal}
-          className="px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all cursor-pointer shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span>নতুন দোকান প্রভিশন করুন</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => handlePullFromCloud(false)}
+            disabled={isPulling}
+            className="px-4 py-2.5 bg-emerald-600/90 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center gap-2 border border-emerald-400/40 shadow-md transition-all cursor-pointer disabled:opacity-50"
+            title="Supabase ক্লাউড থেকে এক্সিস্টিং দোকান ও তথ্য সিঙ্ক করুন"
+          >
+            {isPulling ? (
+              <RefreshCw className="w-4 h-4 animate-spin text-white" />
+            ) : (
+              <Cloud className="w-4 h-4 text-emerald-200" />
+            )}
+            <span>{isPulling ? 'ক্লাউড থেকে আনা হচ্ছে...' : '☁️ ক্লাউড থেকে লোড'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenNewModal}
+            className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all cursor-pointer shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ নতুন দোকান</span>
+          </button>
+        </div>
       </div>
 
       {/* Notifications */}
@@ -320,22 +371,40 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
       {/* Tenants Table / Empty State */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         {filteredTenants.length === 0 ? (
-          <div className="p-12 text-center max-w-md mx-auto">
-            <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 mx-auto mb-4 border border-blue-200 shadow-inner">
+          <div className="p-10 text-center max-w-md mx-auto space-y-4">
+            <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 mx-auto border border-blue-200 shadow-inner">
               <Building2 className="w-8 h-8" />
             </div>
-            <h3 className="text-base font-bold text-slate-800 mb-1">কোনো দোকান নিবন্ধিত নেই</h3>
-            <p className="text-xs text-slate-500 mb-5 leading-relaxed">
-              প্ল্যাটফর্মে ব্যবসা পরিচালনা শুরু করতে উপরের বাটনে ক্লিক করে প্রথম দোকান ও মালিকের অ্যাকাউন্ট প্রভিশন করুন।
-            </p>
-            <button
-              type="button"
-              onClick={handleOpenNewModal}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-2 shadow-md cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>প্রথম দোকান তৈরি করুন</span>
-            </button>
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-slate-800">কোনো দোকান লোড করা নেই</h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                আপনার পূর্বে তৈরি করা এক্সিস্টিং দোকানগুলো Supabase ক্লাউড থেকে নামাতে নিচের বাটনে চাপুন।
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => handlePullFromCloud(false)}
+                disabled={isPulling}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
+              >
+                {isPulling ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Cloud className="w-4 h-4" />
+                )}
+                <span>{isPulling ? 'লোড হচ্ছে...' : '☁️ ক্লাউড থেকে এক্সিস্টিং দোকান আনুন'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleOpenNewModal}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 border border-slate-300 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>নতুন দোকান তৈরি</span>
+              </button>
+            </div>
           </div>
         ) : (
           <div>
