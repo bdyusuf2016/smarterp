@@ -1,0 +1,6 @@
+{
+  "name": "Dokan Manager V2 - Generic Business Platform",
+  "description": "Modular, multi-category business management platform supporting Telecom, Grocery, Stationery, Library, Electronics, and dynamic industry extensions with custom fields and rule engines.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

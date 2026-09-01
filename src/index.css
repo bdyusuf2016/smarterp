@@ -1,0 +1,131 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ========================================================================= */
+/* UNIVERSAL DARK THEME ENGINE FOR DOKAN MANAGER V2                          */
+/* ========================================================================= */
+
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #0f1117 !important;
+  color: #e9ecef !important;
+}
+
+/* Containers and Views */
+html.dark .bg-white {
+  background-color: #1a1d24 !important;
+  color: #f1f3f5 !important;
+}
+
+html.dark .bg-\[\#f1f3f5\],
+html.dark .bg-\[\#f8f9fa\] {
+  background-color: #12141a !important;
+}
+
+html.dark .bg-slate-50,
+html.dark .bg-slate-100 {
+  background-color: #20242c !important;
+  color: #e2e8f0 !important;
+}
+
+html.dark .bg-slate-900 {
+  background-color: #0a0c10 !important;
+}
+
+/* Borders */
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-slate-300,
+html.dark .border-\[\#dee2e6\],
+html.dark .border-\[\#343a40\] {
+  border-color: #2b303c !important;
+}
+
+html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+html.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #2b303c !important;
+}
+
+/* Typography Colors */
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-\[\#1a1b1e\],
+html.dark .text-\[\#212529\] {
+  color: #f8fafc !important;
+}
+
+html.dark .text-slate-700,
+html.dark .text-slate-600,
+html.dark .text-\[\#495057\] {
+  color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-500,
+html.dark .text-slate-400,
+html.dark .text-\[\#868e96\],
+html.dark .text-\[\#6c757d\] {
+  color: #94a3b8 !important;
+}
+
+/* Form Inputs, Selects & Textareas */
+html.dark input:not([type="checkbox"]):not([type="radio"]),
+html.dark select,
+html.dark textarea {
+  background-color: #222630 !important;
+  border-color: #333948 !important;
+  color: #f8fafc !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* Header & Sidebar */
+html.dark header {
+  background-color: #161920 !important;
+  border-color: #2b303c !important;
+}
+
+html.dark aside {
+  background-color: #12141a !important;
+  border-color: #232732 !important;
+}
+
+/* Table Hover and Badges */
+html.dark table tbody tr:hover {
+  background-color: #222632 !important;
+}
+
+html.dark .bg-indigo-50,
+html.dark .bg-blue-50 {
+  background-color: rgba(99, 102, 241, 0.16) !important;
+  color: #a5b4fc !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+}
+
+html.dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.16) !important;
+  color: #6ee7b7 !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+html.dark .bg-amber-50 {
+  background-color: rgba(245, 158, 11, 0.16) !important;
+  color: #fcd34d !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+html.dark .bg-rose-50 {
+  background-color: rgba(244, 63, 94, 0.16) !important;
+  color: #fda4af !important;
+  border-color: rgba(244, 63, 94, 0.3) !important;
+}
+
+/* Smooth Transition */
+* {
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}

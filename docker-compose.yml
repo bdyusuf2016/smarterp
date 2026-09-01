@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 16 Production Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: dokan_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: dokanmanager_v2
+      POSTGRES_USER: dokan_admin
+      POSTGRES_PASSWORD: dokan_secret_password_change_me
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dokan_admin -d dokanmanager_v2"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Dokan Manager V2 Application Engine
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dokan_app
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: postgresql://dokan_admin:dokan_secret_password_change_me@postgres:5432/dokanmanager_v2
+      JWT_SECRET: production_jwt_secret_key_minimum_32_characters_long_bangladesh
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_SECRET: production_refresh_secret_key_minimum_32_characters_long_dhaka
+      JWT_REFRESH_EXPIRES_IN: 7d
+      CORS_ORIGIN: http://localhost:5000,http://localhost:3000
+    ports:
+      - "5000:5000"
+
+volumes:
+  postgres_data:
+    driver: local

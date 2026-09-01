@@ -1,0 +1,308 @@
+import React, { useState } from 'react';
+import { 
+  Users, 
+  UserPlus, 
+  Search, 
+  Phone, 
+  Mail, 
+  Award, 
+  DollarSign, 
+  Clock,
+  BookOpen,
+  Printer,
+  FileSpreadsheet
+} from 'lucide-react';
+import { Tenant, UserRole, CustomerMember } from '../../types';
+import { storageService } from '../../services/storageService';
+import { Badge } from '../common/Badge';
+import { Modal } from '../common/Modal';
+import { printLedgerStatement } from '../../shared/utils/printReceipt';
+
+interface CustomersViewProps {
+  activeTenant: Tenant;
+  activeRole: UserRole;
+}
+
+export const CustomersView: React.FC<CustomersViewProps> = ({ activeTenant }) => {
+  const customers = storageService.getCustomers(activeTenant.id);
+  const sales = storageService.getSales(activeTenant.id);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
+  const [newCustomer, setNewCustomer] = useState<Partial<CustomerMember>>({
+    name: '',
+    phone: '',
+    email: '',
+    address: '',
+    membership_card_no: `MEM-${Date.now().toString().slice(-4)}`,
+    customer_type: 'individual',
+    loyalty_points: 50,
+    current_due: 0
+  });
+
+  const filteredCustomers = customers.filter(c => 
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.phone.includes(searchTerm) ||
+    (c.membership_card_no && c.membership_card_no.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  const handleCreateCustomer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCustomer.name || !newCustomer.phone) return;
+
+    const customerToSave: CustomerMember = {
+      id: `cust_${Date.now()}`,
+      tenant_id: activeTenant.id,
+      name: newCustomer.name,
+      phone: newCustomer.phone,
+      email: newCustomer.email,
+      address: newCustomer.address,
+      membership_card_no: newCustomer.membership_card_no,
+      customer_type: newCustomer.customer_type || 'individual',
+      total_spent: 0,
+      loyalty_points: Number(newCustomer.loyalty_points) || 0,
+      current_due: Number(newCustomer.current_due) || 0,
+      created_at: new Date().toISOString()
+    };
+
+    storageService.saveCustomer(customerToSave);
+    setIsAddCustomerOpen(false);
+    setNewCustomer({
+      name: '',
+      phone: '',
+      email: '',
+      address: '',
+      membership_card_no: `MEM-${Date.now().toString().slice(-4)}`,
+      customer_type: 'individual',
+      loyalty_points: 50,
+      current_due: 0
+    });
+  };
+
+  const handlePrintCustomerStatement = (customer: CustomerMember) => {
+    const customerSales = sales.filter(s => s.customer_id === customer.id || s.customer_name === customer.name);
+    const totalDebits = customerSales.reduce((sum, s) => sum + s.grand_total, 0);
+    const totalCredits = customerSales.reduce((sum, s) => sum + s.paid_amount, 0);
+
+    printLedgerStatement({
+      shopName: activeTenant.name || 'SmartERP',
+      shopPhone: '01700-000000',
+      partyType: 'CUSTOMER',
+      partyName: customer.name,
+      partyPhone: customer.phone,
+      partyAddress: customer.address,
+      partyId: customer.membership_card_no,
+      totalDebits: totalDebits > 0 ? totalDebits : customer.current_due,
+      totalCredits: totalCredits,
+      netBalance: customer.current_due,
+      transactions: customerSales.map(s => ({
+        date: new Date(s.created_at).toLocaleDateString('en-GB'),
+        type: 'SALE INVOICE',
+        ref: s.invoice_no,
+        debit: s.grand_total,
+        credit: s.paid_amount,
+        balance: s.due_amount,
+      })),
+    });
+  };
+
+  return (
+    <div className="space-y-5 pb-10">
+      {/* Header */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <Users className="w-5 h-5 text-indigo-600" />
+            Customer & Member Accounts (CRM)
+          </h1>
+          <p className="text-xs text-slate-500">
+            Unified directory for retail clients, trade-in accounts, store credits, and library memberships.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsAddCustomerOpen(true)}
+          className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 shadow-xs cursor-pointer"
+        >
+          <UserPlus className="w-4 h-4" />
+          <span>New Customer / Member</span>
+        </button>
+      </div>
+
+      {/* Filter / Search Bar */}
+      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex items-center gap-2">
+        <Search className="w-4 h-4 text-slate-400 shrink-0" />
+        <input
+          type="text"
+          placeholder="Search by name, phone, or membership ID..."
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+          className="w-full text-xs bg-transparent border-none focus:outline-none text-slate-900 placeholder:text-slate-400"
+        />
+      </div>
+
+      {/* Customers Table */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+            <tr>
+              <th className="py-3 px-4">Customer Name / ID</th>
+              <th className="py-3 px-4">Contact Info</th>
+              <th className="py-3 px-4">Address</th>
+              <th className="py-3 px-4 font-mono">Loyalty Points</th>
+              <th className="py-3 px-4 font-mono">Current Due Balance</th>
+              <th className="py-3 px-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {filteredCustomers.map(cust => (
+              <tr key={cust.id} className="hover:bg-slate-50/60">
+                <td className="py-3 px-4">
+                  <div className="font-bold text-slate-900">{cust.name}</div>
+                  {cust.membership_card_no && (
+                    <span className="font-mono text-[10px] text-indigo-600 font-bold bg-indigo-50 px-1 rounded">
+                      ID: {cust.membership_card_no}
+                    </span>
+                  )}
+                </td>
+                <td className="py-3 px-4">
+                  <div className="flex items-center gap-1 text-slate-700">
+                    <Phone className="w-3 h-3 text-slate-400" />
+                    <span>{cust.phone}</span>
+                  </div>
+                  {cust.email && (
+                    <div className="flex items-center gap-1 text-slate-500 text-[11px] mt-0.5">
+                      <Mail className="w-3 h-3 text-slate-400" />
+                      <span>{cust.email}</span>
+                    </div>
+                  )}
+                </td>
+                <td className="py-3 px-4 text-slate-600">{cust.address || '—'}</td>
+                <td className="py-3 px-4 font-mono font-bold text-indigo-600">
+                  <div className="flex items-center gap-1">
+                    <Award className="w-3.5 h-3.5 text-amber-500" />
+                    <span>{cust.loyalty_points} pts</span>
+                  </div>
+                </td>
+                <td className="py-3 px-4 font-mono">
+                  {cust.current_due > 0 ? (
+                    <span className="font-bold text-rose-600">৳{cust.current_due.toFixed(2)}</span>
+                  ) : (
+                    <span className="text-emerald-600 font-semibold">৳0.00 (Clear)</span>
+                  )}
+                </td>
+                <td className="py-3 px-4 text-right">
+                  <button
+                    type="button"
+                    onClick={() => handlePrintCustomerStatement(cust)}
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded text-[11px] inline-flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                    title="Print Account Statement (A4)"
+                  >
+                    <Printer className="w-3 h-3 text-slate-600" />
+                    <span>Statement</span>
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal: New Customer */}
+      <Modal
+        isOpen={isAddCustomerOpen}
+        onClose={() => setIsAddCustomerOpen(false)}
+        title="Add Customer / Member Account"
+        subtitle="Universal CRM profile registration"
+      >
+        <form onSubmit={handleCreateCustomer} className="space-y-3 text-xs">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Full Name *</label>
+              <input
+                type="text"
+                required
+                value={newCustomer.name || ''}
+                onChange={e => setNewCustomer({ ...newCustomer, name: e.target.value })}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Phone Number *</label>
+              <input
+                type="tel"
+                required
+                value={newCustomer.phone || ''}
+                onChange={e => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Email Address</label>
+              <input
+                type="email"
+                value={newCustomer.email || ''}
+                onChange={e => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Membership ID / Card</label>
+              <input
+                type="text"
+                value={newCustomer.membership_card_no || ''}
+                onChange={e => setNewCustomer({ ...newCustomer, membership_card_no: e.target.value })}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-indigo-600"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1">Postal Address</label>
+            <input
+              type="text"
+              value={newCustomer.address || ''}
+              onChange={e => setNewCustomer({ ...newCustomer, address: e.target.value })}
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Account Category</label>
+              <select
+                value={newCustomer.customer_type || 'individual'}
+                onChange={e => setNewCustomer({ ...newCustomer, customer_type: e.target.value as any })}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg"
+              >
+                <option value="individual">Retail Customer</option>
+                <option value="corporate">Corporate / Wholesale Client</option>
+                <option value="library_member">Library Student / Member</option>
+                <option value="vip">VIP Cardholder</option>
+              </select>
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Opening Due (৳)</label>
+              <input
+                type="number"
+                value={newCustomer.current_due || 0}
+                onChange={e => setNewCustomer({ ...newCustomer, current_due: Number(e.target.value) })}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-xs mt-2 cursor-pointer"
+          >
+            Create Customer Account
+          </button>
+        </form>
+      </Modal>
+    </div>
+  );
+};
