@@ -857,8 +857,10 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
   };
 
   const handleCopySchema = () => {
-    const schemaSql = `-- SmartERP Supabase SQL Schema
--- Run this in your Supabase SQL Editor
+    const schemaSql = `-- SmartERP Supabase Complete SQL Schema
+-- Run this in your Supabase SQL Editor: https://supabase.com/dashboard/project/_/sql
+
+-- 1. Tenants Table
 CREATE TABLE IF NOT EXISTS tenants (
   id VARCHAR(64) PRIMARY KEY,
   code VARCHAR(32) UNIQUE NOT NULL,
@@ -869,50 +871,161 @@ CREATE TABLE IF NOT EXISTS tenants (
   currency VARCHAR(16) DEFAULT 'BDT',
   currency_symbol VARCHAR(8) DEFAULT '৳',
   address TEXT DEFAULT 'ঢাকা, বাংলাদেশ',
+  tagline TEXT,
+  page_title_format TEXT,
+  system_branding VARCHAR(128) DEFAULT 'SmartERP',
   status VARCHAR(32) DEFAULT 'active',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 2. Business Categories & Custom Fields
+CREATE TABLE IF NOT EXISTS business_categories (
+  id VARCHAR(64) PRIMARY KEY,
+  code VARCHAR(64) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  icon VARCHAR(64),
+  is_system BOOLEAN DEFAULT FALSE,
+  is_active BOOLEAN DEFAULT TRUE,
+  configuration JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS custom_field_definitions (
+  id VARCHAR(64) PRIMARY KEY,
+  category_id VARCHAR(64) NOT NULL,
+  field_name VARCHAR(128) NOT NULL,
+  field_code VARCHAR(128) NOT NULL,
+  field_type VARCHAR(32) DEFAULT 'text',
+  is_required BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. Products Table
 CREATE TABLE IF NOT EXISTS products (
   id VARCHAR(64) PRIMARY KEY,
   tenant_id VARCHAR(64) REFERENCES tenants(id) ON DELETE CASCADE,
+  business_category_id VARCHAR(64),
   code VARCHAR(64) NOT NULL,
   sku VARCHAR(64) NOT NULL,
   barcode VARCHAR(64),
   name VARCHAR(255) NOT NULL,
+  description TEXT,
   category_name VARCHAR(128) NOT NULL,
+  brand VARCHAR(128),
   unit VARCHAR(32) DEFAULT 'পিস',
   purchase_price NUMERIC(15, 2) DEFAULT 0.00,
   selling_price NUMERIC(15, 2) NOT NULL,
+  wholesale_price NUMERIC(15, 2),
   stock_quantity NUMERIC(15, 2) DEFAULT 0,
+  min_stock_alert NUMERIC(15, 2) DEFAULT 5,
   tracking_mode VARCHAR(64) DEFAULT 'TRACKING_QUANTITY',
   is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. Customers & CRM Table
+CREATE TABLE IF NOT EXISTS customers (
+  id VARCHAR(64) PRIMARY KEY,
+  tenant_id VARCHAR(64) REFERENCES tenants(id) ON DELETE CASCADE,
+  membership_id VARCHAR(64),
+  name VARCHAR(255) NOT NULL,
+  phone VARCHAR(64) NOT NULL,
+  email VARCHAR(255),
+  address TEXT,
+  loyalty_points NUMERIC(15, 2) DEFAULT 0,
+  due_balance NUMERIC(15, 2) DEFAULT 0.00,
+  credit_limit NUMERIC(15, 2) DEFAULT 50000.00,
+  total_spent NUMERIC(15, 2) DEFAULT 0.00,
+  status VARCHAR(32) DEFAULT 'active',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 5. Suppliers & Vendor Ledger
+CREATE TABLE IF NOT EXISTS suppliers (
+  id VARCHAR(64) PRIMARY KEY,
+  tenant_id VARCHAR(64) REFERENCES tenants(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  company_name VARCHAR(255),
+  phone VARCHAR(64) NOT NULL,
+  email VARCHAR(255),
+  address TEXT,
+  due_payable NUMERIC(15, 2) DEFAULT 0.00,
+  total_purchased NUMERIC(15, 2) DEFAULT 0.00,
+  status VARCHAR(32) DEFAULT 'active',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. Sales Transactions & Invoices
 CREATE TABLE IF NOT EXISTS sales (
   id VARCHAR(64) PRIMARY KEY,
   invoice_no VARCHAR(64) NOT NULL,
   tenant_id VARCHAR(64) REFERENCES tenants(id) ON DELETE CASCADE,
+  customer_id VARCHAR(64),
+  customer_name VARCHAR(255),
+  customer_phone VARCHAR(64),
   items JSONB NOT NULL,
+  subtotal NUMERIC(15, 2) NOT NULL,
+  discount_amount NUMERIC(15, 2) DEFAULT 0.00,
+  tax_amount NUMERIC(15, 2) DEFAULT 0.00,
   grand_total NUMERIC(15, 2) NOT NULL,
   paid_amount NUMERIC(15, 2) DEFAULT 0.00,
   due_amount NUMERIC(15, 2) DEFAULT 0.00,
   payment_method VARCHAR(32) DEFAULT 'CASH',
+  status VARCHAR(32) DEFAULT 'completed',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 7. Accounting Entries & Ledger
 CREATE TABLE IF NOT EXISTS accounting_entries (
   id VARCHAR(64) PRIMARY KEY,
   tenant_id VARCHAR(64) REFERENCES tenants(id) ON DELETE CASCADE,
   reference_type VARCHAR(64) NOT NULL,
+  reference_id VARCHAR(64),
   title VARCHAR(255) NOT NULL,
+  description TEXT,
   debit_account VARCHAR(128) NOT NULL,
   credit_account VARCHAR(128) NOT NULL,
   amount NUMERIC(15, 2) NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- 8. Security Audit Logs
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id VARCHAR(64) PRIMARY KEY,
+  tenant_id VARCHAR(64),
+  user_id VARCHAR(64),
+  user_name VARCHAR(255),
+  user_role VARCHAR(64),
+  action VARCHAR(128) NOT NULL,
+  details TEXT,
+  severity VARCHAR(32) DEFAULT 'info',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS and simple public access policies for API
+ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE accounting_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE business_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE custom_field_definitions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public all tenants" ON tenants FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all products" ON products FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all customers" ON customers FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all suppliers" ON suppliers FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all sales" ON sales FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all accounting" ON accounting_entries FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all audit" ON audit_logs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all categories" ON business_categories FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR ALL USING (true) WITH CHECK (true);
 `;
     navigator.clipboard.writeText(schemaSql);
     setCopiedSchema(true);
