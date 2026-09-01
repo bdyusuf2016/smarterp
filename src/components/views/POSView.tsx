@@ -887,33 +887,49 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
 
               {/* Quick Cash Presets Shortcuts */}
               {paymentMethod !== 'CREDIT_DUE' && (
-                <div className="flex items-center gap-1 flex-wrap pt-0.5 border-t border-slate-200/70">
-                  <span className="text-[9.5px] text-slate-500 font-semibold mr-0.5">কুইক পে:</span>
+                <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-200/70">
+                  <span className="text-[10px] text-slate-500 font-bold mr-0.5 flex items-center gap-1">
+                    <Zap className="w-3 h-3 text-amber-500" />
+                    <span>কুইক পে:</span>
+                  </span>
+
+                  {/* Exact Cash Button: Auto-fills exact bill amount */}
                   <button
                     type="button"
+                    disabled={cart.length === 0 || grandTotal <= 0}
                     onClick={() => setReceivedInput(grandTotal.toString())}
-                    className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold shadow-2xs cursor-pointer transition-colors"
+                    className={`px-2.5 py-1 rounded-lg text-[10.5px] font-extrabold shadow-xs transition-all flex items-center gap-1 ${
+                      cart.length > 0 && grandTotal > 0
+                        ? 'bg-emerald-600 hover:bg-emerald-700 active:scale-[0.97] text-white cursor-pointer shadow-emerald-600/20'
+                        : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                    }`}
+                    title="কাস্টমার ঠিক যে পরিমাণ বিল হয়েছে তা দিলে এই বাটনে চাপুন"
                   >
-                    ঠিক ঠিক ৳{grandTotal.toFixed(0)}
+                    <span>⚡ ফুল পেইড (ঠিক ঠিক ৳{grandTotal.toFixed(0)})</span>
                   </button>
-                  {[50, 100, 500, 1000].map((amt) => (
+
+                  {/* Common Note Shortcuts */}
+                  {[100, 500, 1000].map((amt) => (
                     <button
                       key={amt}
                       type="button"
+                      disabled={cart.length === 0}
                       onClick={() => {
-                        const cur = Number(receivedInput) || 0;
-                        setReceivedInput((cur + amt).toString());
+                        setReceivedInput(amt.toString());
                       }}
-                      className="px-1.5 py-0.5 bg-white hover:bg-slate-200 text-slate-700 border border-slate-300 rounded text-[10px] font-mono font-semibold cursor-pointer transition-colors"
+                      className="px-2 py-0.5 bg-white hover:bg-slate-100 disabled:opacity-40 text-slate-800 border border-slate-300 rounded text-[10px] font-mono font-bold cursor-pointer transition-colors shadow-2xs"
+                      title={`কাস্টমার ৳${amt} এর নোট দিলে চাপুন`}
                     >
-                      +{amt}
+                      ৳{amt} নোট
                     </button>
                   ))}
+
                   {receivedInput !== '' && (
                     <button
                       type="button"
                       onClick={() => setReceivedInput('')}
-                      className="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded text-[10px] font-semibold cursor-pointer transition-colors"
+                      className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded text-[10px] font-bold cursor-pointer transition-colors"
+                      title="রিসিভ ফিল্ড ক্লিয়ার করুন"
                     >
                       মুছুন
                     </button>
