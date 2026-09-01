@@ -266,20 +266,16 @@ export class NavigationEngine {
       });
     }
 
-    // Tenant Provisioning for Admin and Super Admin
-    if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') {
+    // Category Studio, Tenant Provisioning & Platform Controls (Super Admin Md. Yusuf Ali only)
+    if (userRole === 'SUPER_ADMIN') {
       nav.push({
         id: 'tenant_provisioning',
         label: 'দোকান ও ডোমেন প্রভিশনিং',
         icon: 'Building2',
         moduleCode: 'SETTINGS',
-        category: userRole === 'SUPER_ADMIN' ? 'সিস্টেম অ্যাডমিন' : 'দোকান প্রশাসন',
-        requiredPermission: userRole === 'SUPER_ADMIN' ? 'system.super_admin_matrix' : 'settings.view'
+        category: 'সিস্টেম অ্যাডমিন',
+        requiredPermission: 'system.super_admin_matrix'
       });
-    }
-
-    // Category Studio & Platform Controls (Super Admin Md. Yusuf Ali only)
-    if (userRole === 'SUPER_ADMIN') {
 
       nav.push({
         id: 'category_studio',
