@@ -85,8 +85,10 @@ export class RuleEngine {
       if (normalizedCode === 'BOOKS' && (allowed.has('BOOK_CATALOG') || allowed.has('BOOKS'))) return true;
       if ((normalizedCode === 'CIRCULATION' || normalizedCode === 'STATIONERY_SALES' || normalizedCode === 'BORROWING') && (allowed.has('BORROWING') || allowed.has('CIRCULATION') || allowed.has('BOOKS'))) return true;
       if (normalizedCode === 'BARCODE' && allowed.has('BARCODE')) return true;
-      if (normalizedCode === 'BARCODE_PRINT' && (allowed.has('BARCODE_PRINT') || allowed.has('BARCODE_STUDIO'))) return true;
-      if (normalizedCode === 'DIGITAL_SERVICES' && (allowed.has('DIGITAL_SERVICES') || allowed.has('SERVICES'))) return true;
+      if (
+        (normalizedCode === 'DIGITAL_SERVICES' || normalizedCode === 'SERVICES' || normalizedCode === 'PHOTOCOPY' || normalizedCode === 'ONLINE_SERVICES' || normalizedCode === 'PHOTOCOPY_PRINT') && 
+        (allowed.has('DIGITAL_SERVICES') || allowed.has('SERVICES') || allowed.has('PHOTOCOPY') || allowed.has('ONLINE_SERVICES') || allowed.has('PHOTOCOPY_PRINT'))
+      ) return true;
       if (normalizedCode === 'BILLING_CALC' && allowed.has('SALES')) return true;
       if (normalizedCode === 'EXPENSES' && (allowed.has('ACCOUNTING') || allowed.has('EXPENSES'))) return true;
       if (normalizedCode === 'PAYMENTS' && (allowed.has('ACCOUNTING') || allowed.has('PAYMENTS') || allowed.has('SALES'))) return true;

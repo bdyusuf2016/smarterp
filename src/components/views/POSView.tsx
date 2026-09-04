@@ -78,7 +78,26 @@ const DEFAULT_ONLINE_SERVICES = [
 ];
 
 export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) => {
-  const physicalProducts = storageService.getProducts(activeTenant.id) || [];
+  const [productsVersion, setProductsVersion] = useState(0);
+
+  useEffect(() => {
+    const handleStorage = (e: any) => {
+      if (!e.detail || e.detail.key === 'dokan_v2_products' || e.detail.key === 'dokan_tenants' || e.detail.key === 'dokan_active_tenant') {
+        setProductsVersion(v => v + 1);
+      }
+    };
+    window.addEventListener('dokan_storage_updated', handleStorage);
+    window.addEventListener('dokan_tenant_changed', handleStorage);
+    return () => {
+      window.removeEventListener('dokan_storage_updated', handleStorage);
+      window.removeEventListener('dokan_tenant_changed', handleStorage);
+    };
+  }, []);
+
+  const physicalProducts = useMemo(() => {
+    return storageService.getProducts(activeTenant.id) || [];
+  }, [activeTenant.id, productsVersion]);
+
   const customers = storageService.getCustomers(activeTenant.id) || [];
   const devices = storageService.getDevices() || [];
   const batches = storageService.getBatches() || [];
@@ -118,48 +137,103 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
 
   const isDigitalServicesEnabled = RuleEngine.isModuleEnabled(activeTenant, 'DIGITAL_SERVICES');
 
-  const serviceProducts: GenericProduct[] = isDigitalServicesEnabled ? [
-    ...photocopyRates.filter((r: { is_active?: boolean }) => r.is_active !== false).map((r: { id: string; title: string; rate: number; unit?: string; description?: string }) => ({
-      id: `srv_pc_${r.id}`,
-      tenant_id: activeTenant.id,
-      business_category_id: primaryCatId,
-      code: `PC-${r.id.slice(-4).toUpperCase()}`,
-      sku: `PC-${r.id.slice(-4).toUpperCase()}`,
-      name: r.title,
-      description: r.description || 'ফটোকপি ও প্রিন্টিং সেবা',
-      category_name: 'ফটোকপি ও প্রিন্ট',
-      brand: 'ফটোকপি ও প্রিন্টিং',
-      unit: r.unit || 'পৃষ্ঠা',
-      purchase_price: Math.round(r.rate * 0.3),
-      selling_price: r.rate,
-      stock_quantity: 9999,
-      min_stock_alert: 0,
-      tracking_mode: 'TRACKING_NONE' as const,
-      is_active: true,
-      created_at: new Date().toISOString()
-    })),
-    ...onlineServices.filter((s: { is_active?: boolean }) => s.is_active !== false).map((s: { id: string; title: string; rate: number; description?: string }) => ({
-      id: `srv_os_${s.id}`,
-      tenant_id: activeTenant.id,
-      business_category_id: primaryCatId,
-      code: `OS-${s.id.slice(-4).toUpperCase()}`,
-      sku: `OS-${s.id.slice(-4).toUpperCase()}`,
-      name: s.title,
-      description: s.description || 'অনলাইন নাগরিক সেবা',
-      category_name: 'অনলাইন নাগরিক সেবা',
-      brand: 'ডিজিটাল সেবা',
-      unit: 'আবেদন',
-      purchase_price: 0,
-      selling_price: s.rate,
-      stock_quantity: 9999,
-      min_stock_alert: 0,
-      tracking_mode: 'TRACKING_NONE' as const,
-      is_active: true,
-      created_at: new Date().toISOString()
-    }))
-  ] : [];
+  // Helper to identify any photocopy or digital/online service product (both virtual rate items and stored catalog items)
+  const isPhotocopyOrDigitalProduct = (p: GenericProduct) => {
+    const cat = (p.category_name || '').toLowerCase();
+    const brand = (p.brand || '').toLowerCase();
+    const name = (p.name || '').toLowerCase();
+    const code = (p.code || '').toUpperCase();
+    const id = (p.id || '').toLowerCase();
+    const busCat = (p.business_category_id || '').toLowerCase();
 
-  const products = [...physicalProducts, ...serviceProducts];
+    return (
+      id.startsWith('srv_pc_') ||
+      id.startsWith('srv_os_') ||
+      code.startsWith('PC-') ||
+      code.startsWith('OS-') ||
+      code.startsWith('DS-') ||
+      busCat === 'cat_digital_services' ||
+      busCat === 'cat_services' ||
+      cat.includes('ফটোকপি') ||
+      cat.includes('photocopy') ||
+      cat.includes('নাগরিক সেবা') ||
+      cat.includes('অনলাইন সেবা') ||
+      cat.includes('citizen services') ||
+      cat.includes('কালার প্রিন্টিং') ||
+      cat.includes('color print') ||
+      cat.includes('লেমিনেটিং') ||
+      cat.includes('লেমিনেট') ||
+      cat.includes('laminat') ||
+      cat.includes('ডিজিটাল সেবা') ||
+      cat.includes('digital services') ||
+      cat.includes('টাইপিং') ||
+      cat.includes('জেরক্স') ||
+      cat.includes('xerox') ||
+      brand.includes('ফটোকপি') ||
+      brand.includes('ডিজিটাল সেবা') ||
+      name.includes('ফটোকপি') ||
+      name.includes('অনলাইন আবেদন') ||
+      name.includes('নাগরিক সেবা') ||
+      name.includes('কালার প্রিন্টিং') ||
+      name.includes('লেমিনেটিং')
+    );
+  };
+
+  // If digital services is disabled by System Admin, strictly filter out all photocopy and online services products
+  const effectivePhysicalProducts = useMemo(() => {
+    if (isDigitalServicesEnabled) {
+      return physicalProducts;
+    }
+    return physicalProducts.filter(p => !isPhotocopyOrDigitalProduct(p));
+  }, [physicalProducts, isDigitalServicesEnabled]);
+
+  const serviceProducts: GenericProduct[] = useMemo(() => {
+    if (!isDigitalServicesEnabled) return [];
+    return [
+      ...photocopyRates.filter((r: { is_active?: boolean }) => r.is_active !== false).map((r: { id: string; title: string; rate: number; unit?: string; description?: string }) => ({
+        id: `srv_pc_${r.id}`,
+        tenant_id: activeTenant.id,
+        business_category_id: primaryCatId,
+        code: `PC-${r.id.slice(-4).toUpperCase()}`,
+        sku: `PC-${r.id.slice(-4).toUpperCase()}`,
+        name: r.title,
+        description: r.description || 'ফটোকপি ও প্রিন্টিং সেবা',
+        category_name: 'ফটোকপি ও প্রিন্ট',
+        brand: 'ফটোকপি ও প্রিন্টিং',
+        unit: r.unit || 'পৃষ্ঠা',
+        purchase_price: Math.round(r.rate * 0.3),
+        selling_price: r.rate,
+        stock_quantity: 9999,
+        min_stock_alert: 0,
+        tracking_mode: 'TRACKING_NONE' as const,
+        is_active: true,
+        created_at: new Date().toISOString()
+      })),
+      ...onlineServices.filter((s: { is_active?: boolean }) => s.is_active !== false).map((s: { id: string; title: string; rate: number; description?: string }) => ({
+        id: `srv_os_${s.id}`,
+        tenant_id: activeTenant.id,
+        business_category_id: primaryCatId,
+        code: `OS-${s.id.slice(-4).toUpperCase()}`,
+        sku: `OS-${s.id.slice(-4).toUpperCase()}`,
+        name: s.title,
+        description: s.description || 'অনলাইন নাগরিক সেবা',
+        category_name: 'অনলাইন নাগরিক সেবা',
+        brand: 'ডিজিটাল সেবা',
+        unit: 'আবেদন',
+        purchase_price: 0,
+        selling_price: s.rate,
+        stock_quantity: 9999,
+        min_stock_alert: 0,
+        tracking_mode: 'TRACKING_NONE' as const,
+        is_active: true,
+        created_at: new Date().toISOString()
+      }))
+    ];
+  }, [isDigitalServicesEnabled, photocopyRates, onlineServices, activeTenant.id, primaryCatId]);
+
+  const products = useMemo(() => {
+    return [...effectivePhysicalProducts, ...serviceProducts];
+  }, [effectivePhysicalProducts, serviceProducts]);
 
   const [paymentConfig, setPaymentConfig] = useState(() => {
     try {
@@ -331,7 +405,16 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
   };
 
   // Category filters
-  const categoriesList = Array.from(new Set(products.map(p => p.category_name))).filter(Boolean);
+  const categoriesList = useMemo(() => {
+    return Array.from(new Set(products.map(p => p.category_name))).filter(Boolean);
+  }, [products]);
+
+  // Reset category filter if selected category is no longer present in available categories
+  useEffect(() => {
+    if (selectedCategoryFilter !== 'ALL' && !categoriesList.includes(selectedCategoryFilter)) {
+      setSelectedCategoryFilter('ALL');
+    }
+  }, [categoriesList, selectedCategoryFilter]);
 
   const filteredProducts = products.filter(p => {
     const matchesSearch = 
@@ -642,15 +725,17 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
               <span className="hidden sm:inline">ক্যামেরা স্ক্যান</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => setRechargeModalOpen(true)}
-              className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 shadow-xs cursor-pointer shrink-0 transition-colors"
-              title="ফ্লেক্সিলোড ও রিচার্জ রেজিস্টার"
-            >
-              <Zap className="w-3.5 h-3.5" />
-              <span>রিচার্জ / MFS</span>
-            </button>
+            {RuleEngine.isModuleEnabled(activeTenant, 'RECHARGE') && RbacEngine.hasPermission(activeRole, 'telecom.recharge_mfs') && (
+              <button
+                type="button"
+                onClick={() => setRechargeModalOpen(true)}
+                className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 shadow-xs cursor-pointer shrink-0 transition-colors"
+                title="ফ্লেক্সিলোড ও রিচার্জ রেজিস্টার"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span>রিচার্জ / MFS</span>
+              </button>
+            )}
           </div>
 
           {/* Category Pills Bar */}

@@ -291,6 +291,7 @@ export const AppLayout: React.FC = () => {
   };
 
   const handleTenantChange = (tenant: Tenant) => {
+    storageService.setActiveTenantId(tenant.id);
     setActiveTenant(tenant);
     if (currentUser) {
       const updated = { ...currentUser, tenantId: tenant.id };
