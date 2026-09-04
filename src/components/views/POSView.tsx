@@ -44,6 +44,7 @@ import {
 } from '../../types';
 import { storageService } from '../../services/storageService';
 import { RuleEngine } from '../../engine/ruleEngine';
+import { RbacEngine } from '../../engine/rbacEngine';
 import { Modal } from '../common/Modal';
 import { CameraScannerModal } from '../common/CameraScannerModal';
 import { printPosReceipt } from '../../shared/utils/printReceipt';
