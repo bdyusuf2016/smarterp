@@ -502,13 +502,36 @@ class StorageService {
   // Sales
   getSales(tenantId?: string): SaleTransaction[] {
     const all = this.get<SaleTransaction[]>(STORAGE_KEYS.SALES, INITIAL_SALES);
-    if (!tenantId) return all;
-    return all.filter(s => s.tenant_id === tenantId);
+    const seen = new Set<string>();
+    const uniqueSales: SaleTransaction[] = [];
+    let hadDuplicates = false;
+
+    for (const s of all) {
+      const key = s.id || s.invoice_no;
+      if (key && seen.has(key)) {
+        hadDuplicates = true;
+        continue;
+      }
+      if (key) seen.add(key);
+      uniqueSales.push(s);
+    }
+
+    if (hadDuplicates) {
+      this.set(STORAGE_KEYS.SALES, uniqueSales);
+    }
+
+    if (!tenantId) return uniqueSales;
+    return uniqueSales.filter(s => s.tenant_id === tenantId);
   }
 
   saveSale(sale: SaleTransaction): void {
-    const list = this.get<SaleTransaction[]>(STORAGE_KEYS.SALES, INITIAL_SALES);
-    list.unshift(sale);
+    const list = this.getSales();
+    const idx = list.findIndex(s => s.id === sale.id || (sale.invoice_no && s.invoice_no === sale.invoice_no));
+    if (idx >= 0) {
+      list[idx] = { ...list[idx], ...sale };
+    } else {
+      list.unshift(sale);
+    }
     this.set(STORAGE_KEYS.SALES, list);
     this.dispatchInstantSync('sales', sale);
   }
@@ -516,19 +539,42 @@ class StorageService {
   // Accounting
   getAccounting(tenantId?: string): AccountingEntry[] {
     const all = this.get<AccountingEntry[]>(STORAGE_KEYS.ACCOUNTING, INITIAL_ACCOUNTING);
-    if (!tenantId) return all;
-    return all.filter(a => a.tenant_id === tenantId);
+    const seen = new Set<string>();
+    const uniqueEntries: AccountingEntry[] = [];
+    let hadDuplicates = false;
+
+    for (const a of all) {
+      const key = a.id;
+      if (key && seen.has(key)) {
+        hadDuplicates = true;
+        continue;
+      }
+      if (key) seen.add(key);
+      uniqueEntries.push(a);
+    }
+
+    if (hadDuplicates) {
+      this.set(STORAGE_KEYS.ACCOUNTING, uniqueEntries);
+    }
+
+    if (!tenantId) return uniqueEntries;
+    return uniqueEntries.filter(a => a.tenant_id === tenantId);
   }
 
   saveAccountingEntry(entry: AccountingEntry): void {
-    const list = this.get<AccountingEntry[]>(STORAGE_KEYS.ACCOUNTING, INITIAL_ACCOUNTING);
-    list.unshift(entry);
+    const list = this.getAccounting();
+    const idx = list.findIndex(a => a.id === entry.id);
+    if (idx >= 0) {
+      list[idx] = { ...list[idx], ...entry };
+    } else {
+      list.unshift(entry);
+    }
     this.set(STORAGE_KEYS.ACCOUNTING, list);
     this.dispatchInstantSync('accounting_entries', entry);
   }
 
   deleteAccountingEntry(id: string): void {
-    const list = this.get<AccountingEntry[]>(STORAGE_KEYS.ACCOUNTING, INITIAL_ACCOUNTING);
+    const list = this.getAccounting();
     const filtered = list.filter(a => a.id !== id);
     this.set(STORAGE_KEYS.ACCOUNTING, filtered);
   }
@@ -536,8 +582,25 @@ class StorageService {
   // Audit Logs
   getAuditLogs(tenantId?: string): AuditLog[] {
     const all = this.get<AuditLog[]>(STORAGE_KEYS.AUDIT_LOGS, INITIAL_AUDIT_LOGS);
-    if (!tenantId) return all;
-    return all.filter(a => !a.tenant_id || a.tenant_id === tenantId);
+    const seen = new Set<string>();
+    const uniqueLogs: AuditLog[] = [];
+    let hadDuplicates = false;
+
+    for (const l of all) {
+      if (l.id && seen.has(l.id)) {
+        hadDuplicates = true;
+        continue;
+      }
+      if (l.id) seen.add(l.id);
+      uniqueLogs.push(l);
+    }
+
+    if (hadDuplicates) {
+      this.set(STORAGE_KEYS.AUDIT_LOGS, uniqueLogs);
+    }
+
+    if (!tenantId) return uniqueLogs;
+    return uniqueLogs.filter(a => !a.tenant_id || a.tenant_id === tenantId);
   }
 
   addAuditLog(action: string, moduleCode: string, details: string, severity: 'info' | 'warning' | 'critical' = 'info'): void {
