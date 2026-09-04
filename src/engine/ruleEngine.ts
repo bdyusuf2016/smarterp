@@ -59,18 +59,41 @@ export class RuleEngine {
   static isModuleEnabled(tenant: Tenant, moduleCode: string): boolean {
     if (!tenant) return true;
 
-    // 1. Explicit tenant enabled_modules check
+    const normalizedCode = (moduleCode || '').toUpperCase().trim();
+
+    // 1. Explicit tenant enabled_modules check configured by System Admin
     if (tenant.enabled_modules && Array.isArray(tenant.enabled_modules)) {
-      if (tenant.enabled_modules.includes(moduleCode)) return true;
+      const allowed = new Set(tenant.enabled_modules.map(m => m.toUpperCase().trim()));
+
+      // Direct match
+      if (allowed.has(normalizedCode)) return true;
+
+      // Handle common aliases/sub-modules
+      if (normalizedCode === 'CRM' && allowed.has('CUSTOMERS')) return true;
+      if (normalizedCode === 'CUSTOMERS' && allowed.has('CRM')) return true;
+      if (normalizedCode === 'PURCHASE' && (allowed.has('PURCHASES') || allowed.has('SUPPLIERS'))) return true;
+      if (normalizedCode === 'PURCHASES' && (allowed.has('PURCHASE') || allowed.has('SUPPLIERS'))) return true;
+      if (normalizedCode === 'SUPPLIERS' && (allowed.has('PURCHASES') || allowed.has('SUPPLIERS') || allowed.has('PURCHASE'))) return true;
+      if (normalizedCode === 'BATCH_EXPIRY' && (allowed.has('BATCH') || allowed.has('EXPIRY'))) return true;
+      if (normalizedCode === 'WEIGH_SCALE' && allowed.has('WEIGHT')) return true;
+      if (normalizedCode === 'BOOK_CATALOG' && allowed.has('BOOKS')) return true;
+      if (normalizedCode === 'BARCODE' && (allowed.has('BARCODE') || allowed.has('BARCODE_PRINT'))) return true;
+      if (normalizedCode === 'BARCODE_PRINT' && (allowed.has('BARCODE') || allowed.has('BARCODE_PRINT'))) return true;
+      if (normalizedCode === 'DIGITAL_SERVICES' && (allowed.has('DIGITAL_SERVICES') || allowed.has('SERVICES'))) return true;
+      if (normalizedCode === 'BILLING_CALC' && allowed.has('SALES')) return true;
+      if (normalizedCode === 'DASHBOARD') return true;
+
+      // If System Admin explicitly configured enabled_modules and this module is not included, it is disabled!
+      return false;
     }
 
-    // Common Core Business modules are always enabled
-    if (['SALES', 'PRODUCTS', 'INVENTORY', 'CUSTOMERS', 'ACCOUNTING', 'REPORTS', 'DIGITAL_SERVICES', 'BARCODE', 'BARCODE_PRINT'].includes(moduleCode)) {
+    // Default fallback if tenant.enabled_modules is not explicitly set yet
+    if (['SALES', 'PRODUCTS', 'INVENTORY', 'CUSTOMERS', 'ACCOUNTING', 'REPORTS', 'DIGITAL_SERVICES', 'BARCODE', 'BARCODE_PRINT'].includes(normalizedCode)) {
       return true;
     }
 
     const modules = storageService.getModules();
-    const targetModule = modules.find(m => m.code === moduleCode);
+    const targetModule = modules.find(m => m.code === normalizedCode);
     if (!targetModule || !targetModule.is_active) {
       return false;
     }

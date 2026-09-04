@@ -65,9 +65,16 @@ const STORAGE_KEYS = {
 };
 
 class StorageService {
+  private memoryStore: Map<string, string> = new Map();
+
   private get<T>(key: string, defaultValue: T): T {
     try {
-      const stored = localStorage.getItem(key);
+      let stored: string | null = null;
+      if (typeof localStorage !== 'undefined') {
+        stored = localStorage.getItem(key);
+      } else {
+        stored = this.memoryStore.get(key) || null;
+      }
       if (!stored) return defaultValue;
       return JSON.parse(stored) as T;
     } catch {
@@ -77,8 +84,15 @@ class StorageService {
 
   private set<T>(key: string, value: T): void {
     try {
-      localStorage.setItem(key, JSON.stringify(value));
-      window.dispatchEvent(new CustomEvent('dokan_storage_updated', { detail: { key } }));
+      const serialized = JSON.stringify(value);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(key, serialized);
+      } else {
+        this.memoryStore.set(key, serialized);
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('dokan_storage_updated', { detail: { key } }));
+      }
     } catch (e) {
       console.error('Storage write error', e);
     }

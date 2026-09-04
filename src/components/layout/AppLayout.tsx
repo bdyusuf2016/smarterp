@@ -91,11 +91,30 @@ export const AppLayout: React.FC = () => {
         const fresh = storageService.getTenants();
         const curTenant = storageService.getActiveTenant();
         if ((!curTenant || !curTenant.id) && fresh.length > 0) {
-          handleTenantChange(fresh[0]);
+          setActiveTenant(fresh[0]);
+          storageService.setActiveTenantId(fresh[0].id);
         }
       }
     }).catch(console.warn);
   }, []);
+
+  // Sync active tenant state live when modified in Tenant Management or Settings
+  useEffect(() => {
+    const handleTenantUpdated = () => {
+      const freshTenants = storageService.getTenants();
+      const currentActiveId = storageService.getActiveTenant()?.id || activeTenant.id;
+      const found = freshTenants.find(t => t.id === currentActiveId);
+      if (found) {
+        setActiveTenant(found);
+      }
+    };
+    window.addEventListener('dokan_storage_updated', handleTenantUpdated);
+    window.addEventListener('dokan_tenant_changed', handleTenantUpdated);
+    return () => {
+      window.removeEventListener('dokan_storage_updated', handleTenantUpdated);
+      window.removeEventListener('dokan_tenant_changed', handleTenantUpdated);
+    };
+  }, [activeTenant.id]);
 
   // Footer & Branding Configuration State
   const [footerConfig, setFooterConfig] = useState(() => {
