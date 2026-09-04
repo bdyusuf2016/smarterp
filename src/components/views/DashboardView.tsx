@@ -41,6 +41,7 @@ import { Tenant, UserRole, SaleTransaction } from '../../types';
 import { storageService } from '../../services/storageService';
 import { i18n } from '../../services/i18nService';
 import { RuleEngine } from '../../engine/ruleEngine';
+import { RbacEngine } from '../../engine/rbacEngine';
 import { Badge } from '../common/Badge';
 import { printPosReceipt } from '../../shared/utils/printReceipt';
 
@@ -1729,15 +1730,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
           {[
-            { id: 'pos_sales', title: isEn ? 'POS Billing' : 'POS কাউন্টার', sub: isEn ? 'Quick Sale' : 'কুইক চেকআউট', icon: ShoppingCart, color: 'from-emerald-500 to-teal-600' },
-            { id: 'products', title: isEn ? 'Products' : 'পণ্য ও স্টক', sub: isEn ? 'Inventory' : 'ইনভেন্টরি ম্যানেজ', icon: Package, color: 'from-blue-500 to-indigo-600' },
-            { id: 'customers', title: isEn ? 'Due CRM' : 'বাকি খাতা (CRM)', sub: isEn ? 'Customers' : 'কাস্টমার লেজার', icon: Users, color: 'from-rose-500 to-pink-600' },
-            { id: 'accounting', title: isEn ? 'Accounts' : 'হিসাব ও খাতা', sub: isEn ? 'Cash Ledger' : 'আয় ও ব্যয় রেজিস্টার', icon: DollarSign, color: 'from-indigo-500 to-purple-600' },
-            { id: 'reports', title: isEn ? 'Reports' : 'রিপোর্ট ও লাভ', sub: isEn ? 'Analytics' : 'ব্যবসায়িক অ্যানালিটিক্স', icon: FileSpreadsheet, color: 'from-amber-500 to-orange-600' },
-            { id: 'barcode_studio', title: isEn ? 'Barcode' : 'বারকোড স্টুডিও', sub: isEn ? 'Print Sticker' : 'স্টিকার প্রিন্ট', icon: Barcode, color: 'from-cyan-500 to-blue-600' },
-            { id: 'digital_services', title: isEn ? 'Services' : 'ডিজিটাল সেবা', sub: isEn ? 'Rate Cards' : 'ফটোকপি ও বিল পে', icon: Smartphone, color: 'from-purple-500 to-indigo-600' },
-            { id: 'global_settings', title: isEn ? 'Settings' : 'সিস্টেম সেটিংস', sub: isEn ? 'Shop & Config' : 'দোকান ও টেমপ্লেট', icon: Sliders, color: 'from-slate-700 to-slate-900' },
-          ].map((item) => {
+            { id: 'pos_sales', module: 'SALES', perm: 'sales.pos_access', title: isEn ? 'POS Billing' : 'POS কাউন্টার', sub: isEn ? 'Quick Sale' : 'কুইক চেকআউট', icon: ShoppingCart, color: 'from-emerald-500 to-teal-600' },
+            { id: 'products', module: 'PRODUCTS', perm: 'products.view', title: isEn ? 'Products' : 'পণ্য ও স্টক', sub: isEn ? 'Inventory' : 'ইনভেন্টরি ম্যানেজ', icon: Package, color: 'from-blue-500 to-indigo-600' },
+            { id: 'customers', module: 'CRM', perm: 'customers.view', title: isEn ? 'Due CRM' : 'বাকি খাতা (CRM)', sub: isEn ? 'Customers' : 'কাস্টমার লেজার', icon: Users, color: 'from-rose-500 to-pink-600' },
+            { id: 'accounting', module: 'ACCOUNTING', perm: 'accounting.view_ledger', title: isEn ? 'Accounts' : 'হিসাব ও খাতা', sub: isEn ? 'Cash Ledger' : 'আয় ও ব্যয় রেজিস্টার', icon: DollarSign, color: 'from-indigo-500 to-purple-600' },
+            { id: 'reports', module: 'REPORTS', perm: 'reports.view_analytics', title: isEn ? 'Reports' : 'রিপোর্ট ও লাভ', sub: isEn ? 'Analytics' : 'ব্যবসায়িক অ্যানালিটিক্স', icon: FileSpreadsheet, color: 'from-amber-500 to-orange-600' },
+            { id: 'barcode_studio', module: 'BARCODE_PRINT', perm: 'barcode.print', title: isEn ? 'Barcode' : 'বারকোড স্টুডিও', sub: isEn ? 'Print Sticker' : 'স্টিকার প্রিন্ট', icon: Barcode, color: 'from-cyan-500 to-blue-600' },
+            { id: 'digital_services', module: 'DIGITAL_SERVICES', perm: 'services.digital_desk', title: isEn ? 'Services' : 'ডিজিটাল সেবা', sub: isEn ? 'Rate Cards' : 'ফটোকপি ও বিল পে', icon: Smartphone, color: 'from-purple-500 to-indigo-600' },
+            { id: 'global_settings', module: 'SETTINGS', perm: 'system.settings_manage', title: isEn ? 'Settings' : 'সিস্টেম সেটিংস', sub: isEn ? 'Shop & Config' : 'দোকান ও টেমপ্লেট', icon: Sliders, color: 'from-slate-700 to-slate-900' },
+          ].filter(item => {
+            const modEnabled = RuleEngine.isModuleEnabled(activeTenant, item.module);
+            const permAllowed = RbacEngine.hasPermission(activeRole, item.perm);
+            return modEnabled && permAllowed;
+          }).map((item) => {
             const Icon = item.icon;
             return (
               <button

@@ -5,6 +5,7 @@ import { authService, UserProfile } from '../../services/authService';
 import { i18n } from '../../services/i18nService';
 import { routerService, ParsedRoute } from '../../services/routerService';
 import { RbacEngine } from '../../engine/rbacEngine';
+import { RuleEngine } from '../../engine/ruleEngine';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { ProfileManagerModal } from './ProfileManagerModal';
@@ -352,12 +353,40 @@ export const AppLayout: React.FC = () => {
     );
   };
 
+  const renderModuleDisabled = (moduleName: string) => {
+    const isEn = currentLang === 'en';
+    return (
+      <div className="bg-white dark:bg-[#1a1d26] rounded-xl border border-amber-200 dark:border-amber-900 p-8 text-center max-w-xl mx-auto mt-12 shadow-xs">
+        <div className="w-14 h-14 bg-amber-50 dark:bg-amber-950 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-200 dark:border-amber-800">
+          <ShieldAlert className="w-7 h-7" />
+        </div>
+        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-1">{isEn ? 'Module Disabled' : 'মডিউলটি বন্ধ রয়েছে'}</h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+          {isEn ? 'The' : 'আপনার এই দোকানে'} <b>"{moduleName}"</b> {isEn ? 'module has been turned off by System Admin for this store.' : 'মডিউলটি সিস্টেম অ্যাডমিন কর্তৃক নিষ্ক্রিয় রাখা হয়েছে।'}
+        </p>
+        <div>
+          <button
+            type="button"
+            onClick={() => setActiveViewId('dashboard')}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs inline-flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>{isEn ? 'Back to Dashboard' : 'ড্যাশবোর্ডে ফিরে যান'}</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const renderActiveView = () => {
     switch (activeViewId) {
       case 'dashboard':
         return <DashboardView activeTenant={activeTenant} activeRole={activeRole} onNavigate={setActiveViewId} />;
       
       case 'pos_sales':
+        if (!RuleEngine.isModuleEnabled(activeTenant, 'SALES')) {
+          return renderModuleDisabled('POS সেলস (POS Sales)');
+        }
         if (!RbacEngine.hasPermission(activeRole, 'sales.pos_access')) {
           return renderUnauthorized('sales.pos_access', 'POS কুইক বিলিং');
         }
@@ -371,18 +400,27 @@ export const AppLayout: React.FC = () => {
 
       case 'products':
       case 'products_catalog':
+        if (!RuleEngine.isModuleEnabled(activeTenant, 'PRODUCTS')) {
+          return renderModuleDisabled('প্রোডাক্ট ও স্টক (Products)');
+        }
         if (!RbacEngine.hasPermission(activeRole, 'products.view')) {
           return renderUnauthorized('products.view', 'প্রোডাক্ট ও স্টক');
         }
         return <ProductsView activeTenant={activeTenant} activeRole={activeRole} />;
       
       case 'barcode_studio':
+        if (!RuleEngine.isModuleEnabled(activeTenant, 'BARCODE_PRINT') && !RuleEngine.isModuleEnabled(activeTenant, 'BARCODE')) {
+          return renderModuleDisabled('বারকোড স্টিকার প্রিন্ট (Barcode Studio)');
+        }
         if (!RbacEngine.hasPermission(activeRole, 'barcode.print')) {
           return renderUnauthorized('barcode.print', 'বারকোড স্টিকার প্রিন্ট');
         }
         return <BarcodeStudioView activeTenant={activeTenant} activeRole={activeRole} />;
       
       case 'digital_services':
+        if (!RuleEngine.isModuleEnabled(activeTenant, 'DIGITAL_SERVICES')) {
+          return renderModuleDisabled('ফটোকপি ও অনলাইন সেবা (Digital Services)');
+        }
         if (!RbacEngine.hasPermission(activeRole, 'services.digital_desk')) {
           return renderUnauthorized('services.digital_desk', 'সেবা ও মূল্যহার তালিকা');
         }

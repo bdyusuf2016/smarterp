@@ -77,8 +77,8 @@ export class RuleEngine {
       if (normalizedCode === 'BATCH_EXPIRY' && (allowed.has('BATCH') || allowed.has('EXPIRY'))) return true;
       if (normalizedCode === 'WEIGH_SCALE' && allowed.has('WEIGHT')) return true;
       if (normalizedCode === 'BOOK_CATALOG' && allowed.has('BOOKS')) return true;
-      if (normalizedCode === 'BARCODE' && (allowed.has('BARCODE') || allowed.has('BARCODE_PRINT'))) return true;
-      if (normalizedCode === 'BARCODE_PRINT' && (allowed.has('BARCODE') || allowed.has('BARCODE_PRINT'))) return true;
+      if (normalizedCode === 'BARCODE' && allowed.has('BARCODE')) return true;
+      if (normalizedCode === 'BARCODE_PRINT' && (allowed.has('BARCODE_PRINT') || allowed.has('BARCODE_STUDIO'))) return true;
       if (normalizedCode === 'DIGITAL_SERVICES' && (allowed.has('DIGITAL_SERVICES') || allowed.has('SERVICES'))) return true;
       if (normalizedCode === 'BILLING_CALC' && allowed.has('SALES')) return true;
       if (normalizedCode === 'DASHBOARD') return true;
@@ -87,8 +87,8 @@ export class RuleEngine {
       return false;
     }
 
-    // Default fallback if tenant.enabled_modules is not explicitly set yet
-    if (['SALES', 'PRODUCTS', 'INVENTORY', 'CUSTOMERS', 'ACCOUNTING', 'REPORTS', 'DIGITAL_SERVICES', 'BARCODE', 'BARCODE_PRINT'].includes(normalizedCode)) {
+    // Default fallback if tenant.enabled_modules is not explicitly set yet (Core modules only)
+    if (['SALES', 'PRODUCTS', 'INVENTORY', 'CUSTOMERS', 'ACCOUNTING', 'REPORTS'].includes(normalizedCode)) {
       return true;
     }
 

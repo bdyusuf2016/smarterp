@@ -30,7 +30,7 @@ export class NavigationEngine {
     }
 
     // 1. Sales & POS
-    if (RbacEngine.hasPermission(userRole, 'sales.pos_access')) {
+    if (RuleEngine.isModuleEnabled(tenant, 'SALES') && RbacEngine.hasPermission(userRole, 'sales.pos_access')) {
       nav.push({
         id: 'pos_sales',
         label: 'POS কুইক বিলিং',
@@ -42,7 +42,7 @@ export class NavigationEngine {
     }
 
     // 2. Products, Stock Inward & Services Catalog (ইনভেন্টরি ও স্টক)
-    if (RbacEngine.hasPermission(userRole, 'products.view')) {
+    if (RuleEngine.isModuleEnabled(tenant, 'PRODUCTS') && RbacEngine.hasPermission(userRole, 'products.view')) {
       nav.push({
         id: 'products',
         label: 'পণ্য ও নতুন স্টক ইনওয়ার্ড',
@@ -53,8 +53,8 @@ export class NavigationEngine {
       });
     }
 
-    // Digital Services & Photocopy Rate Cards Catalog (Managed like stock)
-    if (RbacEngine.hasPermission(userRole, 'services.digital_desk')) {
+    // Digital Services & Photocopy Rate Cards Catalog (ফটোকপি ও অনলাইন সেবা)
+    if (RuleEngine.isModuleEnabled(tenant, 'DIGITAL_SERVICES') && RbacEngine.hasPermission(userRole, 'services.digital_desk')) {
       nav.push({
         id: 'digital_services',
         label: 'সেবা ও মূল্যহার তালিকা',
@@ -65,13 +65,13 @@ export class NavigationEngine {
       });
     }
 
-    // Barcode Sticker Studio
-    if (RbacEngine.hasPermission(userRole, 'barcode.print')) {
+    // Barcode Sticker Studio (বারকোড স্টিকার প্রিন্ট)
+    if (RuleEngine.isModuleEnabled(tenant, 'BARCODE_PRINT') && RbacEngine.hasPermission(userRole, 'barcode.print')) {
       nav.push({
         id: 'barcode_studio',
         label: 'বারকোড স্টিকার প্রিন্ট',
         icon: 'Printer',
-        moduleCode: 'PRODUCTS',
+        moduleCode: 'BARCODE_PRINT',
         category: 'ইনভেন্টরি ও স্টক',
         requiredPermission: 'barcode.print'
       });
@@ -183,7 +183,7 @@ export class NavigationEngine {
     }
 
     // CRM / Customers & Due Ledger
-    if (RbacEngine.hasPermission(userRole, 'customers.view')) {
+    if ((RuleEngine.isModuleEnabled(tenant, 'CUSTOMERS') || RuleEngine.isModuleEnabled(tenant, 'CRM')) && RbacEngine.hasPermission(userRole, 'customers.view')) {
       nav.push({
         id: 'customers',
         label: 'কাস্টমার বাকির খাতা',
@@ -195,7 +195,7 @@ export class NavigationEngine {
     }
 
     // Suppliers & Vendor Payables Ledger
-    if (RbacEngine.hasPermission(userRole, 'suppliers.view')) {
+    if ((RuleEngine.isModuleEnabled(tenant, 'PURCHASE') || RuleEngine.isModuleEnabled(tenant, 'PURCHASES') || RuleEngine.isModuleEnabled(tenant, 'SUPPLIERS')) && RbacEngine.hasPermission(userRole, 'suppliers.view')) {
       nav.push({
         id: 'suppliers',
         label: 'সাপ্লায়ার ও বিল পেমেন্ট',
@@ -207,7 +207,7 @@ export class NavigationEngine {
     }
 
     // Accounting & Daily Closing
-    if (RbacEngine.hasPermission(userRole, 'accounting.view_ledger')) {
+    if (RuleEngine.isModuleEnabled(tenant, 'ACCOUNTING') && RbacEngine.hasPermission(userRole, 'accounting.view_ledger')) {
       nav.push({
         id: 'accounting',
         label: 'হিসাব ও ক্যাশ খাতা',
@@ -219,7 +219,7 @@ export class NavigationEngine {
     }
 
     // Executive Reports
-    if (RbacEngine.hasPermission(userRole, 'reports.view_analytics')) {
+    if (RuleEngine.isModuleEnabled(tenant, 'REPORTS') && RbacEngine.hasPermission(userRole, 'reports.view_analytics')) {
       nav.push({
         id: 'reports',
         label: 'লাভ-ক্ষতি ও আর্থিক রিপোর্ট',

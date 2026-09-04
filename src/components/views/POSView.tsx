@@ -116,7 +116,9 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
 
   const primaryCatId = activeTenant.active_categories?.find(c => c.is_primary)?.business_category_id || activeTenant.active_categories?.[0]?.business_category_id || 'cat_general';
 
-  const serviceProducts: GenericProduct[] = [
+  const isDigitalServicesEnabled = RuleEngine.isModuleEnabled(activeTenant, 'DIGITAL_SERVICES');
+
+  const serviceProducts: GenericProduct[] = isDigitalServicesEnabled ? [
     ...photocopyRates.filter((r: { is_active?: boolean }) => r.is_active !== false).map((r: { id: string; title: string; rate: number; unit?: string; description?: string }) => ({
       id: `srv_pc_${r.id}`,
       tenant_id: activeTenant.id,
@@ -155,7 +157,7 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
       is_active: true,
       created_at: new Date().toISOString()
     }))
-  ];
+  ] : [];
 
   const products = [...physicalProducts, ...serviceProducts];
 

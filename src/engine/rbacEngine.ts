@@ -23,7 +23,7 @@ export const ALL_PERMISSIONS: PermissionDefinition[] = [
   { code: 'products.create', module: 'PRODUCTS', name: 'নতুন প্রোডাক্ট এন্ট্রি', description: 'ক্যাটালগে নতুন আইটেম যুক্ত করা', category: 'INVENTORY' },
   { code: 'products.edit_price', module: 'PRODUCTS', name: 'মূল্য ও স্টক আপডেট', description: 'ক্রয় ও বিক্রয় মূল্য পরিবর্তন এবং স্টক সমন্বয়', category: 'INVENTORY' },
   { code: 'products.delete', module: 'PRODUCTS', name: 'প্রোডাক্ট ডিলিট', description: 'ক্যাটালগ থেকে পণ্য মুছে ফেলা', category: 'INVENTORY' },
-  { code: 'barcode.print', module: 'BARCODE', name: 'বারকোড স্টিকার প্রিন্ট স্টুডিও', description: 'বারকোড ও প্রাইস ট্যাগ স্টিকার জেনারেট ও প্রিন্ট', category: 'INVENTORY' },
+  { code: 'barcode.print', module: 'BARCODE_PRINT', name: 'বারকোড স্টিকার প্রিন্ট স্টুডিও', description: 'বারকোড ও প্রাইস ট্যাগ স্টিকার জেনারেট ও প্রিন্ট', category: 'INVENTORY' },
   { code: 'tools.billing_calc', module: 'BILLING_CALC', name: 'ক্যাশ ও বিলিং ক্যালকুলেটর', description: 'নোট গণনা ও দ্রুত ক্যাশ ফেরত হিসাব টুল', category: 'SALES' },
   
   // Customers & Dues
