@@ -70,6 +70,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [currentLang, setCurrentLang] = useState<'bn' | 'en'>(() => {
     return i18n.getLanguage();
   });
+  const [lastSyncInfo, setLastSyncInfo] = useState<{ time: string; table?: string } | null>(null);
 
   useEffect(() => {
     const handleLang = () => setCurrentLang(i18n.getLanguage());
@@ -77,11 +78,20 @@ export const Header: React.FC<HeaderProps> = ({
       const t = (localStorage.getItem('dokan_v2_theme') as 'light' | 'dark') || 'light';
       setCurrentTheme(t);
     };
+    const handleSync = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      setLastSyncInfo({
+        time: new Date().toLocaleTimeString(),
+        table: customEvent?.detail?.table
+      });
+    };
     window.addEventListener('dokan_lang_changed', handleLang);
     window.addEventListener('dokan_theme_changed', handleTheme);
+    window.addEventListener('smarterp_cloud_synced', handleSync);
     return () => {
       window.removeEventListener('dokan_lang_changed', handleLang);
       window.removeEventListener('dokan_theme_changed', handleTheme);
+      window.removeEventListener('smarterp_cloud_synced', handleSync);
     };
   }, []);
 
@@ -253,6 +263,15 @@ export const Header: React.FC<HeaderProps> = ({
             <span>ID: bdyusuf2016</span>
           </div>
         )}
+
+        {/* Live Supabase Cloud Sync Badge */}
+        <div
+          className="hidden sm:flex items-center gap-1.5 px-2 py-1 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/80 text-emerald-700 dark:text-emerald-400 rounded-lg text-xs font-semibold select-none cursor-default"
+          title={lastSyncInfo ? `রিয়েল-টাইম ক্লাউড সিঙ্ক: ${lastSyncInfo.time} (${lastSyncInfo.table})` : 'Supabase ক্লাউড ডেটাবেজে সরাসরি সিঙ্কড'}
+        >
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span className="text-[10.5px] font-medium">ক্লাউড সিঙ্কড</span>
+        </div>
 
         {/* User Profile & Account Menu */}
         <div className="relative">

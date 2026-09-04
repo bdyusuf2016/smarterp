@@ -28,10 +28,93 @@ export interface ConnectionTestResult {
   };
 }
 
+export const SUPABASE_TABLE_COLUMNS: Record<string, string[]> = {
+  tenants: [
+    'id', 'code', 'name', 'owner_name', 'email', 'phone', 'currency', 'currency_symbol',
+    'address', 'vat_number', 'subdomain', 'custom_domain', 'status', 'system_branding',
+    'enabled_modules', 'created_at', 'updated_at', 'brand_logo_url'
+  ],
+  business_categories: [
+    'id', 'code', 'name', 'description', 'icon', 'is_system', 'is_active', 'configuration',
+    'created_at', 'updated_at'
+  ],
+  products: [
+    'id', 'tenant_id', 'business_category_id', 'code', 'sku', 'barcode', 'name',
+    'category_name', 'brand', 'unit', 'purchase_price', 'selling_price', 'stock_quantity',
+    'min_stock_alert', 'tracking_mode', 'is_active', 'custom_fields', 'created_at', 'updated_at'
+  ],
+  customers: [
+    'id', 'tenant_id', 'name', 'phone', 'email', 'address', 'membership_card_no',
+    'current_due', 'credit_limit', 'total_spent', 'loyalty_points', 'status', 'created_at'
+  ],
+  suppliers: [
+    'id', 'tenant_id', 'name', 'company_name', 'phone', 'email', 'address',
+    'current_payable', 'total_purchases', 'status', 'created_at'
+  ],
+  sales: [
+    'id', 'invoice_no', 'tenant_id', 'business_category_id', 'customer_id',
+    'customer_name', 'customer_phone', 'items', 'subtotal', 'tax_amount', 'discount_amount',
+    'trade_in_credit', 'grand_total', 'paid_amount', 'due_amount', 'payment_method',
+    'payment_status', 'specialized_data', 'notes', 'created_at'
+  ],
+  accounting_entries: [
+    'id', 'tenant_id', 'reference_type', 'reference_id', 'title', 'debit_account',
+    'credit_account', 'amount', 'created_at'
+  ],
+  audit_logs: [
+    'id', 'tenant_id', 'user_name', 'user_role', 'action', 'module_code', 'details',
+    'severity', 'timestamp'
+  ],
+  custom_field_definitions: [
+    'id', 'category_id', 'field_type', 'is_required'
+  ]
+};
+
+export function sanitizeSupabaseRecord(table: string, record: any): Record<string, any> {
+  const allowed = SUPABASE_TABLE_COLUMNS[table];
+  if (!allowed) return { ...record };
+
+  const clean: Record<string, any> = {};
+  for (const col of allowed) {
+    if (col in record && record[col] !== undefined) {
+      clean[col] = record[col];
+    }
+  }
+
+  // Handle table-specific adaptations and FK validations
+  if (table === 'sales') {
+    if (clean.customer_id === 'cash_customer' || !clean.customer_id) {
+      clean.customer_id = null;
+    }
+    clean.specialized_data = {
+      ...(record.specialized_data || {}),
+      ...(record.tax_rate !== undefined ? { tax_rate: record.tax_rate } : {}),
+      ...(record.adjustment_amount !== undefined ? { adjustment_amount: record.adjustment_amount } : {}),
+    };
+  } else if (table === 'products') {
+    if (record.device_details || record.batch_details || record.book_details) {
+      clean.custom_fields = {
+        ...(record.custom_fields || {}),
+        ...(record.device_details ? { device_details: record.device_details } : {}),
+        ...(record.batch_details ? { batch_details: record.batch_details } : {}),
+        ...(record.book_details ? { book_details: record.book_details } : {}),
+      };
+    }
+  } else if (table === 'customers') {
+    if (clean.address === undefined) clean.address = '';
+  } else if (table === 'tenants') {
+    if (clean.address === undefined) clean.address = 'ঢাকা, বাংলাদেশ';
+  }
+
+  return clean;
+}
+
 class SupabaseService {
   private client: SupabaseClient | null = null;
   private currentConfig: SupabaseConfig;
   private autoSyncTimer: number | null = null;
+  private isPullingFromCloud = false;
+  private syncedTenantsCache = new Set<string>();
 
   constructor() {
     this.currentConfig = this.loadConfig();
@@ -43,13 +126,22 @@ class SupabaseService {
     if (typeof window === "undefined") return;
 
     window.addEventListener("dokan_storage_updated", () => {
-      if (!this.currentConfig.isConfigured) return;
+      if (!this.currentConfig.isConfigured || this.isPullingFromCloud) return;
       this.scheduleAutoSync();
+    });
+
+    // Instant Direct Entity Sync Handler
+    window.addEventListener("dokan_entity_saved", (e: Event) => {
+      if (!this.currentConfig.isConfigured || this.isPullingFromCloud) return;
+      const customEvent = e as CustomEvent;
+      if (customEvent?.detail?.table && customEvent?.detail?.record) {
+        this.instantSyncEntity(customEvent.detail.table, customEvent.detail.record).catch(console.warn);
+      }
     });
   }
 
   private scheduleAutoSync(): void {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || this.isPullingFromCloud) return;
 
     if (this.autoSyncTimer !== null) {
       window.clearTimeout(this.autoSyncTimer);
@@ -149,6 +241,96 @@ class SupabaseService {
   }
 
   /**
+   * Guarantee that the tenant exists in Supabase before child records are pushed.
+   * This prevents foreign key constraint violations (Postgres 23503).
+   */
+  public async ensureTenantSynced(tenantId: string): Promise<void> {
+    if (!tenantId || this.syncedTenantsCache.has(tenantId)) return;
+    const client = this.getClient();
+    if (!client) return;
+
+    try {
+      const allTenants = storageService.getTenants();
+      const tenant = allTenants.find(t => t.id === tenantId) || storageService.getActiveTenant();
+      if (!tenant) return;
+
+      const cleanTenant = sanitizeSupabaseRecord('tenants', {
+        id: tenant.id,
+        code: tenant.code,
+        name: tenant.name,
+        owner_name: tenant.owner_name,
+        email: tenant.email,
+        phone: tenant.phone,
+        currency: tenant.currency,
+        currency_symbol: tenant.currency_symbol,
+        address: tenant.address || 'ঢাকা, বাংলাদেশ',
+        status: tenant.status,
+        updated_at: new Date().toISOString(),
+      });
+
+      const { error } = await client.from('tenants').upsert([cleanTenant], { onConflict: 'id' });
+      if (!error) {
+        this.syncedTenantsCache.add(tenantId);
+      }
+    } catch (e) {
+      console.warn("Could not ensure tenant synced:", e);
+    }
+  }
+
+  /**
+   * Instant Direct Entity Upsert to Supabase Cloud
+   * Pushes a single record or array of records immediately to the specified table.
+   * Cleans all fields to match PostgreSQL schema exactly to avoid PGRST204 errors.
+   */
+  public async instantSyncEntity(
+    table: string,
+    recordOrRecords: any | any[]
+  ): Promise<{ success: boolean; error?: string }> {
+    if (this.isPullingFromCloud) return { success: true };
+    const client = this.getClient();
+    if (!client) {
+      return { success: false, error: "Supabase client not configured" };
+    }
+
+    try {
+      const rawRows = Array.isArray(recordOrRecords) ? recordOrRecords : [recordOrRecords];
+      if (rawRows.length === 0) return { success: true };
+
+      // Ensure tenant exists in Supabase if the record has a tenant_id
+      if (table !== 'tenants') {
+        const sampleTenantId = rawRows[0]?.tenant_id;
+        if (sampleTenantId) {
+          await this.ensureTenantSynced(sampleTenantId);
+        }
+      }
+
+      const rows = rawRows.map(r => sanitizeSupabaseRecord(table, r));
+
+      const { error } = await client
+        .from(table)
+        .upsert(rows, { onConflict: "id" });
+
+      if (error) {
+        console.warn(`Instant Supabase sync warning for ${table}:`, error.message);
+        return { success: false, error: error.message };
+      }
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("smarterp_cloud_synced", {
+            detail: { table, count: rows.length, timestamp: new Date().toISOString() },
+          })
+        );
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      console.warn(`Instant Supabase sync error for ${table}:`, err?.message);
+      return { success: false, error: err?.message };
+    }
+  }
+
+  /**
    * Test Live Connection to Supabase
    * Sends a lightweight probe and measures round-trip latency in milliseconds.
    */
@@ -235,6 +417,8 @@ class SupabaseService {
 
   /**
    * Sync Local Tenant State to Supabase
+   * Strictly cleanses schema to avoid PostgREST cache errors and orders insertions
+   * to respect foreign key constraints.
    */
   public async syncToCloud(
     tenantOrId?: string | any,
@@ -252,9 +436,14 @@ class SupabaseService {
         availableTenants.find(
           (item) => item.id === tid || item.code?.toLowerCase() === tid.toLowerCase()
         ) || (activeTenantFromStorage?.id === tid ? activeTenantFromStorage : undefined);
-    }
 
-    if (!tenant) {
+      if (!tenant) {
+        return {
+          success: false,
+          message: `নির্বাচিত টেন্যান্টটি (${tid}) খুঁজে পাওয়া যায়নি। অনুগ্রহ করে সঠিক দোকান নির্বাচন করুন।`,
+        };
+      }
+    } else {
       tenant = activeTenantFromStorage || availableTenants[0];
     }
 
@@ -274,49 +463,56 @@ class SupabaseService {
     }
 
     try {
+      // 1. First Guarantee Tenant Record in Supabase (Parent of all rows)
+      const cleanTenant = sanitizeSupabaseRecord("tenants", {
+        id: tenant.id,
+        code: tenant.code,
+        name: tenant.name,
+        owner_name: tenant.owner_name,
+        email: tenant.email,
+        phone: tenant.phone,
+        currency: tenant.currency,
+        currency_symbol: tenant.currency_symbol,
+        address: tenant.address || 'ঢাকা, বাংলাদেশ',
+        status: tenant.status,
+        updated_at: new Date().toISOString(),
+      });
+
+      const { error: tenantErr } = await client
+        .from("tenants")
+        .upsert([cleanTenant], { onConflict: "id" });
+
+      if (tenantErr) {
+        console.warn("Tenant sync warning:", tenantErr.message);
+      } else {
+        this.syncedTenantsCache.add(effectiveTenantId);
+      }
+
+      // 2. Fetch all local entities
       const products = storageService.getProducts(effectiveTenantId);
       const customers = storageService.getCustomers(effectiveTenantId);
       const suppliers = storageService.getSuppliers(effectiveTenantId);
       const sales = storageService.getSales(effectiveTenantId);
       const accounting = storageService.getAccounting(effectiveTenantId);
       const auditLogs = storageService.getAuditLogs(effectiveTenantId);
-
       const customFields = storageService.getCustomFields();
       const categories = storageService.getCategories();
 
+      // 3. Prepare sanitized payloads ordered to satisfy foreign keys
       const syncPayloads: Array<{
         table: string;
         rows: Record<string, any>[];
       }> = [
-        {
-          table: "tenants",
-          rows: [
-            {
-              id: tenant.id,
-              code: tenant.code,
-              name: tenant.name,
-              owner_name: tenant.owner_name,
-              email: tenant.email,
-              phone: tenant.phone,
-              currency: tenant.currency,
-              currency_symbol: tenant.currency_symbol,
-              address: tenant.address,
-              status: tenant.status,
-              updated_at: new Date().toISOString(),
-            },
-          ],
-        },
-        { table: "business_categories", rows: categories },
-        { table: "custom_field_definitions", rows: customFields },
-        { table: "products", rows: products },
-        { table: "customers", rows: customers },
-        { table: "suppliers", rows: suppliers },
-        { table: "sales", rows: sales },
-        { table: "accounting_entries", rows: accounting },
-        { table: "audit_logs", rows: auditLogs },
+        { table: "business_categories", rows: categories.map(c => sanitizeSupabaseRecord("business_categories", c)) },
+        { table: "custom_field_definitions", rows: customFields.map(f => sanitizeSupabaseRecord("custom_field_definitions", f)) },
+        { table: "customers", rows: customers.map(c => sanitizeSupabaseRecord("customers", c)) },
+        { table: "suppliers", rows: suppliers.map(s => sanitizeSupabaseRecord("suppliers", s)) },
+        { table: "products", rows: products.map(p => sanitizeSupabaseRecord("products", p)) },
+        { table: "sales", rows: sales.map(s => sanitizeSupabaseRecord("sales", s)) },
+        { table: "accounting_entries", rows: accounting.map(a => sanitizeSupabaseRecord("accounting_entries", a)) },
+        { table: "audit_logs", rows: auditLogs.map(l => sanitizeSupabaseRecord("audit_logs", l)) },
       ];
 
-      // Execute all table upserts in parallel with high-speed Promise.allSettled
       const activePayloads = syncPayloads.filter((p) => p.rows && p.rows.length > 0);
       
       const syncPromises = activePayloads.map(async (payload) => {
@@ -357,7 +553,7 @@ class SupabaseService {
 
       return {
         success: true,
-        message: `ক্লাউড সিঙ্ক অতিদ্রুত সম্পন্ন! (${succeeded}/${activePayloads.length} টেবিল আপলোডেড) — ${products.length} টি পণ্য, ${customers.length} জন কাস্টমার, ${suppliers.length} জন সাপ্লায়ার, ${sales.length} টি বিক্রয় ও ${accounting.length} টি হিসাব এন্ট্রি সিঙ্কড।`,
+        message: `ক্লাউড সিঙ্ক অতিদ্রুত সম্পন্ন! (${succeeded + 1}/${activePayloads.length + 1} টেবিল আপলোডেড) — ${products.length} টি পণ্য, ${customers.length} জন কাস্টমার, ${suppliers.length} জন সাপ্লায়ার, ${sales.length} টি বিক্রয় ও ${accounting.length} টি হিসাব এন্ট্রি সিঙ্কড।`,
       };
     } catch (e: any) {
       return {
@@ -376,6 +572,8 @@ class SupabaseService {
     if (!client) {
       return { success: false, message: "Supabase ক্লাউড ডেটাবেজ কনফিগার করা নেই।" };
     }
+
+    this.isPullingFromCloud = true;
 
     try {
       // 1. Fetch Tenants
@@ -436,7 +634,7 @@ class SupabaseService {
             if (table === 'customers') data.forEach((c: any) => storageService.saveCustomer(c));
             if (table === 'suppliers') data.forEach((s: any) => storageService.saveSupplier(s));
             if (table === 'sales') data.forEach((s: any) => storageService.saveSale(s));
-            if (table === 'accounting_entries') data.forEach((a: any) => storageService.saveAccounting(a));
+            if (table === 'accounting_entries') data.forEach((a: any) => storageService.saveAccountingEntry(a));
           }
         } catch (e) {
           console.warn(`Table fetch ${table} warning:`, e);
@@ -457,6 +655,104 @@ class SupabaseService {
       };
     } catch (err: any) {
       return { success: false, message: `ক্লাউড ডাটা পুল ত্রুটি: ${err?.message || 'Unknown error'}` };
+    } finally {
+      this.isPullingFromCloud = false;
+    }
+  }
+
+  /**
+   * Pull customers specifically from Supabase Cloud and sync with local storage.
+   */
+  public async pullCustomers(tenantId?: string): Promise<{ success: boolean; count: number; message: string }> {
+    const client = this.getClient();
+    if (!client) {
+      return { success: false, count: 0, message: "Supabase ক্লাউড ডেটাবেজ কনফিগার করা নেই।" };
+    }
+
+    this.isPullingFromCloud = true;
+    try {
+      // 1. First ensure Tenants are in sync
+      const { data: cloudTenants } = await client.from('tenants').select('*');
+      if (cloudTenants && Array.isArray(cloudTenants)) {
+        cloudTenants.forEach((t: any) => {
+          const existing = storageService.getTenants().find(item => item.id === t.id);
+          if (!existing) {
+            storageService.saveTenant({
+              id: t.id,
+              code: t.code || 'SHOP-01',
+              name: t.name || 'দোকান',
+              owner_name: t.owner_name || 'দোকান মালিক',
+              email: t.email || '',
+              phone: t.phone || '',
+              currency: t.currency || 'BDT',
+              currency_symbol: t.currency_symbol || '৳',
+              address: t.address || '',
+              status: t.status || 'active',
+              subdomain: t.subdomain || `${t.code?.toLowerCase()}.dokanmanager.io`,
+              custom_domain: t.custom_domain || '',
+              active_categories: t.active_categories || [
+                {
+                  id: `tbc_${t.id}_telecom`,
+                  tenant_id: t.id,
+                  business_category_id: 'cat_telecom',
+                  is_primary: true,
+                  is_active: true,
+                  created_at: new Date().toISOString()
+                }
+              ],
+              enabled_modules: t.enabled_modules || ['SALES', 'PRODUCTS', 'INVENTORY', 'CUSTOMERS', 'ACCOUNTING', 'REPORTS'],
+              created_at: t.created_at || new Date().toISOString(),
+              updated_at: t.updated_at || new Date().toISOString(),
+            });
+          }
+        });
+      }
+
+      // 2. Fetch Customers
+      const { data: cloudCustomers, error } = await client.from('customers').select('*');
+      if (error) {
+        return { success: false, count: 0, message: `কাস্টমার লোড ত্রুটি: ${error.message}` };
+      }
+
+      if (cloudCustomers && Array.isArray(cloudCustomers)) {
+        let imported = 0;
+        cloudCustomers.forEach((c: any) => {
+          const resolvedTenantId = c.tenant_id || tenantId || storageService.getActiveTenant()?.id;
+          storageService.saveCustomer({
+            id: c.id,
+            tenant_id: resolvedTenantId,
+            name: c.name,
+            phone: c.phone || '',
+            email: c.email || '',
+            address: c.address || '',
+            membership_card_no: c.membership_card_no || '',
+            customer_type: c.customer_type || 'individual',
+            total_spent: Number(c.total_spent) || 0,
+            loyalty_points: Number(c.loyalty_points) || 0,
+            current_due: Number(c.current_due) || 0,
+            credit_limit: Number(c.credit_limit) || 10000,
+            status: c.status || 'active',
+            created_at: c.created_at || new Date().toISOString()
+          });
+          imported++;
+        });
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('dokan_storage_updated', { detail: { key: 'customers' } }));
+        }
+
+        return {
+          success: true,
+          count: imported,
+          message: `Supabase ক্লাউড থেকে ${imported} জন কাস্টমার সফলভাবে সিঙ্ক ও রিস্টোর হয়েছে!`
+        };
+      }
+
+      return { success: true, count: 0, message: 'ক্লাউডে কোনো কাস্টমার রেকর্ড পাওয়া যায়নি।' };
+    } catch (err: any) {
+      return { success: false, count: 0, message: err?.message || 'Unknown error' };
+    } finally {
+      this.isPullingFromCloud = false;
     }
   }
 }

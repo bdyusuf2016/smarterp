@@ -219,3 +219,12 @@ ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE accounting_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
+
+-- Permissive policies for anon & authenticated frontend client access
+CREATE POLICY IF NOT EXISTS "Allow all access to tenants" ON tenants FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "Allow all access to customers" ON customers FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "Allow all access to products" ON products FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "Allow all access to sales" ON sales FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "Allow all access to suppliers" ON suppliers FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "Allow all access to accounting_entries" ON accounting_entries FOR ALL USING (true) WITH CHECK (true);
+

@@ -32,11 +32,11 @@ import { ShieldAlert, ArrowLeft, LayoutDashboard, ShoppingBag, Package, Users, M
 import { supabaseService } from '../../services/supabaseClient';
 
 const fallbackTenant: Tenant = {
-  id: 'tenant_empty',
-  code: 'SHOP-01',
-  name: 'নতুন দোকান',
-  owner_name: 'দোকান মালিক',
-  email: '',
+  id: '',
+  code: 'PLATFORM',
+  name: 'সেন্ট্রাল প্ল্যাটফর্ম',
+  owner_name: 'Platform Administrator',
+  email: 'admin@smarterp.io',
   phone: '',
   currency: 'BDT',
   currency_symbol: '৳',
@@ -84,19 +84,17 @@ export const AppLayout: React.FC = () => {
     return () => window.removeEventListener('dokan_lang_changed', handleLang);
   }, []);
 
-  // Auto-pull existing cloud tenants and data when opened on a fresh device / phone
+  // Auto-pull existing cloud tenants and data when app launches or opens on any device
   useEffect(() => {
-    const localTenants = storageService.getTenants();
-    if (localTenants.length === 0) {
-      supabaseService.pullFromCloud().then(res => {
-        if (res.success) {
-          const fresh = storageService.getTenants();
-          if (fresh.length > 0) {
-            handleTenantChange(fresh[0]);
-          }
+    supabaseService.pullFromCloud().then(res => {
+      if (res.success) {
+        const fresh = storageService.getTenants();
+        const curTenant = storageService.getActiveTenant();
+        if ((!curTenant || !curTenant.id) && fresh.length > 0) {
+          handleTenantChange(fresh[0]);
         }
-      }).catch(console.error);
-    }
+      }
+    }).catch(console.warn);
   }, []);
 
   // Footer & Branding Configuration State
@@ -225,21 +223,51 @@ export const AppLayout: React.FC = () => {
     };
   }, [tenants, activeTenant.id]);
 
-  const handleLoginSuccess = (user: UserProfile, tenantId?: string) => {
+  const handleLoginSuccess = (user: UserProfile, tenantId?: string, targetView?: string) => {
     setCurrentUser(user);
+    const freshTenants = storageService.getTenants();
+    let resolvedTenant = activeTenant;
     if (tenantId) {
-      const t = tenants.find(item => item.id === tenantId);
-      if (t) setActiveTenant(t);
+      const t = freshTenants.find(item => item.id === tenantId || item.code?.toLowerCase() === tenantId.toLowerCase());
+      if (t) {
+        resolvedTenant = t;
+        setActiveTenant(t);
+      }
     }
     setIsAuthRoute(false);
-    setActiveViewId('dashboard');
+
+    // Smart role-based landing page
+    const landingView = targetView || (
+      user.role === 'CASHIER' 
+        ? 'pos_sales' 
+        : (user.role === 'TECHNICIAN' || (user.role as string) === 'REPAIR_TECHNICIAN') 
+        ? 'telecom_repairs' 
+        : 'dashboard'
+    );
+
+    if (user.role === 'SUPER_ADMIN') {
+      // System Admin stays at clean root level
+      setActiveViewId(landingView);
+      routerService.navigate(landingView);
+    } else if (resolvedTenant && resolvedTenant.id) {
+      // Store staff / owners navigate to their tenant URL
+      setActiveViewId(landingView, { tenant: resolvedTenant.code });
+    } else {
+      setActiveViewId(landingView);
+    }
   };
 
   const handleLogout = () => {
+    const wasSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+    const lastTenantCode = activeTenant?.code;
     authService.logout();
     setCurrentUser(null);
     setIsAuthRoute(true);
-    routerService.navigate('login');
+    if (!wasSuperAdmin && lastTenantCode && lastTenantCode !== 'PLATFORM') {
+      routerService.navigate('login', { tenant: lastTenantCode });
+    } else {
+      routerService.navigate('login');
+    }
   };
 
   const handleTenantChange = (tenant: Tenant) => {
@@ -266,14 +294,9 @@ export const AppLayout: React.FC = () => {
 
   // If user is not logged in or is on the login/system-admin route, show LoginView
   if (!currentUser || isAuthRoute) {
-    const initialPortal = (window.location.hash.includes('system-admin') || window.location.pathname.includes('system-admin'))
-      ? 'system_admin'
-      : 'shop';
-
     return (
       <LoginView
         tenants={tenants}
-        initialPortal={initialPortal}
         onLoginSuccess={handleLoginSuccess}
       />
     );

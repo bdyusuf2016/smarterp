@@ -143,6 +143,26 @@ class RouterService {
       queryString = rawSearch.startsWith('?') ? rawSearch.slice(1) : rawSearch;
     }
 
+    // Check for clean path tenant pattern e.g. /shop/:tenantCode or /t/:tenantCode
+    let pathTenant: string | undefined = undefined;
+    const shopPrefixMatch = routeString.match(/^\/(?:shop|t|dokan)\/([^/?#]+)(?:\/(.*))?$/i);
+    if (shopPrefixMatch) {
+      pathTenant = shopPrefixMatch[1];
+      routeString = '/' + (shopPrefixMatch[2] || 'dashboard');
+    }
+
+    // Subdomain detection (e.g. store1.smarterp.io)
+    let subdomainTenant: string | undefined = undefined;
+    if (typeof window !== 'undefined' && window.location.hostname) {
+      const hostname = window.location.hostname.toLowerCase();
+      if (!hostname.includes('localhost') && !hostname.includes('127.0.0.1') && !hostname.includes('0.0.0.0')) {
+        const parts = hostname.split('.');
+        if (parts.length >= 3 && parts[0] !== 'admin' && parts[0] !== 'www' && parts[0] !== 'api') {
+          subdomainTenant = parts[0];
+        }
+      }
+    }
+
     // Parse URL Search Params
     const urlParams = new URLSearchParams(queryString);
     const params: Record<string, string> = {};
@@ -170,11 +190,19 @@ class RouterService {
     let normalizedPath = routeString.toLowerCase().replace(/\/+$/, '') || '/';
     let viewId = explicitView || PATH_TO_VIEW[normalizedPath] || 'dashboard';
 
+    const detectedTenantId = 
+      params['tenant'] || 
+      params['tenantId'] || 
+      params['branch'] || 
+      params['shop'] || 
+      pathTenant || 
+      subdomainTenant;
+
     return {
       viewId,
       path: normalizedPath,
       params,
-      tenantId: params['tenant'] || params['tenantId'] || params['branch'],
+      tenantId: detectedTenantId,
       isAuthRoute: isAuth,
       authPortal
     };

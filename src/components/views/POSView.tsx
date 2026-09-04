@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ShoppingCart, 
   Search, 
@@ -27,7 +27,9 @@ import {
   Building2,
   Tag,
   Camera,
-  Package
+  Package,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { 
   Tenant, 
@@ -112,7 +114,6 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
     return DEFAULT_ONLINE_SERVICES;
   })();
 
-  // Transform photocopy rates & online services into service products for the POS catalog
   const primaryCatId = activeTenant.active_categories?.find(c => c.is_primary)?.business_category_id || activeTenant.active_categories?.[0]?.business_category_id || 'cat_general';
 
   const serviceProducts: GenericProduct[] = [
@@ -156,10 +157,8 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
     }))
   ];
 
-  // Combined Master Products
   const products = [...physicalProducts, ...serviceProducts];
 
-  // Dynamic Payment Methods Configuration
   const [paymentConfig, setPaymentConfig] = useState(() => {
     try {
       const stored =
@@ -179,6 +178,8 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
       nagadType: "Personal",
       enableRocket: true,
       rocketNumber: "01900000000",
+      enableUpay: false,
+      upayNumber: "",
       enableCard: true,
       cardTerminalName: "City Bank POS",
       enableDueCredit: true,
@@ -199,9 +200,12 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
     };
     window.addEventListener('dokan_v2_payment_settings_changed', handlePaymentSettingsChanged);
     window.addEventListener('storage', handlePaymentSettingsChanged);
+    window.addEventListener('focus', handlePaymentSettingsChanged);
+    handlePaymentSettingsChanged();
     return () => {
       window.removeEventListener('dokan_v2_payment_settings_changed', handlePaymentSettingsChanged);
       window.removeEventListener('storage', handlePaymentSettingsChanged);
+      window.removeEventListener('focus', handlePaymentSettingsChanged);
     };
   }, [activeTenant.id]);
 
@@ -211,6 +215,50 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('cash_customer');
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
   const [customTrxId, setCustomTrxId] = useState<string>('');
+
+  // Dynamically computed list of enabled payment methods based on global settings
+  const availablePaymentMethods = useMemo(() => {
+    const methods: Array<{
+      id: string;
+      label: string;
+      icon: any;
+      enabled: boolean;
+      color: string;
+      isCustom?: boolean;
+      customData?: CustomPaymentMethod;
+    }> = [
+      { id: 'CASH', label: 'নগদ ক্যাশ', icon: Coins, enabled: paymentConfig.enableCash !== false, color: '#059669' },
+      { id: 'BKASH', label: 'বিকাশ', icon: Wallet, enabled: paymentConfig.enableBkash !== false, color: '#db2777' },
+      { id: 'NAGAD', label: 'নগদ', icon: Wallet, enabled: paymentConfig.enableNagad !== false, color: '#d97706' },
+      { id: 'ROCKET', label: 'রকেট', icon: Wallet, enabled: paymentConfig.enableRocket !== false, color: '#7c3aed' },
+      ...(paymentConfig.enableUpay ? [{ id: 'UPAY', label: 'উপায়', icon: Wallet, enabled: true, color: '#0284c7' }] : []),
+      { id: 'CARD', label: paymentConfig.cardTerminalName || 'কার্ড', icon: CreditCard, enabled: paymentConfig.enableCard !== false, color: '#2563eb' },
+      { id: 'CREDIT_DUE', label: 'বাকিতে (Due)', icon: User, enabled: paymentConfig.enableDueCredit !== false, color: '#e11d48' },
+      ...((paymentConfig.customMethods || [])
+        .filter((cm: CustomPaymentMethod) => cm.isActive)
+        .map((cm: CustomPaymentMethod) => ({
+          id: cm.code || cm.id,
+          label: cm.name,
+          icon: cm.type === 'BANK' ? CreditCard : cm.type === 'MFS' ? Wallet : cm.type === 'CHEQUE' ? Receipt : CreditCard,
+          enabled: true,
+          color: cm.color || '#0284c7',
+          isCustom: true,
+          customData: cm,
+        }))
+      ),
+    ];
+    return methods.filter(m => m.enabled);
+  }, [paymentConfig]);
+
+  // Ensure paymentMethod is always valid if a method gets disabled in Global Settings
+  useEffect(() => {
+    if (availablePaymentMethods.length > 0) {
+      const isCurrentValid = availablePaymentMethods.some(m => m.id === paymentMethod);
+      if (!isCurrentValid) {
+        setPaymentMethod(availablePaymentMethods[0].id);
+      }
+    }
+  }, [availablePaymentMethods, paymentMethod]);
   
   // Commercial Billing Options: VAT %, Discount (৳), Adjustment (±৳)
   const [vatPercent, setVatPercent] = useState<number>(0);
@@ -220,6 +268,22 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
 
   // Received Amount (রিসিভ অ্যামাউন্ট) & Due Tracking
   const [receivedInput, setReceivedInput] = useState<string>('');
+
+  // Cart Display Density ('normal' | 'large' font size mode)
+  const [cartDensity, setCartDensity] = useState<'normal' | 'large'>(() => {
+    return (localStorage.getItem('dokan_pos_cart_density') as 'normal' | 'large') || 'large';
+  });
+
+  const toggleCartDensity = () => {
+    const next = cartDensity === 'large' ? 'normal' : 'large';
+    setCartDensity(next);
+    localStorage.setItem('dokan_pos_cart_density', next);
+  };
+
+  // Toggle collapsible VAT/Discount panel to save vertical space
+  const [showAdjustments, setShowAdjustments] = useState<boolean>(() => {
+    return vatPercent > 0 || discountAmount > 0 || adjustmentAmount !== 0;
+  });
 
   // Specialized Selection Modals
   const [imeiModalProduct, setImeiModalProduct] = useState<GenericProduct | null>(null);
@@ -287,23 +351,17 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
   
   const grandTotal = Math.max(0, subtotal + taxAmount - discountAmount + adjustmentAmount - tradeInCredit);
 
-  // Validate if received amount is entered explicitly
-  const isReceivedAmountEntered = paymentMethod === 'CREDIT_DUE' || (
-    receivedInput.trim() !== '' &&
-    !isNaN(Number(receivedInput)) &&
-    Number(receivedInput) >= 0
-  );
-
-  // Determine effective paid amount, due, and change
+  // Determine effective paid amount, due, and change (default: full payment without requiring manual typing)
+  const hasCustomReceived = receivedInput.trim() !== '' && !isNaN(Number(receivedInput));
   const effectivePaidAmount = paymentMethod === 'CREDIT_DUE'
     ? 0 
-    : receivedInput.trim() === '' 
-    ? 0 
-    : Math.max(0, Number(receivedInput) || 0);
+    : hasCustomReceived
+    ? Math.max(0, Number(receivedInput))
+    : grandTotal;
 
   const dueAmount = Math.max(0, grandTotal - effectivePaidAmount);
   const changeAmount = Math.max(0, effectivePaidAmount - grandTotal);
-  const isCheckoutDisabled = cart.length === 0 || !isReceivedAmountEntered;
+  const isCheckoutDisabled = cart.length === 0;
 
   const handleAddToCart = (product: GenericProduct) => {
     if (product.tracking_mode === 'TRACKING_IMEI') {
@@ -381,6 +439,17 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
     setCart(updated);
   };
 
+  const handleSetDirectQty = (index: number, qty: number) => {
+    const updated = [...cart];
+    if (qty <= 0) {
+      updated.splice(index, 1);
+    } else {
+      updated[index].quantity = qty;
+      updated[index].total = qty * updated[index].unit_price - updated[index].discount;
+    }
+    setCart(updated);
+  };
+
   const handleRemoveItem = (index: number) => {
     const updated = [...cart];
     updated.splice(index, 1);
@@ -431,7 +500,7 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
     const customerPhone = selectedCust ? selectedCust.phone : '';
 
     const selectedCustomMethod = (paymentConfig.customMethods || []).find(
-      (m: CustomPaymentMethod) => m.code === paymentMethod
+      (m: CustomPaymentMethod) => m.code === paymentMethod || m.id === paymentMethod
     );
 
     const readableMethodName = selectedCustomMethod
@@ -444,6 +513,8 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
       ? `নগদ (${paymentConfig.nagadType || 'MFS'})`
       : paymentMethod === 'ROCKET'
       ? 'রকেট'
+      : paymentMethod === 'UPAY'
+      ? 'উপায়'
       : paymentMethod === 'CARD'
       ? (paymentConfig.cardTerminalName || 'ব্যাংক কার্ড')
       : paymentMethod === 'CREDIT_DUE'
@@ -535,11 +606,11 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-[560px] lg:h-[calc(100vh-105px)]">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 min-h-[560px] lg:h-[calc(100vh-100px)]">
         {/* ========================================================================= */}
-        {/* LEFT COLUMN: PRODUCT CATALOG & QUICK FILTER BAR (7 Cols)                  */}
+        {/* LEFT COLUMN: PRODUCT CATALOG & QUICK FILTER BAR (6-7 Cols)               */}
         {/* ========================================================================= */}
-        <div className={`lg:col-span-7 flex flex-col h-full bg-white border border-[#dee2e6] rounded-xl p-3 sm:p-3.5 shadow-xs overflow-hidden ${
+        <div className={`lg:col-span-6 xl:col-span-7 flex flex-col h-full bg-white border border-slate-200 rounded-2xl p-3 sm:p-3.5 shadow-xs overflow-hidden ${
           mobileTab === 'catalog' ? 'flex' : 'hidden lg:flex'
         }`}>
         
@@ -675,42 +746,69 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
       </div>
 
       {/* ========================================================================= */}
-      {/* RIGHT COLUMN: POS CART & CHECKOUT LEDGER (5 Cols)                         */}
+      {/* RIGHT COLUMN: POS CART & CHECKOUT LEDGER (6 Cols on lg, 5 Cols on xl)     */}
       {/* ========================================================================= */}
-      <div className={`lg:col-span-5 flex flex-col h-full bg-white border border-[#dee2e6] rounded-xl p-3 sm:p-3.5 shadow-xs overflow-hidden ${
+      <div className={`lg:col-span-6 xl:col-span-5 flex flex-col h-full bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-sm overflow-hidden ${
         mobileTab === 'cart' ? 'flex' : 'hidden lg:flex'
       }`}>
         
-        {/* Cart Header */}
-        <div className="flex items-center justify-between pb-2.5 border-b border-[#dee2e6]">
-          <div className="flex items-center gap-2">
-            <ShoppingCart className="w-4 h-4 text-blue-600" />
-            <h3 className="font-bold text-[#1a1b1e] text-sm">কার্ট তালিকা</h3>
-            <span className="bg-blue-600 text-white text-[11px] font-bold px-1.5 py-0.2 rounded-full font-mono">
-              {cart.reduce((sum, item) => sum + item.quantity, 0)}
-            </span>
+        {/* Cart Header with Item Counter, Font Density Toggle & Clear Option */}
+        <div className="flex items-center justify-between pb-3 border-b border-slate-200 gap-2 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-200/60 shadow-2xs">
+              <ShoppingCart className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-slate-900 text-base sm:text-lg">কার্ট তালিকা</h3>
+                <span className="bg-blue-600 text-white text-xs font-mono font-black px-2 py-0.5 rounded-full shadow-xs">
+                  {cart.reduce((sum, item) => sum + item.quantity, 0)} টি
+                </span>
+              </div>
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleClearCart}
-            disabled={cart.length === 0}
-            className="text-rose-600 hover:text-rose-700 text-xs font-semibold flex items-center gap-1 disabled:opacity-30 cursor-pointer"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>খালি করুন</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            {/* Font Size Mode Toggle (Large vs Normal) */}
+            <button
+              type="button"
+              onClick={toggleCartDensity}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                cartDensity === 'large'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+              }`}
+              title={cartDensity === 'large' ? 'স্বাভাবিক ফন্টে দেখতে ক্লিক করুন' : 'বড় ও স্পষ্ট ফন্টে দেখতে ক্লিক করুন'}
+            >
+              <span className="font-mono text-sm font-black">A{cartDensity === 'large' ? '+' : ''}</span>
+              <span className="hidden sm:inline font-bold">{cartDensity === 'large' ? 'বড় ফন্ট' : 'স্বাভাবিক'}</span>
+            </button>
+
+            {/* Clear Cart Button */}
+            <button
+              type="button"
+              onClick={handleClearCart}
+              disabled={cart.length === 0}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-all flex items-center gap-1"
+              title="সম্পূর্ণ কার্ট খালি করুন"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">খালি</span>
+            </button>
+          </div>
         </div>
 
-        {/* Customer Selector */}
-        <div className="flex items-center gap-1.5 py-2 border-b border-[#dee2e6]">
-          <User className="w-4 h-4 text-[#868e96] shrink-0" />
+        {/* Customer Selector - Compact */}
+        <div className="flex items-center gap-2 py-1.5 border-b border-slate-200 shrink-0">
+          <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+            <User className="w-3.5 h-3.5" />
+          </div>
           <select
             value={selectedCustomerId}
             onChange={e => setSelectedCustomerId(e.target.value)}
-            className="flex-1 bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-600"
+            className="flex-1 bg-slate-50 hover:bg-slate-100/80 border border-slate-300 text-slate-900 text-xs font-semibold rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-600 focus:bg-white transition-colors"
           >
-            <option value="cash_customer">সাধারণ কাস্টমার (ক্যাশ)</option>
+            <option value="cash_customer">সাধারণ কাস্টমার (নগদ ক্যাশ)</option>
             {customers.map(c => (
               <option key={c.id} value={c.id}>
                 {c.name} ({c.phone}) {c.current_due > 0 ? `— বকেয়া: ৳${c.current_due}` : ''}
@@ -720,308 +818,339 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
           <button
             type="button"
             onClick={() => setIsQuickCustomerModalOpen(true)}
-            className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg cursor-pointer transition-colors"
+            className="px-2 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-lg cursor-pointer transition-all flex items-center gap-1 shadow-xs shrink-0"
             title="নতুন কাস্টমার যোগ করুন"
           >
             <Plus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">নতুন</span>
           </button>
         </div>
 
-        {/* Cart Item Rows */}
-        <div className="flex-1 overflow-y-auto py-1.5 space-y-1.5 pr-1">
+        {/* Cart Item Rows - Ultra Compact, Single-Row Layout */}
+        <div className="flex-1 overflow-y-auto py-1.5 space-y-1 pr-1 min-h-[160px]">
           {cart.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-[#868e96] text-xs py-8">
-              <ShoppingCart className="w-8 h-8 mb-2 opacity-30 text-blue-500" />
-              <p>কার্ট খালি রয়েছে। প্রোডাক্ট ক্লিক বা স্ক্যান করুন!</p>
+            <div className="h-full min-h-[200px] flex flex-col items-center justify-center text-slate-400 py-10 text-center px-4">
+              <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center mb-2.5 shadow-2xs">
+                <ShoppingCart className="w-7 h-7 text-blue-500/80" />
+              </div>
+              <h4 className="text-sm sm:text-base font-bold text-slate-800">কার্ট খালি রয়েছে</h4>
+              <p className="text-xs text-slate-500 mt-0.5 max-w-xs leading-relaxed">
+                পণ্য ক্যাটালগ হতে কোনো পণ্যে ক্লিক করুন অথবা বারকোড স্ক্যানার দিয়ে স্ক্যান করুন।
+              </p>
             </div>
           ) : (
-            cart.map((item, idx) => (
-              <div
-                key={idx}
-                className="bg-[#f8f9fa] border border-[#dee2e6] rounded-lg p-2 flex flex-col gap-1 text-xs"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="font-semibold text-[#1a1b1e] truncate pr-2">
-                    {item.product.name}
-                  </div>
-                  <span className="font-mono font-bold text-emerald-600">
-                    ৳{item.total.toFixed(2)}
-                  </span>
-                </div>
+            cart.map((item, idx) => {
+              const isLarge = cartDensity === 'large';
+              return (
+                <div
+                  key={idx}
+                  className={`bg-white hover:bg-blue-50/20 border border-slate-200 hover:border-blue-300 rounded-lg transition-all shadow-2xs ${
+                    isLarge ? 'p-2 sm:p-2.5 space-y-1' : 'py-1 px-2'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+                    {/* Left: Index #, Title, Unit Price & Meta */}
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <span className="bg-slate-100 text-slate-600 text-[10px] sm:text-xs font-mono font-bold px-1.5 py-0.5 rounded shrink-0 border border-slate-200">
+                        #{idx + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div
+                          className={`font-bold text-slate-900 truncate leading-tight ${
+                            isLarge ? 'text-xs sm:text-sm' : 'text-xs'
+                          }`}
+                          title={item.product.name}
+                        >
+                          {item.product.name}
+                        </div>
+                        <div className="text-slate-500 font-medium flex items-center flex-wrap gap-1 leading-none text-[10px]">
+                          <span className="font-mono font-bold text-slate-700">
+                            ৳{item.unit_price.toFixed(0)}
+                          </span>
+                          <span>/{item.product.unit || 'পিস'}</span>
+                          {item.selected_imei && (
+                            <span className="text-purple-800 font-mono font-bold bg-purple-50 px-1 py-0.2 rounded border border-purple-200 text-[9px]">
+                              📱 {item.selected_imei}
+                            </span>
+                          )}
+                          {item.selected_batch && (
+                            <span className="text-indigo-800 font-mono font-bold bg-indigo-50 px-1 py-0.2 rounded border border-indigo-200 text-[9px]">
+                              🏷️ {item.selected_batch}
+                            </span>
+                          )}
+                          {item.warranty_months && (
+                            <span className="text-emerald-800 font-medium bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 text-[9px]">
+                              🛡️ {item.warranty_months}ম
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
 
-                {item.selected_imei && (
-                  <span className="text-[10px] text-purple-700 font-mono bg-purple-50 px-1 rounded w-fit border border-purple-200">
-                    IMEI: {item.selected_imei}
-                  </span>
-                )}
+                    {/* Middle: Quantity Controls [-] [qty] [+] */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateQty(idx, -1)}
+                        className={`bg-slate-100 hover:bg-slate-200 active:scale-90 text-slate-800 rounded flex items-center justify-center font-black border border-slate-300 cursor-pointer transition-all select-none ${
+                          isLarge ? 'w-7 h-7 text-base' : 'w-6 h-6 text-sm'
+                        }`}
+                        title="১টি পরিমাণ কমান"
+                      >
+                        -
+                      </button>
 
-                <div className="flex items-center justify-between text-[#868e96] text-[11px] pt-1">
-                  <span>৳{item.unit_price.toFixed(2)} / {item.product.unit}</span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateQty(idx, -1)}
-                      className="w-5 h-5 bg-white border border-[#dee2e6] hover:bg-gray-100 text-[#1a1b1e] rounded flex items-center justify-center font-bold cursor-pointer"
-                    >
-                      -
-                    </button>
-                    <span className="font-mono font-bold text-[#1a1b1e] px-1.5">{item.quantity}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateQty(idx, 1)}
-                      className="w-5 h-5 bg-white border border-[#dee2e6] hover:bg-gray-100 text-[#1a1b1e] rounded flex items-center justify-center font-bold cursor-pointer"
-                    >
-                      +
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveItem(idx)}
-                      className="text-rose-500 hover:text-rose-700 ml-1 p-0.5 cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                      <input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={e => {
+                          const val = parseInt(e.target.value, 10);
+                          if (!isNaN(val)) {
+                            handleSetDirectQty(idx, Math.max(1, val));
+                          }
+                        }}
+                        className={`font-mono font-black text-center bg-white border border-slate-300 rounded text-slate-900 focus:outline-none focus:border-blue-600 ${
+                          isLarge ? 'w-12 h-7 text-sm' : 'w-9 h-6 text-xs'
+                        }`}
+                        title="পরিমাণ লিখুন বা পরিবর্তন করুন"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateQty(idx, 1)}
+                        className={`bg-blue-50 hover:bg-blue-100 active:scale-90 text-blue-700 rounded flex items-center justify-center font-black border border-blue-300 cursor-pointer transition-all select-none ${
+                          isLarge ? 'w-7 h-7 text-base' : 'w-6 h-6 text-sm'
+                        }`}
+                        title="১টি পরিমাণ বাড়ান"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    {/* Right: Line Total & Delete Button */}
+                    <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 text-right">
+                      <div className="min-w-[48px] sm:min-w-[60px]">
+                        <div className={`font-mono font-black text-emerald-700 leading-tight ${
+                          isLarge ? 'text-xs sm:text-sm' : 'text-xs sm:text-sm'
+                        }`}>
+                          ৳{item.total.toFixed(2)}
+                        </div>
+                        {item.quantity > 1 && (
+                          <div className="text-[9px] text-slate-400 font-mono leading-none">
+                            ({item.quantity}×৳{item.unit_price.toFixed(0)})
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(idx)}
+                        className={`text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded flex items-center justify-center cursor-pointer transition-colors border border-transparent hover:border-rose-200 ${
+                          isLarge ? 'w-7 h-7' : 'w-6 h-6'
+                        }`}
+                        title="পণ্যটি কার্ট থেকে মুছুন"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
         {/* Checkout Summary & Commercial Billing Controls */}
-        <div className="border-t border-[#dee2e6] pt-2 space-y-1.5 mt-auto">
-          <div className="space-y-1 text-xs">
-            {/* Subtotal */}
-            <div className="flex justify-between text-[#868e96]">
-              <span>সাবটোটাল</span>
-              <span className="font-mono text-[#1a1b1e] font-semibold">৳{subtotal.toFixed(2)}</span>
+        <div className="border-t border-slate-200 pt-2 space-y-2 mt-auto shrink-0">
+          <div className="space-y-1.5 text-xs">
+            {/* Subtotal Display */}
+            <div className="flex justify-between items-center text-slate-600 font-semibold px-0.5">
+              <span>সাবটোটাল ({cart.reduce((s, i) => s + i.quantity, 0)} টি আইটেম)</span>
+              <span className="font-mono text-slate-900 font-black text-sm">৳{subtotal.toFixed(2)}</span>
             </div>
 
-            {/* VAT, Discount & Adjustment Controls */}
-            <div className="grid grid-cols-3 gap-1.5 py-1">
-              {/* VAT */}
-              <div>
-                <label className="text-[10px] text-[#868e96] block font-semibold mb-0.5">ভ্যাট (%)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.5"
-                  value={vatPercent || ''}
-                  onChange={e => setVatPercent(Math.max(0, Number(e.target.value) || 0))}
-                  className="w-full px-2 py-1 bg-[#f8f9fa] border border-[#dee2e6] text-[#1a1b1e] font-mono text-center rounded text-xs"
-                  placeholder="0%"
-                />
-              </div>
-
-              {/* Discount */}
-              <div>
-                <label className="text-[10px] text-[#868e96] block font-semibold mb-0.5">ডিসকাউন্ট (৳)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={discountAmount || ''}
-                  onChange={e => setDiscountAmount(Math.max(0, Number(e.target.value) || 0))}
-                  className="w-full px-2 py-1 bg-[#f8f9fa] border border-[#dee2e6] text-[#1a1b1e] font-mono text-center rounded text-xs"
-                  placeholder="0"
-                />
-              </div>
-
-              {/* Adjustment */}
-              <div>
-                <label className="text-[10px] text-[#868e96] block font-semibold mb-0.5">এডজাস্টমেন্ট (±৳)</label>
-                <input
-                  type="number"
-                  step="0.5"
-                  value={adjustmentAmount || ''}
-                  onChange={e => setAdjustmentAmount(Number(e.target.value) || 0)}
-                  className="w-full px-2 py-1 bg-[#f8f9fa] border border-[#dee2e6] text-[#1a1b1e] font-mono text-center rounded text-xs"
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-
-            {/* Grand Total */}
-            <div className="flex justify-between items-center text-sm font-extrabold text-[#1a1b1e] pt-1 border-t border-[#dee2e6]">
-              <span>সর্বমোট প্রদেয়</span>
-              <span className="text-emerald-600 font-mono text-base font-extrabold">৳{grandTotal.toFixed(2)}</span>
-            </div>
-
-            {/* Received Amount Input & Due / Change Indicator */}
-            <div className={`p-2.5 rounded-xl border transition-all space-y-2 mt-1 ${
-              !isReceivedAmountEntered && cart.length > 0
-                ? 'bg-amber-50/70 border-amber-300 ring-2 ring-amber-400/30'
-                : 'bg-slate-50 border-slate-200'
-            }`}>
-              <div className="flex items-center justify-between gap-2">
+            {/* VAT, Discount & Adjustment Collapsible Accordion (Saves vertical height) */}
+            <div className="border border-slate-200 rounded-lg bg-slate-50/70 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowAdjustments(!showAdjustments)}
+                className="w-full px-2.5 py-1.5 flex items-center justify-between text-slate-700 hover:bg-slate-100/80 cursor-pointer text-xs font-bold transition-colors"
+              >
                 <div className="flex items-center gap-1.5">
-                  <DollarSign className={`w-4 h-4 ${!isReceivedAmountEntered && cart.length > 0 ? 'text-amber-600' : 'text-blue-600'}`} />
-                  <div>
-                    <span className="font-bold text-slate-800 text-xs">
-                      প্রাপ্ত টাকা / জমা (৳) <span className="text-rose-600 font-bold">*</span>
+                  <Percent className="w-3.5 h-3.5 text-blue-600" />
+                  <span>ভ্যাট / ছাড় / এডজাস্টমেন্ট</span>
+                  {(vatPercent > 0 || discountAmount > 0 || adjustmentAmount !== 0) && (
+                    <span className="bg-blue-100 text-blue-800 text-[10px] font-mono px-1.5 py-0.2 rounded font-bold">
+                      {vatPercent > 0 ? `ভ্যাট ${vatPercent}% ` : ''}
+                      {discountAmount > 0 ? `ছাড় -৳${discountAmount} ` : ''}
+                      {adjustmentAmount !== 0 ? `এডজাস্ট ±৳${adjustmentAmount}` : ''}
                     </span>
-                    {!isReceivedAmountEntered && cart.length > 0 && (
-                      <span className="text-[9px] text-amber-700 font-semibold block">
-                        টাকার পরিমাণ দেওয়া আবশ্যক
-                      </span>
-                    )}
+                  )}
+                </div>
+                {showAdjustments ? <ChevronUp className="w-3.5 h-3.5 text-slate-500" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
+              </button>
+
+              {showAdjustments && (
+                <div className="p-2 border-t border-slate-200 grid grid-cols-3 gap-2 bg-white">
+                  <div>
+                    <label className="text-[10px] text-slate-500 block font-bold mb-0.5">ভ্যাট (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.5"
+                      value={vatPercent || ''}
+                      onChange={e => setVatPercent(Math.max(0, Number(e.target.value) || 0))}
+                      className="w-full px-2 py-1 bg-slate-50 border border-slate-300 text-slate-900 font-mono font-bold text-center rounded-md text-xs focus:bg-white focus:outline-none focus:border-blue-600"
+                      placeholder="0%"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 block font-bold mb-0.5">ডিসকাউন্ট (৳)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={discountAmount || ''}
+                      onChange={e => setDiscountAmount(Math.max(0, Number(e.target.value) || 0))}
+                      className="w-full px-2 py-1 bg-slate-50 border border-slate-300 text-slate-900 font-mono font-bold text-center rounded-md text-xs focus:bg-white focus:outline-none focus:border-blue-600"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 block font-bold mb-0.5">এডজাস্টমেন্ট (±৳)</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={adjustmentAmount || ''}
+                      onChange={e => setAdjustmentAmount(Number(e.target.value) || 0)}
+                      className="w-full px-2 py-1 bg-slate-50 border border-slate-300 text-slate-900 font-mono font-bold text-center rounded-md text-xs focus:bg-white focus:outline-none focus:border-blue-600"
+                      placeholder="0.00"
+                    />
                   </div>
                 </div>
+              )}
+            </div>
 
-                <div className="flex items-center gap-1.5">
+            {/* Trade-In Credit if active */}
+            {tradeIns.length > 0 && (
+              <div className="flex items-center justify-between gap-2 p-1.5 bg-purple-50/70 border border-purple-200 rounded-lg text-xs">
+                <span className="font-bold text-purple-900 flex items-center gap-1">
+                  <ArrowRightLeft className="w-3.5 h-3.5 text-purple-600" />
+                  <span>ট্রেড-ইন ক্রেডিট:</span>
+                </span>
+                <select
+                  value={selectedTradeInId}
+                  onChange={e => setSelectedTradeInId(e.target.value)}
+                  className="bg-white border border-purple-300 rounded px-2 py-0.5 text-xs text-purple-900 font-bold"
+                >
+                  <option value="">কোনোটি নয়</option>
+                  {tradeIns.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.device_model} (ছাড়: ৳{t.offered_credit})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Grand Total - Prominent & Big */}
+            <div className="flex justify-between items-center py-2 px-3 bg-slate-100/90 border border-slate-200 rounded-xl">
+              <span className="font-extrabold text-slate-800 text-sm sm:text-base">সর্বমোট প্রদেয় বিল:</span>
+              <span className="text-emerald-700 font-mono text-xl sm:text-2xl font-black">
+                ৳{grandTotal.toFixed(2)}
+              </span>
+            </div>
+
+            {/* Received Amount (কাস্টমার প্রাপ্ত টাকা) Input Field - Clean, Sleek & Always Visible */}
+            <div className="py-1.5 px-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>কাস্টমার প্রাপ্ত টাকা:</span>
+                </label>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-mono font-bold text-slate-400">৳</span>
                   <input
                     type="number"
                     min="0"
-                    step="1"
-                    value={paymentMethod === 'CREDIT_DUE' ? '0' : receivedInput}
-                    disabled={paymentMethod === 'CREDIT_DUE'}
+                    value={receivedInput}
                     onChange={e => setReceivedInput(e.target.value)}
-                    placeholder="0.00"
-                    className={`w-32 px-2.5 py-1.5 bg-white border-2 font-mono font-bold text-right rounded-lg text-xs shadow-2xs focus:outline-none ${
-                      !isReceivedAmountEntered && cart.length > 0
-                        ? 'border-amber-400 focus:border-amber-600 text-amber-900 bg-amber-50/30'
-                        : 'border-blue-400 focus:border-blue-600 text-slate-900'
-                    }`}
+                    placeholder={grandTotal > 0 ? grandTotal.toFixed(0) : '0'}
+                    className="w-28 px-2 py-1 bg-white border border-slate-300 rounded-lg font-mono font-black text-right text-xs text-slate-900 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-colors"
                   />
-                </div>
-              </div>
-
-              {/* Quick Cash Presets Shortcuts */}
-              {paymentMethod !== 'CREDIT_DUE' && (
-                <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-200/70">
-                  <span className="text-[10px] text-slate-500 font-bold mr-0.5 flex items-center gap-1">
-                    <Zap className="w-3 h-3 text-amber-500" />
-                    <span>দ্রুত জমা শর্টকাট:</span>
-                  </span>
-
-                  {/* Exact Cash Button: Auto-fills exact bill amount */}
-                  <button
-                    type="button"
-                    disabled={cart.length === 0 || grandTotal <= 0}
-                    onClick={() => setReceivedInput(grandTotal.toString())}
-                    className={`px-2.5 py-1 rounded-lg text-[10.5px] font-extrabold shadow-xs transition-all flex items-center gap-1 ${
-                      cart.length > 0 && grandTotal > 0
-                        ? 'bg-emerald-600 hover:bg-emerald-700 active:scale-[0.97] text-white cursor-pointer shadow-emerald-600/20'
-                        : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-                    }`}
-                    title="কাস্টমার সম্পূর্ণ বিল সমপরিমাণ পরিশোধ করলে এই বাটনে চাপুন"
-                  >
-                    <span>⚡ সম্পূর্ণ পরিশোধ (৳{grandTotal.toFixed(0)})</span>
-                  </button>
-
-                  {/* Common Note Shortcuts */}
-                  {[100, 500, 1000].map((amt) => (
-                    <button
-                      key={amt}
-                      type="button"
-                      disabled={cart.length === 0}
-                      onClick={() => {
-                        setReceivedInput(amt.toString());
-                      }}
-                      className="px-2 py-0.5 bg-white hover:bg-slate-100 disabled:opacity-40 text-slate-800 border border-slate-300 rounded text-[10px] font-mono font-bold cursor-pointer transition-colors shadow-2xs"
-                      title={`কাস্টমার ৳${amt} এর নোট দিলে চাপুন`}
-                    >
-                      ৳{amt} নোট
-                    </button>
-                  ))}
-
                   {receivedInput !== '' && (
                     <button
                       type="button"
                       onClick={() => setReceivedInput('')}
-                      className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded text-[10px] font-bold cursor-pointer transition-colors"
-                      title="রিসিভ ফিল্ড ক্লিয়ার করুন"
+                      className="text-slate-400 hover:text-rose-600 p-0.5 text-xs font-bold cursor-pointer transition-colors"
+                      title="মুছুন"
                     >
-                      মুছুন
+                      ✕
                     </button>
                   )}
                 </div>
-              )}
-
-              {/* Quick Due / Change Indicator Badges */}
-              <div className="flex items-center justify-between text-[11px] font-bold pt-0.5">
-                {!isReceivedAmountEntered && cart.length > 0 ? (
-                  <span className="text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded border border-amber-300 w-full text-center text-[10.5px]">
-                    ⚠️ বিল সম্পন্ন করতে রিসিভ অ্যামাউন্ট লিখুন বা &apos;ঠিক ঠিক&apos; চাপুন
-                  </span>
-                ) : dueAmount > 0 ? (
-                  <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 w-full flex justify-between">
-                    <span>বকেয়া / বাকি (Due):</span>
-                    <span className="font-mono">৳{dueAmount.toFixed(2)}</span>
-                  </span>
-                ) : changeAmount > 0 ? (
-                  <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 w-full flex justify-between">
-                    <span>কাস্টমারকে ফেরত (Change):</span>
-                    <span className="font-mono">৳{changeAmount.toFixed(2)}</span>
-                  </span>
-                ) : (
-                  <span className="text-emerald-600 text-[10px] flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" />
-                    <span>সম্পূর্ণ পরিশোধিত (Full Paid)</span>
-                  </span>
-                )}
               </div>
+
+              {/* Change / Due calculation indicator (shows dynamically when received amount is entered) */}
+              {hasCustomReceived && (
+                <div className="flex items-center justify-between text-xs font-bold pt-1 border-t border-slate-200/70 animate-in fade-in duration-150">
+                  {changeAmount > 0 ? (
+                    <span className="text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 w-full flex justify-between items-center text-xs">
+                      <span>কাস্টমারকে ফেরত (Change):</span>
+                      <span className="font-mono text-sm font-black">৳{changeAmount.toFixed(2)}</span>
+                    </span>
+                  ) : dueAmount > 0 ? (
+                    <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 w-full flex justify-between items-center text-xs">
+                      <span>বকেয়া (Due):</span>
+                      <span className="font-mono text-sm font-black">৳{dueAmount.toFixed(2)}</span>
+                    </span>
+                  ) : (
+                    <span className="text-emerald-700 text-[11px] font-bold">✓ সম্পূর্ণ পরিশোধিত</span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
           {/* Dynamic Payment Method Radio / Pill Group */}
-          <div className="space-y-1.5 pt-1">
+          <div className="space-y-1 pt-0.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10.5px] font-bold text-slate-700">
-                পেমেন্ট মেথড নির্বাচন:
+              <span className="text-[11px] font-bold text-slate-700">
+                পেমেন্ট মেথড:
               </span>
-              <span className="text-[9.5px] text-slate-400 font-mono">
+              <span className="text-[10px] text-slate-500 font-mono font-bold">
                 {paymentMethod}
               </span>
             </div>
 
-            <div className="flex flex-wrap gap-1 text-[11px]">
-              {[
-                { id: 'CASH', label: 'নগদ ক্যাশ', icon: Coins, enabled: paymentConfig.enableCash !== false, color: '#059669' },
-                { id: 'BKASH', label: `বিকাশ`, icon: Wallet, enabled: paymentConfig.enableBkash !== false, color: '#db2777' },
-                { id: 'NAGAD', label: `নগদ`, icon: Wallet, enabled: paymentConfig.enableNagad !== false, color: '#d97706' },
-                { id: 'ROCKET', label: 'রকেট', icon: Wallet, enabled: paymentConfig.enableRocket !== false, color: '#7c3aed' },
-                { id: 'CARD', label: paymentConfig.cardTerminalName || 'কার্ড', icon: CreditCard, enabled: paymentConfig.enableCard !== false, color: '#2563eb' },
-                { id: 'CREDIT_DUE', label: 'বাকিতে (Due)', icon: User, enabled: paymentConfig.enableDueCredit !== false, color: '#e11d48' },
-                ...((paymentConfig.customMethods || [])
-                  .filter((cm: CustomPaymentMethod) => cm.isActive)
-                  .map((cm: CustomPaymentMethod) => ({
-                    id: cm.code,
-                    label: cm.name,
-                    icon: cm.type === 'BANK' ? CreditCard : cm.type === 'MFS' ? Wallet : cm.type === 'CHEQUE' ? Receipt : CreditCard,
-                    enabled: true,
-                    color: cm.color || '#0284c7',
-                    isCustom: true,
-                    customData: cm,
-                  }))
-                ),
-              ]
-                .filter(m => m.enabled)
-                .map(m => {
-                  const Icon = m.icon;
-                  const isSelected = paymentMethod === m.id;
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => {
-                        setPaymentMethod(m.id);
-                        if (m.id === 'CREDIT_DUE') {
-                          setReceivedInput('0');
-                        } else if (receivedInput === '0') {
-                          setReceivedInput('');
-                        }
-                      }}
-                      className={`py-1.5 px-2.5 rounded-lg font-bold border transition-all flex items-center gap-1.5 cursor-pointer text-xs ${
-                        isSelected
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                          : 'bg-[#f8f9fa] text-[#495057] border-[#dee2e6] hover:bg-slate-200'
-                      }`}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      <span>{m.label}</span>
-                    </button>
-                  );
-                })}
+            <div className="flex flex-wrap gap-1 text-xs">
+              {availablePaymentMethods.map(m => {
+                const Icon = m.icon;
+                const isSelected = paymentMethod === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      setPaymentMethod(m.id);
+                      if (m.id === 'CREDIT_DUE') {
+                        setReceivedInput('0');
+                      } else if (receivedInput === '0') {
+                        setReceivedInput('');
+                      }
+                    }}
+                    className={`py-1 px-2.5 rounded-lg font-bold border transition-all flex items-center gap-1.5 cursor-pointer text-xs ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{m.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* TrxID / Note Input for MFS & Custom Methods */}
@@ -1030,7 +1159,7 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
                 <div className="flex items-center justify-between gap-2">
                   <label className="text-[10px] font-bold text-slate-700 flex items-center gap-1 shrink-0">
                     <Tag className="w-3 h-3 text-indigo-600" />
-                    <span>TrxID / রেফারেন্স নং (ঐচ্ছিক/প্রয়োজনে):</span>
+                    <span>TrxID / রেফারেন্স নং:</span>
                   </label>
                   <input
                     type="text"
@@ -1044,7 +1173,7 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
                 {/* Account Details Hint */}
                 {(() => {
                   const activeCustom = (paymentConfig.customMethods || []).find(
-                    (cm: CustomPaymentMethod) => cm.code === paymentMethod
+                    (cm: CustomPaymentMethod) => cm.code === paymentMethod || cm.id === paymentMethod
                   );
                   if (activeCustom) {
                     return (
@@ -1077,6 +1206,13 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
                       </div>
                     );
                   }
+                  if (paymentMethod === 'UPAY' && paymentConfig.upayNumber) {
+                    return (
+                      <div className="text-[9.5px] text-sky-700 font-medium pt-0.5">
+                        📱 উপায়: <b>{paymentConfig.upayNumber}</b>
+                      </div>
+                    );
+                  }
                   return null;
                 })()}
               </div>
@@ -1088,18 +1224,16 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
             type="button"
             disabled={isCheckoutDisabled}
             onClick={handleProcessCheckout}
-            className={`w-full py-2.5 font-extrabold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all ${
+            className={`w-full py-3 sm:py-3.5 font-black text-sm sm:text-base rounded-xl shadow-md flex items-center justify-center gap-2 transition-all ${
               isCheckoutDisabled
                 ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-80'
-                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md cursor-pointer active:scale-[0.99]'
+                : 'bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white shadow-emerald-600/30 cursor-pointer'
             }`}
           >
-            <Printer className="w-4 h-4" />
+            <Printer className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>
               {cart.length === 0
                 ? 'কার্ট খালি! পণ্য নির্বাচন করুন'
-                : !isReceivedAmountEntered
-                ? '⚠️ প্রাপ্ত টাকা এন্ট্রি দিন (বাটন লক)'
                 : `বিক্রয় সম্পন্ন ও রসিদ প্রিন্ট (৳${grandTotal.toFixed(2)})`}
             </span>
           </button>

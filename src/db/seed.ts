@@ -404,165 +404,43 @@ export async function runSeed() {
     }
   }
 
-  // 6. SEED DEMO TENANT, BRANCH & DEFAULT USER
-  logger.info('6️⃣ Provisioning Master Demo Tenant & Admin User...');
-  const demoTenantId = 'tenant-demo-001';
-  const demoBranchId = 'branch-main-001';
+  // 6. SEED MASTER PLATFORM SYSTEM ADMINISTRATOR (ROOT LEVEL)
+  logger.info('6️⃣ Provisioning Master Platform System Administrator (Root Level)...');
 
-  await db
-    .insert(tenants)
-    .values({
-      id: demoTenantId,
-      code: 'DOKAN-MAIN',
-      name: 'লাকী টেলিকম ও ভ্যারাইটিজ (Lucky Telecom & Varieties)',
-      ownerName: 'মোঃ আল মামুন',
-      email: 'owner@luckytelecom.bd',
-      phone: '01711000000',
-      currency: 'BDT',
-      currencySymbol: '৳',
-      address: 'দোকান নং ১২, নিউ মার্কেট, ঢাকা',
-      status: 'active',
-      planType: 'enterprise',
-    } as any)
-    .onConflictDoNothing();
-
-  await db.insert(branches).values({
-    id: demoBranchId,
-    tenantId: demoTenantId,
-    code: 'MAIN',
-    name: 'Main Branch (প্রধান শাখা)',
-    phone: '01711000000',
-    address: 'দোকান নং ১২, নিউ মার্কেট, ঢাকা',
-    isMain: true,
-    isActive: true,
-  } as any).onConflictDoNothing();
-
-  await db.insert(tenantSettings).values({
-    id: `settings-${demoTenantId}`,
-    tenantId: demoTenantId,
-    receiptHeader: 'লাকী টেলিকম ও এক্সেসরিজ\nমোবাইল ও গ্যাজেট শপ',
-    receiptFooter: 'আমাদের সাথে থাকার জন্য ধন্যবাদ! বিক্রিত মাল ফেরত যোগ্য নয়।',
-    defaultTaxRate: '0.00',
-    defaultWarrantyMonths: 12,
-    allowNegativeInventory: false,
-    autoFocusScanner: true,
-    theme: 'dark',
-    language: 'bn',
-  } as any).onConflictDoNothing();
-
-  // Attach Primary Category: TELECOM + Secondary Category: GROCERY
-  const demoCats = [
-    {
-      id: `tbc-${demoTenantId}-telecom`,
-      tenantId: demoTenantId,
-      businessCategoryId: 'cat-telecom',
-      isPrimary: true,
-      isActive: true,
-    },
-    {
-      id: `tbc-${demoTenantId}-grocery`,
-      tenantId: demoTenantId,
-      businessCategoryId: 'cat-grocery',
-      isPrimary: false,
-      isActive: true,
-    },
-  ];
-
-  for (const dc of demoCats) {
-    await db.insert(tenantBusinessCategories).values(dc as any).onConflictDoNothing();
-  }
-
-  // Seed standard units for demo tenant
-  const standardUnits = [
-    { id: `unit-${demoTenantId}-pcs`, tenantId: demoTenantId, name: 'Piece (টি)', code: 'pcs', symbol: 'টি', allowDecimal: false },
-    { id: `unit-${demoTenantId}-kg`, tenantId: demoTenantId, name: 'Kilogram (কেজি)', code: 'kg', symbol: 'kg', allowDecimal: true },
-    { id: `unit-${demoTenantId}-ltr`, tenantId: demoTenantId, name: 'Liter (লিটার)', code: 'ltr', symbol: 'L', allowDecimal: true },
-    { id: `unit-${demoTenantId}-dzn`, tenantId: demoTenantId, name: 'Dozen (ডজন)', code: 'dzn', symbol: 'ডজন', allowDecimal: false },
-    { id: `unit-${demoTenantId}-ream`, tenantId: demoTenantId, name: 'Ream (রিম)', code: 'ream', symbol: 'রিম', allowDecimal: false },
-  ];
-
-  for (const u of standardUnits) {
-    await db.insert(units).values(u as any).onConflictDoNothing();
-  }
-
-  // Seed default Chart of Accounts for demo tenant (BDT standard)
-  const defaultAccounts = [
-    { id: `acc-${demoTenantId}-1000`, tenantId: demoTenantId, branchId: demoBranchId, code: '1000', name: 'Cash on Hand (দোকানের ক্যাশ)', type: 'ASSET', isBank: false, isMfs: false, isSystem: true, currentBalance: '0.00', currency: 'BDT', isActive: true },
-    { id: `acc-${demoTenantId}-1010`, tenantId: demoTenantId, branchId: demoBranchId, code: '1010', name: 'bKash Merchant Account (বিকাশ)', type: 'ASSET', isBank: false, isMfs: true, isSystem: true, currentBalance: '0.00', currency: 'BDT', isActive: true },
-    { id: `acc-${demoTenantId}-1020`, tenantId: demoTenantId, branchId: demoBranchId, code: '1020', name: 'Nagad Account (নগদ)', type: 'ASSET', isBank: false, isMfs: true, isSystem: true, currentBalance: '0.00', currency: 'BDT', isActive: true },
-    { id: `acc-${demoTenantId}-1030`, tenantId: demoTenantId, branchId: demoBranchId, code: '1030', name: 'Islami Bank Main Account (ব্যাংক)', type: 'ASSET', isBank: true, isMfs: false, isSystem: true, currentBalance: '0.00', currency: 'BDT', isActive: true },
-    { id: `acc-${demoTenantId}-1100`, tenantId: demoTenantId, branchId: demoBranchId, code: '1100', name: 'Accounts Receivable (কাস্টমার বাকি)', type: 'ASSET', isBank: false, isMfs: false, isSystem: true, currentBalance: '0.00', currency: 'BDT', isActive: true },
-    { id: `acc-${demoTenantId}-1200`, tenantId: demoTenantId, branchId: demoBranchId, code: '1200', name: 'Inventory Stock Asset (পণ্যের স্টক)', type: 'ASSET', isBank: false, isMfs: false, isSystem: true, currentBalance: '0.00', currency: 'BDT', isActive: true },
-    { id: `acc-${demoTenantId}-2000`, tenantId: demoTenantId, branchId: demoBranchId, code: '2000', name: 'Accounts Payable (সাপ্লায়ার পাওনা)', type: 'LIABILITY', isBank: false, isMfs: false, isSystem: true, currentBalance: '0.00', currency: 'BDT', isActive: true },
-    { id: `acc-${demoTenantId}-3000`, tenantId: demoTenantId, branchId: demoBranchId, code: '3000', name: 'Owner Equity (মালিকের মূলধন)', type: 'EQUITY', isBank: false, isMfs: false, isSystem: true, currentBalance: '0.00', currency: 'BDT', isActive: true },
-    { id: `acc-${demoTenantId}-4000`, tenantId: demoTenantId, branchId: demoBranchId, code: '4000', name: 'Sales Revenue (পণ্য বিক্রয় আয়)', type: 'REVENUE', isBank: false, isMfs: false, isSystem: true, currentBalance: '0.00', currency: 'BDT', isActive: true },
-    { id: `acc-${demoTenantId}-4100`, tenantId: demoTenantId, branchId: demoBranchId, code: '4100', name: 'Repair Service Revenue (সার্ভিসিং আয়)', type: 'REVENUE', isBank: false, isMfs: false, isSystem: true, currentBalance: '0.00', currency: 'BDT', isActive: true },
-    { id: `acc-${demoTenantId}-4200`, tenantId: demoTenantId, branchId: demoBranchId, code: '4200', name: 'Flexiload / MFS Commission (রিচার্জ কমিশন)', type: 'REVENUE', isBank: false, isMfs: false, isSystem: true, currentBalance: '0.00', currency: 'BDT', isActive: true },
-    { id: `acc-${demoTenantId}-5000`, tenantId: demoTenantId, branchId: demoBranchId, code: '5000', name: 'Cost of Goods Sold - COGS (বিক্রিত পণ্যের ক্রয়মূল্য)', type: 'EXPENSE', isBank: false, isMfs: false, isSystem: true, currentBalance: '0.00', currency: 'BDT', isActive: true },
-    { id: `acc-${demoTenantId}-6000`, tenantId: demoTenantId, branchId: demoBranchId, code: '6000', name: 'Shop Rent Expense (দোকান ভাড়া)', type: 'EXPENSE', isBank: false, isMfs: false, isSystem: true, currentBalance: '0.00', currency: 'BDT', isActive: true },
-    { id: `acc-${demoTenantId}-6010`, tenantId: demoTenantId, branchId: demoBranchId, code: '6010', name: 'Electricity & Utility (বিদ্যুৎ ও ইউটিলিটি)', type: 'EXPENSE', isBank: false, isMfs: false, isSystem: true, currentBalance: '0.00', currency: 'BDT', isActive: true },
-    { id: `acc-${demoTenantId}-6020`, tenantId: demoTenantId, branchId: demoBranchId, code: '6020', name: 'Staff Salaries (কর্মচারী বেতন)', type: 'EXPENSE', isBank: false, isMfs: false, isSystem: true, currentBalance: '0.00', currency: 'BDT', isActive: true },
-    { id: `acc-${demoTenantId}-6030`, tenantId: demoTenantId, branchId: demoBranchId, code: '6030', name: 'Tea & Refreshment (চা ও নাস্তা খরচ)', type: 'EXPENSE', isBank: false, isMfs: false, isSystem: true, currentBalance: '0.00', currency: 'BDT', isActive: true },
-  ];
-
-  for (const acc of defaultAccounts) {
-    await db.insert(accounts).values(acc as any).onConflictDoNothing();
-  }
-
-  // Seed default number sequences for demo tenant
-  const currentYear = new Date().getFullYear();
-  const sequenceList = [
-    { id: `seq-${demoTenantId}-SALE-${currentYear}`, tenantId: demoTenantId, branchId: demoBranchId, sequenceType: 'SALE', prefix: 'INV', year: currentYear, lastNumber: 1000 },
-    { id: `seq-${demoTenantId}-PURCHASE-${currentYear}`, tenantId: demoTenantId, branchId: demoBranchId, sequenceType: 'PURCHASE', prefix: 'PUR', year: currentYear, lastNumber: 1000 },
-    { id: `seq-${demoTenantId}-REPAIR-${currentYear}`, tenantId: demoTenantId, branchId: demoBranchId, sequenceType: 'REPAIR', prefix: 'REP', year: currentYear, lastNumber: 1000 },
-    { id: `seq-${demoTenantId}-TRADE_IN-${currentYear}`, tenantId: demoTenantId, branchId: demoBranchId, sequenceType: 'TRADE_IN', prefix: 'TRD', year: currentYear, lastNumber: 1000 },
-    { id: `seq-${demoTenantId}-PAYMENT-${currentYear}`, tenantId: demoTenantId, branchId: demoBranchId, sequenceType: 'PAYMENT', prefix: 'PAY', year: currentYear, lastNumber: 1000 },
-    { id: `seq-${demoTenantId}-EXPENSE-${currentYear}`, tenantId: demoTenantId, branchId: demoBranchId, sequenceType: 'EXPENSE', prefix: 'EXP', year: currentYear, lastNumber: 1000 },
-    { id: `seq-${demoTenantId}-JOURNAL-${currentYear}`, tenantId: demoTenantId, branchId: demoBranchId, sequenceType: 'JOURNAL', prefix: 'JRN', year: currentYear, lastNumber: 1000 },
-    { id: `seq-${demoTenantId}-BORROW-${currentYear}`, tenantId: demoTenantId, branchId: demoBranchId, sequenceType: 'BORROW', prefix: 'BOR', year: currentYear, lastNumber: 1000 },
-  ];
-
-  for (const seq of sequenceList) {
-    await db.insert(numberSequences).values(seq as any).onConflictDoNothing();
-  }
-
-  // Create Master Platform Admin / Shop Owner User
-  const demoUserId = 'bdyusuf2016';
+  const adminUserId = 'usr_super_admin';
   const hashedPassword = await argon2.hash('BdYusuf@2026');
 
+  // Insert Master Platform Admin User
   await db
     .insert(users)
     .values({
-      id: demoUserId,
-      tenantId: demoTenantId,
+      id: adminUserId,
+      tenantId: null,
       phone: '01711000000',
-      name: 'Md. Yusuf Ali',
+      name: 'Md. Yusuf Ali (System Admin)',
       email: 'bdyusuf2016@gmail.com',
       passwordHash: hashedPassword,
       status: 'active',
     } as any)
     .onConflictDoUpdate({
-      target: [users.tenantId, users.phone],
-      set: { name: 'Md. Yusuf Ali', email: 'bdyusuf2016@gmail.com', passwordHash: hashedPassword } as any,
+      target: [users.phone],
+      set: { 
+        name: 'Md. Yusuf Ali (System Admin)', 
+        email: 'bdyusuf2016@gmail.com', 
+        passwordHash: hashedPassword,
+        tenantId: null
+      } as any,
     });
 
-  // Assign SHOP_OWNER and SUPER_ADMIN roles to platform admin
+  // Assign SUPER_ADMIN role to platform admin
   await db
     .insert(userRoles)
     .values([
-      { id: `ur-${demoUserId}-owner`, userId: demoUserId, roleId: 'role-shop-owner' },
-      { id: `ur-${demoUserId}-admin`, userId: demoUserId, roleId: 'role-super-admin' },
+      { id: `ur-${adminUserId}-admin`, userId: adminUserId, roleId: 'role-super-admin' },
     ])
     .onConflictDoNothing();
 
-  await db.insert(userBranchAccess).values({
-    id: `uba-${demoUserId}-${demoBranchId}`,
-    userId: demoUserId,
-    branchId: demoBranchId,
-    isDefault: true,
-  } as any).onConflictDoNothing();
-
-  logger.info('🎉 Seed completed successfully! Database is ready for Dokan Manager V2.');
+  logger.info('🎉 Seed completed successfully! Platform is ready without demo shops.');
 }
 
 // Allow direct CLI invocation via `npm run db:seed`

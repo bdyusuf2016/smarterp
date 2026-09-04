@@ -7,17 +7,19 @@ import {
   Mail, 
   Award, 
   DollarSign, 
-  Clock,
-  BookOpen,
-  Printer,
-  FileSpreadsheet,
-  Trash2,
-  AlertTriangle,
-  CheckCircle2,
-  Sparkles
+  Clock, 
+  BookOpen, 
+  Printer, 
+  FileSpreadsheet, 
+  Trash2, 
+  AlertTriangle, 
+  CheckCircle2, 
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
 import { Tenant, UserRole, CustomerMember } from '../../types';
 import { storageService } from '../../services/storageService';
+import { supabaseService } from '../../services/supabaseClient';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
 import { printLedgerStatement } from '../../shared/utils/printReceipt';
@@ -32,6 +34,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ activeTenant }) =>
   const sales = storageService.getSales(activeTenant.id);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
+  const [isLoadingCloud, setIsLoadingCloud] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [newCustomer, setNewCustomer] = useState<Partial<CustomerMember>>({
     name: '',
@@ -48,8 +51,50 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ activeTenant }) =>
     setCustomers(storageService.getCustomers(activeTenant.id));
   };
 
+  const handleSyncFromCloud = async () => {
+    setIsLoadingCloud(true);
+    try {
+      const res = await supabaseService.pullCustomers(activeTenant.id);
+      reloadCustomers();
+      if (res.success) {
+        showToast(res.message);
+      } else {
+        alert(res.message);
+      }
+    } catch (err: any) {
+      alert(`সিঙ্ক ত্রুটি: ${err?.message}`);
+    } finally {
+      setIsLoadingCloud(false);
+    }
+  };
+
   useEffect(() => {
     reloadCustomers();
+
+    const handleStorageUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (!customEvent?.detail?.key || customEvent.detail.key === 'customers' || customEvent.detail.key === 'all') {
+        reloadCustomers();
+      }
+    };
+
+    window.addEventListener('dokan_storage_updated', handleStorageUpdated);
+    window.addEventListener('smarterp_cloud_synced', reloadCustomers);
+
+    // If active tenant has 0 local customers, auto-pull from Supabase in background
+    const currentList = storageService.getCustomers(activeTenant.id);
+    if (currentList.length === 0) {
+      supabaseService.pullCustomers(activeTenant.id).then(res => {
+        if (res.success && res.count > 0) {
+          reloadCustomers();
+        }
+      }).catch(console.warn);
+    }
+
+    return () => {
+      window.removeEventListener('dokan_storage_updated', handleStorageUpdated);
+      window.removeEventListener('smarterp_cloud_synced', reloadCustomers);
+    };
   }, [activeTenant.id]);
 
   const showToast = (msg: string) => {
@@ -106,11 +151,14 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ activeTenant }) =>
     }
   };
 
-  const handleClearAllCustomers = () => {
-    if (confirm('⚠️ আপনি কি এই দোকানের সকল ডেমো কাস্টমার মুছে প্রোডাকশন লেভেলের জন্য ফ্রেশ করতে চান?')) {
+  const handleClearAllCustomers = async () => {
+    if (confirm('⚠️ আপনি কি শুধু ডেমো কাস্টমার মুছে Supabase-এর রিয়েল কাস্টমারগুলো রিস্টোর করতে চান?')) {
       storageService.clearCustomers(activeTenant.id);
+      setIsLoadingCloud(true);
+      const res = await supabaseService.pullCustomers(activeTenant.id);
+      setIsLoadingCloud(false);
       reloadCustomers();
-      showToast('সকল ডেমো কাস্টমার সফলভাবে মুছে ফেলা হয়েছে! এখন আপনি রিয়েল কাস্টমার এন্ট্রি করতে পারবেন।');
+      showToast(res.success && res.count > 0 ? res.message : 'ডেমো কাস্টমার মুছে ফেলা হয়েছে!');
     }
   };
 
@@ -156,6 +204,17 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ activeTenant }) =>
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSyncFromCloud}
+            disabled={isLoadingCloud}
+            className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs rounded-lg flex items-center gap-1.5 border border-emerald-200 cursor-pointer transition-all shadow-2xs"
+            title="Supabase ক্লাউড ডেটাবেজ হতে রিয়েল কাস্টমার সিঙ্ক / রিস্টোর করুন"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isLoadingCloud ? 'animate-spin' : ''}`} />
+            <span>{isLoadingCloud ? 'সিঙ্ক হচ্ছে...' : 'Supabase সিঙ্ক'}</span>
+          </button>
+
           {customers.length > 0 && (
             <button
               type="button"
@@ -207,19 +266,30 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ activeTenant }) =>
               <Users className="w-6 h-6" />
             </div>
             <div className="space-y-1">
-              <h3 className="font-bold text-slate-800 text-sm">কোনো কাস্টমার নেই (কাস্টমার খাতা সম্পূর্ণ পরিষ্কার)</h3>
+              <h3 className="font-bold text-slate-800 text-sm">কোনো কাস্টমার পাওয়া যায়নি</h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                আপনার প্রোডাকশন স্টোরে আসল কাস্টমার যুক্ত করতে নিচের বাটনে চাপুন।
+                আপনার স্টোরে রিয়েল কাস্টমার যুক্ত করতে পারেন অথবা Supabase ক্লাউড থেকে সরাসরি লোড করতে পারেন।
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsAddCustomerOpen(true)}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>+ প্রথম কাস্টমার যুক্ত করুন</span>
-            </button>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleSyncFromCloud}
+                disabled={isLoadingCloud}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl inline-flex items-center gap-1.5 shadow-sm cursor-pointer transition-all"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoadingCloud ? 'animate-spin' : ''}`} />
+                <span>{isLoadingCloud ? 'লোড হচ্ছে...' : '☁️ Supabase হতে রিয়েল কাস্টমার লোড করুন'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsAddCustomerOpen(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>+ প্রথম কাস্টমার যুক্ত করুন</span>
+              </button>
+            </div>
           </div>
         ) : (
           <table className="w-full text-left text-xs">

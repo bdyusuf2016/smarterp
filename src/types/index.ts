@@ -366,6 +366,8 @@ export interface CustomerMember {
   membership_card_no?: string;
   max_borrow_limit?: number;
   active_borrow_count?: number;
+  credit_limit?: number;
+  status?: 'active' | 'inactive' | string;
   current_due: number;
   total_spent: number;
   loyalty_points: number;

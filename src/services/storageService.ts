@@ -84,6 +84,12 @@ class StorageService {
     }
   }
 
+  private dispatchInstantSync(table: string, record: any): void {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('dokan_entity_saved', { detail: { table, record } }));
+    }
+  }
+
   // Categories
   getCategories(): BusinessCategory[] {
     return this.get<BusinessCategory[]>(STORAGE_KEYS.CATEGORIES, INITIAL_BUSINESS_CATEGORIES);
@@ -98,6 +104,7 @@ class StorageService {
       list.push(category);
     }
     this.set(STORAGE_KEYS.CATEGORIES, list);
+    this.dispatchInstantSync('business_categories', category);
     this.addAuditLog('CATEGORY_UPDATED', 'SETTINGS', `Business category ${category.name} (${category.code}) created or updated.`);
   }
 
@@ -161,6 +168,7 @@ class StorageService {
       list.push(tenant);
     }
     this.set(STORAGE_KEYS.TENANTS, list);
+    this.dispatchInstantSync('tenants', tenant);
     this.addAuditLog('TENANT_SAVED', 'TENANTS', `Tenant ${tenant.name} profile updated.`);
   }
 
@@ -195,6 +203,7 @@ class StorageService {
       list.unshift(product);
     }
     this.set(STORAGE_KEYS.PRODUCTS, list);
+    this.dispatchInstantSync('products', product);
     this.addAuditLog('PRODUCT_SAVED', 'PRODUCTS', `Product ${product.name} (${product.code}) saved.`);
   }
 
@@ -344,6 +353,7 @@ class StorageService {
       list.unshift(customer);
     }
     this.set(STORAGE_KEYS.CUSTOMERS, list);
+    this.dispatchInstantSync('customers', customer);
     this.addAuditLog('CUSTOMER_SAVED', 'CUSTOMERS', `Customer ${customer.name} saved.`);
   }
 
@@ -379,6 +389,7 @@ class StorageService {
       list.unshift(supplier);
     }
     this.set(STORAGE_KEYS.SUPPLIERS, list);
+    this.dispatchInstantSync('suppliers', supplier);
     this.addAuditLog('SUPPLIER_SAVED', 'SUPPLIERS', `Supplier ${supplier.name} saved.`);
   }
 
@@ -499,6 +510,7 @@ class StorageService {
     const list = this.get<SaleTransaction[]>(STORAGE_KEYS.SALES, INITIAL_SALES);
     list.unshift(sale);
     this.set(STORAGE_KEYS.SALES, list);
+    this.dispatchInstantSync('sales', sale);
   }
 
   // Accounting
@@ -512,6 +524,7 @@ class StorageService {
     const list = this.get<AccountingEntry[]>(STORAGE_KEYS.ACCOUNTING, INITIAL_ACCOUNTING);
     list.unshift(entry);
     this.set(STORAGE_KEYS.ACCOUNTING, list);
+    this.dispatchInstantSync('accounting_entries', entry);
   }
 
   deleteAccountingEntry(id: string): void {

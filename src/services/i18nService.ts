@@ -180,10 +180,9 @@ class I18nService {
   }
 
   /**
-   * Convert Western digits (123) to Bengali digits (১২৩) when in Bengali mode
+   * Convert Western digits (123) to Bengali digits (১২৩)
    */
   public toBengaliNumber(num: number | string): string {
-    if (this.currentLang === 'en') return String(num);
     const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
     return String(num).replace(/[0-9]/g, w => bengaliDigits[parseInt(w, 10)]);
   }

@@ -228,9 +228,11 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
 
   // 3. Payment Methods Settings
   const paymentSettingsKey = `dokan_v2_payment_settings_${activeTenant.id}`;
-  const [paymentConfig, setPaymentConfig] = useState(() => {
+  const [paymentConfig, _setPaymentConfig] = useState(() => {
     try {
-      const stored = localStorage.getItem(paymentSettingsKey);
+      const stored =
+        localStorage.getItem(paymentSettingsKey) ||
+        localStorage.getItem("dokan_v2_payment_settings");
       if (stored) return JSON.parse(stored);
     } catch (e) {
       console.error(e);
@@ -321,6 +323,38 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
       ] as CustomPaymentMethod[],
     };
   });
+
+  // Auto-sync paymentConfig to localStorage & POS in real-time
+  const setPaymentConfig = (
+    updater: any
+  ) => {
+    _setPaymentConfig((prev: any) => {
+      const updated = typeof updater === "function" ? updater(prev) : updater;
+      try {
+        localStorage.setItem(paymentSettingsKey, JSON.stringify(updated));
+        localStorage.setItem("dokan_v2_payment_settings", JSON.stringify(updated));
+        window.dispatchEvent(
+          new CustomEvent("dokan_v2_payment_settings_changed", { detail: updated })
+        );
+      } catch (err) {
+        console.error("Failed to auto-persist paymentConfig:", err);
+      }
+      return updated;
+    });
+  };
+
+  useEffect(() => {
+    try {
+      const stored =
+        localStorage.getItem(paymentSettingsKey) ||
+        localStorage.getItem("dokan_v2_payment_settings");
+      if (stored) {
+        _setPaymentConfig(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, [paymentSettingsKey]);
 
   // Custom Payment Method Management Modal State
   const [isCustomMethodModalOpen, setIsCustomMethodModalOpen] = useState(false);
