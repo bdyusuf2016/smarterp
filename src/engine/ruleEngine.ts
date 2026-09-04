@@ -68,20 +68,30 @@ export class RuleEngine {
       // Direct match
       if (allowed.has(normalizedCode)) return true;
 
+      // Platform Core & System modules are always enabled for any active shop
+      if (['DASHBOARD', 'SETTINGS', 'AUDIT', 'PLATFORM', 'BRANCHES', 'TENANTS'].includes(normalizedCode)) return true;
+
       // Handle common aliases/sub-modules
-      if (normalizedCode === 'CRM' && allowed.has('CUSTOMERS')) return true;
-      if (normalizedCode === 'CUSTOMERS' && allowed.has('CRM')) return true;
-      if (normalizedCode === 'PURCHASE' && (allowed.has('PURCHASES') || allowed.has('SUPPLIERS'))) return true;
-      if (normalizedCode === 'PURCHASES' && (allowed.has('PURCHASE') || allowed.has('SUPPLIERS'))) return true;
+      if (normalizedCode === 'CRM' && (allowed.has('CUSTOMERS') || allowed.has('CRM'))) return true;
+      if (normalizedCode === 'CUSTOMERS' && (allowed.has('CRM') || allowed.has('CUSTOMERS'))) return true;
+      if (normalizedCode === 'PURCHASE' && (allowed.has('PURCHASES') || allowed.has('SUPPLIERS') || allowed.has('PURCHASE'))) return true;
+      if (normalizedCode === 'PURCHASES' && (allowed.has('PURCHASE') || allowed.has('SUPPLIERS') || allowed.has('PURCHASES'))) return true;
       if (normalizedCode === 'SUPPLIERS' && (allowed.has('PURCHASES') || allowed.has('SUPPLIERS') || allowed.has('PURCHASE'))) return true;
-      if (normalizedCode === 'BATCH_EXPIRY' && (allowed.has('BATCH') || allowed.has('EXPIRY'))) return true;
-      if (normalizedCode === 'WEIGH_SCALE' && allowed.has('WEIGHT')) return true;
-      if (normalizedCode === 'BOOK_CATALOG' && allowed.has('BOOKS')) return true;
+      if (normalizedCode === 'BATCH_EXPIRY' && (allowed.has('BATCH') || allowed.has('EXPIRY') || allowed.has('BATCH_EXPIRY'))) return true;
+      if ((normalizedCode === 'BATCH' || normalizedCode === 'EXPIRY') && (allowed.has('BATCH_EXPIRY') || allowed.has('BATCH') || allowed.has('EXPIRY'))) return true;
+      if (normalizedCode === 'WEIGH_SCALE' && (allowed.has('WEIGHT') || allowed.has('WEIGH_SCALE'))) return true;
+      if (normalizedCode === 'WEIGHT' && (allowed.has('WEIGH_SCALE') || allowed.has('WEIGHT'))) return true;
+      if (normalizedCode === 'BOOK_CATALOG' && (allowed.has('BOOKS') || allowed.has('BOOK_CATALOG'))) return true;
+      if (normalizedCode === 'BOOKS' && (allowed.has('BOOK_CATALOG') || allowed.has('BOOKS'))) return true;
+      if ((normalizedCode === 'CIRCULATION' || normalizedCode === 'STATIONERY_SALES' || normalizedCode === 'BORROWING') && (allowed.has('BORROWING') || allowed.has('CIRCULATION') || allowed.has('BOOKS'))) return true;
       if (normalizedCode === 'BARCODE' && allowed.has('BARCODE')) return true;
       if (normalizedCode === 'BARCODE_PRINT' && (allowed.has('BARCODE_PRINT') || allowed.has('BARCODE_STUDIO'))) return true;
       if (normalizedCode === 'DIGITAL_SERVICES' && (allowed.has('DIGITAL_SERVICES') || allowed.has('SERVICES'))) return true;
       if (normalizedCode === 'BILLING_CALC' && allowed.has('SALES')) return true;
-      if (normalizedCode === 'DASHBOARD') return true;
+      if (normalizedCode === 'EXPENSES' && (allowed.has('ACCOUNTING') || allowed.has('EXPENSES'))) return true;
+      if (normalizedCode === 'PAYMENTS' && (allowed.has('ACCOUNTING') || allowed.has('PAYMENTS') || allowed.has('SALES'))) return true;
+      if ((normalizedCode === 'SERIAL' || normalizedCode === 'SERIAL_NUMBERS') && (allowed.has('SERIAL_NUMBERS') || allowed.has('IMEI'))) return true;
+      if (normalizedCode === 'WARRANTY' && (allowed.has('WARRANTY') || allowed.has('IMEI') || allowed.has('REPAIRS'))) return true;
 
       // If System Admin explicitly configured enabled_modules and this module is not included, it is disabled!
       return false;

@@ -45,7 +45,7 @@ export const ALL_PERMISSIONS: PermissionDefinition[] = [
 
   // Stationery, Bookstore & Digital Services (বই-খাতা, ফটোকপি ও অনলাইন সেবা)
   { code: 'stationery.book_catalog', module: 'BOOK_CATALOG', name: 'বই ও প্রকাশনী ক্যাটালগ', description: 'বইয়ের নাম, লেখক, প্রকাশনী, এডিশন ও স্টেশনারি খাতা ব্যবস্থাপনা', category: 'STATIONERY' },
-  { code: 'stationery.stock_sales', module: 'STATIONERY_SALES', name: 'বই-খাতা ও স্টেশনারি সেলস', description: 'গাইড বই, খাতা, কলম ও স্টেশনারি খুচরা/পাইকারি বিক্রয়', category: 'STATIONERY' },
+  { code: 'stationery.stock_sales', module: 'CIRCULATION', name: 'বই-খাতা ও স্টেশনারি সেলস', description: 'গাইড বই, খাতা, কলম ও স্টেশনারি খুচরা/পাইকারি বিক্রয়', category: 'STATIONERY' },
   { code: 'services.digital_desk', module: 'DIGITAL_SERVICES', name: 'ফটোকপি, প্রিন্ট ও অনলাইন সার্ভিস', description: 'ফটোকপি, কালার প্রিন্টিং, লেমিনেটিং, এনআইডি ও অনলাইন ফরম সেবা', category: 'STATIONERY' },
 
   // Finance & Accounting

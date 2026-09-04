@@ -393,6 +393,9 @@ export const AppLayout: React.FC = () => {
         return <POSView activeTenant={activeTenant} activeRole={activeRole} />;
       
       case 'billing_calc':
+        if (!RuleEngine.isModuleEnabled(activeTenant, 'SALES')) {
+          return renderModuleDisabled('ক্যাশ ও বিলিং ক্যালকুলেটর (Billing Calculator)');
+        }
         if (!RbacEngine.hasPermission(activeRole, 'tools.billing_calc')) {
           return renderUnauthorized('tools.billing_calc', 'ক্যাশ ও বিলিং ক্যালকুলেটর');
         }
@@ -433,42 +436,63 @@ export const AppLayout: React.FC = () => {
         );
       
       case 'telecom_imei':
+        if (!RuleEngine.isModuleEnabled(activeTenant, 'IMEI')) {
+          return renderModuleDisabled('IMEI হ্যান্ডসেট স্টক (IMEI Module)');
+        }
         if (!RbacEngine.hasPermission(activeRole, 'telecom.imei_stock')) {
           return renderUnauthorized('telecom.imei_stock', 'IMEI হ্যান্ডসেট স্টক');
         }
         return <TelecomModulesView activeTenant={activeTenant} activeRole={activeRole} activeTab="imei" />;
       
       case 'telecom_repairs':
+        if (!RuleEngine.isModuleEnabled(activeTenant, 'REPAIRS')) {
+          return renderModuleDisabled('মোবাইল সার্ভিসিং (Repairs Module)');
+        }
         if (!RbacEngine.hasPermission(activeRole, 'telecom.repairs_manage')) {
           return renderUnauthorized('telecom.repairs_manage', 'মোবাইল সার্ভিসিং');
         }
         return <TelecomModulesView activeTenant={activeTenant} activeRole={activeRole} activeTab="repairs" />;
       
       case 'telecom_recharge':
+        if (!RuleEngine.isModuleEnabled(activeTenant, 'RECHARGE')) {
+          return renderModuleDisabled('মোবাইল রিচার্জ ও MFS (Recharge Module)');
+        }
         if (!RbacEngine.hasPermission(activeRole, 'telecom.recharge_mfs')) {
           return renderUnauthorized('telecom.recharge_mfs', 'মোবাইল রিচার্জ ও MFS');
         }
         return <TelecomModulesView activeTenant={activeTenant} activeRole={activeRole} activeTab="recharge" />;
       
       case 'grocery_batches':
+        if (!RuleEngine.isModuleEnabled(activeTenant, 'BATCH_EXPIRY')) {
+          return renderModuleDisabled('ব্যাচ ও মেয়াদ ট্র্যাকিং (Batch & Expiry)');
+        }
         if (!RbacEngine.hasPermission(activeRole, 'grocery.batch_expiry')) {
           return renderUnauthorized('grocery.batch_expiry', 'ব্যাচ ও মেয়াদ ট্র্যাকিং');
         }
         return <GroceryModulesView activeTenant={activeTenant} activeRole={activeRole} activeTab="batches" />;
       
       case 'grocery_scale':
+        if (!RuleEngine.isModuleEnabled(activeTenant, 'WEIGH_SCALE')) {
+          return renderModuleDisabled('ডিজিটাল ওয়েট স্কেল (Weigh Scale)');
+        }
         if (!RbacEngine.hasPermission(activeRole, 'grocery.weigh_scale')) {
           return renderUnauthorized('grocery.weigh_scale', 'ডিজিটাল ওয়েট স্কেল');
         }
         return <GroceryModulesView activeTenant={activeTenant} activeRole={activeRole} activeTab="scale" />;
       
       case 'library_circulation':
+        if (!RuleEngine.isModuleEnabled(activeTenant, 'CIRCULATION')) {
+          return renderModuleDisabled('বুকস্টোর সেলস ও সাপ্লাই (Circulation & Sales)');
+        }
         if (!RbacEngine.hasPermission(activeRole, 'stationery.stock_sales')) {
           return renderUnauthorized('stationery.stock_sales', 'বুকস্টোর সেলস ও সাপ্লাই');
         }
         return <LibraryModulesView activeTenant={activeTenant} activeRole={activeRole} activeTab="circulation" />;
       
       case 'library_catalog':
+        if (!RuleEngine.isModuleEnabled(activeTenant, 'BOOK_CATALOG')) {
+          return renderModuleDisabled('বই-খাতা ও প্রকাশনী ক্যাটালগ (Book Catalog)');
+        }
         if (!RbacEngine.hasPermission(activeRole, 'stationery.book_catalog')) {
           return renderUnauthorized('stationery.book_catalog', 'বই-খাতা ও প্রকাশনী ক্যাটালগ');
         }
@@ -483,12 +507,18 @@ export const AppLayout: React.FC = () => {
       
       case 'customers':
       case 'customers_crm':
+        if (!RuleEngine.isModuleEnabled(activeTenant, 'CUSTOMERS')) {
+          return renderModuleDisabled('কাস্টমার বাকির খাতা (Customer CRM)');
+        }
         if (!RbacEngine.hasPermission(activeRole, 'customers.view')) {
           return renderUnauthorized('customers.view', 'কাস্টমার বাকির খাতা');
         }
         return <CustomersView activeTenant={activeTenant} activeRole={activeRole} />;
       
       case 'suppliers':
+        if (!RuleEngine.isModuleEnabled(activeTenant, 'PURCHASE')) {
+          return renderModuleDisabled('সাপ্লায়ার ও বিল পেমেন্ট (Supplier & Purchase)');
+        }
         if (!RbacEngine.hasPermission(activeRole, 'suppliers.view')) {
           return renderUnauthorized('suppliers.view', 'সাপ্লায়ার ও বিল পেমেন্ট');
         }
@@ -496,12 +526,18 @@ export const AppLayout: React.FC = () => {
       
       case 'accounting':
       case 'accounting_ledger':
+        if (!RuleEngine.isModuleEnabled(activeTenant, 'ACCOUNTING')) {
+          return renderModuleDisabled('হিসাব ও ক্যাশ খাতা (Accounting)');
+        }
         if (!RbacEngine.hasPermission(activeRole, 'accounting.view_ledger')) {
           return renderUnauthorized('accounting.view_ledger', 'হিসাব ও ক্যাশ খাতা');
         }
         return <AccountingView activeTenant={activeTenant} activeRole={activeRole} />;
       
       case 'reports':
+        if (!RuleEngine.isModuleEnabled(activeTenant, 'REPORTS')) {
+          return renderModuleDisabled('রিপোর্ট ও অ্যানালিটিক্স (Reports)');
+        }
         if (!RbacEngine.hasPermission(activeRole, 'reports.view_analytics')) {
           return renderUnauthorized('reports.view_analytics', 'রিপোর্ট ও অ্যানালিটিক্স');
         }
