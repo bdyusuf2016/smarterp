@@ -541,6 +541,7 @@ class SupabaseService {
       const auditLogs = storageService.getAuditLogs(effectiveTenantId);
       const customFields = storageService.getCustomFields();
       const categories = storageService.getCategories();
+      const staffList = authService.getTenantStaff(effectiveTenantId);
 
       // 3. Prepare sanitized payloads ordered to satisfy foreign keys
       const syncPayloads: Array<{
@@ -549,6 +550,7 @@ class SupabaseService {
       }> = [
         { table: "business_categories", rows: categories.map(c => sanitizeSupabaseRecord("business_categories", c)) },
         { table: "custom_field_definitions", rows: customFields.map(f => sanitizeSupabaseRecord("custom_field_definitions", f)) },
+        { table: "users", rows: staffList.map(u => sanitizeSupabaseRecord("users", { ...u, tenant_id: effectiveTenantId })) },
         { table: "customers", rows: customers.map(c => sanitizeSupabaseRecord("customers", c)) },
         { table: "suppliers", rows: suppliers.map(s => sanitizeSupabaseRecord("suppliers", s)) },
         { table: "products", rows: products.map(p => sanitizeSupabaseRecord("products", p)) },
