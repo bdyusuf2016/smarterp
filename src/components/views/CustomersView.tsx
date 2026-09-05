@@ -23,6 +23,7 @@ import { supabaseService } from '../../services/supabaseClient';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
 import { printLedgerStatement } from '../../shared/utils/printReceipt';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface CustomersViewProps {
   activeTenant: Tenant;
@@ -30,6 +31,7 @@ interface CustomersViewProps {
 }
 
 export const CustomersView: React.FC<CustomersViewProps> = ({ activeTenant }) => {
+  const { confirm } = useConfirm();
   const [customers, setCustomers] = useState<CustomerMember[]>(() => storageService.getCustomers(activeTenant.id));
   const sales = storageService.getSales(activeTenant.id);
   const [searchTerm, setSearchTerm] = useState('');
@@ -143,8 +145,18 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ activeTenant }) =>
     });
   };
 
-  const handleDeleteCustomer = (customer: CustomerMember) => {
-    if (confirm(`আপনি কি নিশ্চিতভাবে "${customer.name}" কাস্টমারটি মুছে ফেলতে চান?`)) {
+  const handleDeleteCustomer = async (customer: CustomerMember) => {
+    const ok = await confirm({
+      title: 'কাস্টমার মুছে ফেলতে চান?',
+      message: 'আপনি কি নিশ্চিত যে এই কাস্টমারের তথ্য স্থায়ীভাবে মুছে ফেলতে চান?',
+      itemName: `${customer.name} (${customer.phone || 'N/A'})`,
+      confirmText: 'হ্যাঁ, মুছে ফেলুন',
+      cancelText: 'বাতিল',
+      type: 'danger',
+      icon: 'trash',
+      warningNote: 'সতর্কতা: কাস্টমারটি তালিকা থেকে মুছে যাবে!'
+    });
+    if (ok) {
       storageService.deleteCustomer(customer.id);
       reloadCustomers();
       showToast(`কাস্টমার "${customer.name}" মুছে ফেলা হয়েছে।`);
@@ -152,13 +164,56 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ activeTenant }) =>
   };
 
   const handleClearAllCustomers = async () => {
-    if (confirm('⚠️ আপনি কি শুধু ডেমো কাস্টমার মুছে Supabase-এর রিয়েল কাস্টমারগুলো রিস্টোর করতে চান?')) {
+    const ok = await confirm({
+      title: 'ডেমো কাস্টমার রিস্টোর করতে চান?',
+      message: 'আপনি কি শুধু ডেমো কাস্টমার মুছে Supabase-এর রিয়েল কাস্টমারগুলো রিস্টোর করতে চান?',
+      confirmText: 'হ্যাঁ, রিস্টোর করুন',
+      cancelText: 'বাতিল',
+      type: 'warning',
+      icon: 'reset'
+    });
+    if (ok) {
       storageService.clearCustomers(activeTenant.id);
       setIsLoadingCloud(true);
       const res = await supabaseService.pullCustomers(activeTenant.id);
       setIsLoadingCloud(false);
       reloadCustomers();
       showToast(res.success && res.count > 0 ? res.message : 'ডেমো কাস্টমার মুছে ফেলা হয়েছে!');
+    }
+  };
+
+  const handleResetAllDues = async () => {
+    const ok = await confirm({
+      title: 'সকল কাস্টমারের বকেয়া ০ (শূন্য) করবেন?',
+      message: 'আপনি কি নিশ্চিত যে সকল কাস্টমারের বর্তমান বকেয়া (Current Due) হিসাব রিসেট করে ৳০.০০ করতে চান?\n\n• কাস্টমার নাম ও প্রোফাইল ঠিক থাকবে।\n• বাকির খাতা ও লেজার ব্যালেন্স শূন্য হবে।',
+      confirmText: 'হ্যাঁ, বকেয়া রিসেট করুন',
+      cancelText: 'বাতিল',
+      type: 'warning',
+      icon: 'reset',
+      warningNote: 'সতর্কতা: সকল কাস্টমারের চলতি বকেয়া হিসাব শূন্য হয়ে যাবে!'
+    });
+    if (ok) {
+      storageService.resetCustomerDues(activeTenant.id);
+      reloadCustomers();
+      showToast('সকল কাস্টমারের বকেয়া সফলভাবে রিসেট করে ৳০.০০ করা হয়েছে!');
+    }
+  };
+
+  const handleClearSingleCustomerDue = async (customer: CustomerMember) => {
+    const ok = await confirm({
+      title: `"${customer.name}"-এর বকেয়া শূন্য করবেন?`,
+      message: `বর্তমান বকেয়া ৳${customer.current_due.toFixed(2)} পরিশোধ বা রিসেট করে ৳০.০০ হিসেবে সেট করতে চান?`,
+      itemName: `${customer.name} (বকেয়া: ৳${customer.current_due})`,
+      confirmText: 'হ্যাঁ, বকেয়া পরিশোধিত করুন',
+      cancelText: 'বাতিল',
+      type: 'info',
+      icon: 'check'
+    });
+    if (ok) {
+      const updated = { ...customer, current_due: 0 };
+      storageService.saveCustomer(updated);
+      reloadCustomers();
+      showToast(`কাস্টমার "${customer.name}"-এর বকেয়া শূন্য করা হয়েছে।`);
     }
   };
 
@@ -214,6 +269,18 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ activeTenant }) =>
             <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isLoadingCloud ? 'animate-spin' : ''}`} />
             <span>{isLoadingCloud ? 'সিঙ্ক হচ্ছে...' : 'Supabase সিঙ্ক'}</span>
           </button>
+
+          {customers.some(c => (c.current_due || 0) > 0) && (
+            <button
+              type="button"
+              onClick={handleResetAllDues}
+              className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs rounded-lg flex items-center gap-1.5 border border-amber-200 cursor-pointer transition-all shadow-2xs"
+              title="সকল কাস্টমারের চলতি বকেয়া হিসাব ০ (শূন্য) করুন"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-amber-700" />
+              <span>সকল বকেয়া রিসেট</span>
+            </button>
+          )}
 
           {customers.length > 0 && (
             <button
@@ -346,6 +413,18 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ activeTenant }) =>
                   </td>
                   <td className="py-3 px-4 text-right">
                     <div className="flex items-center justify-end gap-1.5">
+                      {cust.current_due > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleClearSingleCustomerDue(cust)}
+                          className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold rounded-lg text-[11px] inline-flex items-center gap-1 border border-emerald-200 cursor-pointer transition-colors shadow-2xs"
+                          title="এই কাস্টমারের বকেয়া পরিশোধ বা জিরো (৳০.০০) করুন"
+                        >
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>বকেয়া জিরো করুন</span>
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         onClick={() => handlePrintCustomerStatement(cust)}

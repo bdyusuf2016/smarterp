@@ -824,7 +824,20 @@ class SupabaseService {
         return { success: false, message: `ক্লাউড বিক্রয় রেকর্ড মুছতে সমস্যা: ${error.message}` };
       }
 
-      return { success: true, message: "Supabase ক্লাউড থেকেও বিক্রয় ডাটা সফলভাবে মুছে ফেলা হয়েছে।" };
+      // Reset customers table dues in Supabase cloud
+      try {
+        let custQuery = client.from('customers').update({ current_due: 0, total_spent: 0 });
+        if (tenantId) {
+          custQuery = custQuery.eq('tenant_id', tenantId);
+        } else {
+          custQuery = custQuery.neq('id', '00000000-0000-0000-0000-000000000000');
+        }
+        await custQuery;
+      } catch (custErr) {
+        console.warn('Supabase customer dues reset error:', custErr);
+      }
+
+      return { success: true, message: "Supabase ক্লাউড থেকেও বিক্রয় ও কাস্টমার বকেয়া ডাটা সফলভাবে মুছে ফেলা হয়েছে।" };
     } catch (err: any) {
       console.warn('Supabase deleteSales error:', err);
       return { success: false, message: err?.message || 'ক্লাউড ডিলিট এরর' };

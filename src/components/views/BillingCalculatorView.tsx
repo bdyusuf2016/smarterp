@@ -28,6 +28,7 @@ import {
 import { Tenant, UserRole } from '../../types';
 import { storageService } from '../../services/storageService';
 import { Modal } from '../common/Modal';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface BillingCalculatorViewProps {
   activeTenant: Tenant;
@@ -111,6 +112,7 @@ const DEFAULT_TEMPLATES: BillingTemplate[] = [
 export const BillingCalculatorView: React.FC<BillingCalculatorViewProps> = ({
   activeTenant
 }) => {
+  const { confirm } = useConfirm();
   const templatesStorageKey = `dokan_v2_calc_templates_${activeTenant.id}`;
 
   // Templates State
@@ -339,8 +341,18 @@ export const BillingCalculatorView: React.FC<BillingCalculatorViewProps> = ({
     setIsTemplateModalOpen(false);
   };
 
-  const handleDeleteTemplate = (tmplId: string) => {
-    if (window.confirm('আপনি কি এই টেম্পলেটটি মুছে ফেলতে চান?')) {
+  const handleDeleteTemplate = async (tmplId: string) => {
+    const tmpl = templates.find(t => t.id === tmplId);
+    const ok = await confirm({
+      title: 'বিলিং টেম্পলেট মুছে ফেলতে চান?',
+      message: 'আপনি কি নিশ্চিত যে এই কাস্টম বিলিং টেম্পলেটটি মুছে ফেলতে চান?',
+      itemName: tmpl?.name,
+      confirmText: 'হ্যাঁ, মুছে ফেলুন',
+      cancelText: 'বাতিল',
+      type: 'danger',
+      icon: 'trash'
+    });
+    if (ok) {
       const updated = templates.filter(t => t.id !== tmplId);
       saveTemplates(updated);
       if (selectedTemplateId === tmplId) {

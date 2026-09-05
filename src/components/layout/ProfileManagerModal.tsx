@@ -23,6 +23,7 @@ import { Tenant, Module } from '../../types';
 import { ALL_PERMISSIONS } from '../../engine/rbacEngine';
 import { RuleEngine } from '../../engine/ruleEngine';
 import { storageService } from '../../services/storageService';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface ProfileManagerModalProps {
   isOpen: boolean;
@@ -41,6 +42,7 @@ export const ProfileManagerModal: React.FC<ProfileManagerModalProps> = ({
   onProfileUpdated,
   onLogout,
 }) => {
+  const { confirm } = useConfirm();
   const [activeTab, setActiveTab] = useState<'profile' | 'permissions' | 'security'>('profile');
   const [permissionSubTab, setPermissionSubTab] = useState<'modules' | 'actions'>('modules');
   
@@ -550,8 +552,16 @@ export const ProfileManagerModal: React.FC<ProfileManagerModalProps> = ({
         <div className="bg-slate-50 border-t border-slate-200 p-4 flex items-center justify-between">
           <button
             type="button"
-            onClick={() => {
-              if (window.confirm('আপনি কি নিশ্চিত যে আপনি লগআউট করতে চান?')) {
+            onClick={async () => {
+              const ok = await confirm({
+                title: 'লগআউট করতে চান?',
+                message: 'আপনি কি নিশ্চিত যে বর্তমান সেশন থেকে লগআউট করতে চান?',
+                confirmText: 'হ্যাঁ, লগআউট করুন',
+                cancelText: 'বাতিল',
+                type: 'info',
+                icon: 'logout'
+              });
+              if (ok) {
                 onLogout();
                 onClose();
               }

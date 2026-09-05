@@ -34,6 +34,7 @@ import { RbacEngine } from '../../engine/rbacEngine';
 import { CatalogInitEngine } from '../../engine/catalogInitEngine';
 import { IconRenderer } from '../common/IconRenderer';
 import { PinVerificationModal } from '../common/PinVerificationModal';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface TenantManagementViewProps {
   activeRole: UserRole;
@@ -44,6 +45,7 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
   activeRole,
   onSelectTenant
 }) => {
+  const { confirm } = useConfirm();
   const [tenants, setTenants] = useState<Tenant[]>(() => storageService.getTenants());
   const categories = storageService.getCategories();
   const modules = storageService.getModules();
@@ -298,7 +300,7 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
     showNotification(`দোকান "${t.name}" সফলভাবে মুছে ফেলা হয়েছে`);
   };
 
-  const handleDeleteTenant = (t: Tenant) => {
+  const handleDeleteTenant = async (t: Tenant) => {
     if (storageService.isPinRequired('delete')) {
       setPinModalConfig({
         isOpen: true,
@@ -309,7 +311,17 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
         onSuccess: () => confirmDeleteTenant(t)
       });
     } else {
-      if (window.confirm(`আপনি কি নিশ্চিত যে আপনি দোকান "${t.name}" (${t.code}) এবং এর সমস্ত ডেটা মুছে ফেলতে চান?`)) {
+      const ok = await confirm({
+        title: 'দোকান ও সকল ডেটা মুছে ফেলতে চান?',
+        message: `আপনি কি নিশ্চিত যে দোকান "${t.name}" (${t.code}) এবং এর অন্তর্ভুক্ত সমস্ত পণ্য, স্টক, সেলস ও হিস্ট্রি স্থায়ীভাবে মুছে ফেলতে চান?`,
+        itemName: `${t.name} (${t.code})`,
+        confirmText: 'হ্যাঁ, সম্পূর্ণ মুছে ফেলুন',
+        cancelText: 'বাতিল',
+        type: 'danger',
+        icon: 'trash',
+        warningNote: 'সতর্কতা: এই দোকানের সমস্ত স্থানীয় ও ক্লাউড ডেটা মুছে যাবে এবং এটি পরবর্তীতে পুনরুদ্ধার করা অসম্ভব!'
+      });
+      if (ok) {
         confirmDeleteTenant(t);
       }
     }

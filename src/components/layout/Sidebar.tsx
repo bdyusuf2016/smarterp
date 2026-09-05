@@ -12,6 +12,7 @@ import {
   PanelLeftOpen,
   X
 } from 'lucide-react';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface SidebarProps {
   activeTenant: Tenant;
@@ -36,6 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileDrawer = false,
   onCloseMobileDrawer
 }) => {
+  const { confirm } = useConfirm();
   const [lang, setLang] = useState<'bn' | 'en'>(() => i18n.getLanguage());
   const [isDark, setIsDark] = useState<boolean>(() => {
     return document.documentElement.classList.contains('dark') || localStorage.getItem('dokan_v2_theme') === 'dark';
@@ -317,8 +319,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         <button
           type="button"
-          onClick={() => {
-            if (window.confirm('আপনি কি লগআউট করতে চান?')) {
+          onClick={async () => {
+            const ok = await confirm({
+              title: 'লগআউট করতে চান?',
+              message: 'আপনি কি নিশ্চিত যে বর্তমান সেশন থেকে লগআউট করতে চান?',
+              confirmText: 'হ্যাঁ, লগআউট করুন',
+              cancelText: 'বাতিল',
+              type: 'info',
+              icon: 'logout'
+            });
+            if (ok) {
               onLogout();
             }
           }}

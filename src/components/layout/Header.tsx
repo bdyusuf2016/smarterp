@@ -24,6 +24,7 @@ import { UserProfile, authService } from '../../services/authService';
 import { i18n } from '../../services/i18nService';
 import { IconRenderer } from '../common/IconRenderer';
 import { Badge } from '../common/Badge';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface HeaderProps {
   activeTenant: Tenant;
@@ -56,6 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleMobileMenu,
   onLogout
 }) => {
+  const { confirm } = useConfirm();
   const [tenantDropdownOpen, setTenantDropdownOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const tenants = storageService.getTenants();
@@ -401,9 +403,17 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="p-1.5">
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     setUserDropdownOpen(false);
-                    if (window.confirm('আপনি কি নিশ্চিত যে আপনি লগআউট করতে চান?')) {
+                    const ok = await confirm({
+                      title: 'লগআউট করতে চান?',
+                      message: 'আপনি কি নিশ্চিত যে বর্তমান সেশন থেকে লগআউট করতে চান?',
+                      confirmText: 'হ্যাঁ, লগআউট করুন',
+                      cancelText: 'বাতিল',
+                      type: 'info',
+                      icon: 'logout'
+                    });
+                    if (ok) {
                       onLogout();
                     }
                   }}
@@ -420,8 +430,17 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Reset State */}
         <button
           type="button"
-          onClick={() => {
-            if (window.confirm('Reset all demo data back to clean initial state?')) {
+          onClick={async () => {
+            const ok = await confirm({
+              title: 'ডেমো ডেটা রিসেট করবেন?',
+              message: 'আপনি কি সকল ডেমো ডেটা মুছে ফেলে প্রাথমিক অবস্থায় ফিরে যেতে চান? আপনার তৈরি করা কাস্টম পণ্য ও সেটিংস মুছে যাবে।',
+              confirmText: 'হ্যাঁ, সম্পূর্ণ রিসেট করুন',
+              cancelText: 'বাতিল',
+              type: 'warning',
+              icon: 'reset',
+              warningNote: 'সতর্কতা: এটি সম্পূর্ণ লোকাল স্টোরেজ ডেমো স্টেট রিসেট করবে।'
+            });
+            if (ok) {
               storageService.resetAll();
             }
           }}

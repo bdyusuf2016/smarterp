@@ -558,6 +558,22 @@ class StorageService {
     this.dispatchInstantSync('sales', sale);
   }
 
+  resetCustomerDues(tenantId?: string): void {
+    const all = this.get<CustomerMember[]>(STORAGE_KEYS.CUSTOMERS, INITIAL_CUSTOMERS);
+    const targetId = tenantId?.trim();
+    const updated = all.map(c => {
+      if (!targetId || (c.tenant_id || '').trim() === targetId) {
+        return { ...c, current_due: 0, total_spent: 0 };
+      }
+      return c;
+    });
+    this.set(STORAGE_KEYS.CUSTOMERS, updated);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('dokan_storage_updated', { detail: { key: STORAGE_KEYS.CUSTOMERS } }));
+    }
+    this.addAuditLog('CUSTOMER_DUES_RESET', 'CUSTOMERS', `Customer dues reset to 0 for tenant: ${targetId || 'ALL'}`);
+  }
+
   clearSales(tenantId?: string): void {
     const all = this.get<SaleTransaction[]>(STORAGE_KEYS.SALES, INITIAL_SALES);
     const targetId = tenantId?.trim();
@@ -575,6 +591,13 @@ class StorageService {
       this.set(STORAGE_KEYS.ACCOUNTING, remainingAcc);
     } catch (e) {
       console.warn('Failed to clean sales accounting entries', e);
+    }
+
+    // Reset customer dues & spent amounts as sales history was wiped
+    try {
+      this.resetCustomerDues(tenantId);
+    } catch (e) {
+      console.warn('Failed to reset customer dues on clearSales', e);
     }
 
     this.addAuditLog('SALES_CLEARED', 'SALES', `Sales transactions cleared for tenant: ${targetId || 'ALL'}`);

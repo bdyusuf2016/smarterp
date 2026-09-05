@@ -66,6 +66,7 @@ import {
 import { printPosReceipt } from "../../shared/utils/printReceipt";
 import { generateQrCodeSvg } from "../../shared/utils/qrCode";
 import { PinVerificationModal } from "../common/PinVerificationModal";
+import { useConfirm } from "../../context/ConfirmationContext";
 
 interface GlobalSettingsViewProps {
   activeTenant: Tenant;
@@ -78,6 +79,7 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
   activeRole,
   onTenantUpdated,
 }) => {
+  const { confirm } = useConfirm();
   const [activeTab, setActiveTab] = useState<
     | "theme"
     | "shop"
@@ -911,10 +913,17 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
       return;
     }
 
-    const proceedAfterVerification = () => {
-      const confirmed = window.confirm(
-        `⚠️ চূড়ান্ত নিশ্চিতকরণ: আপনি কি বর্তমান দোকানের মোট ${currentSales.length} টি বিক্রয় ও ইনভয়েস হিস্ট্রি মুছে ফেলতে চান?\n\n• পণ্য তালিকা, ক্যাটালগ ও স্টক অবিকৃত থাকবে।\n• Supabase ক্লাউড ও লোকাল ডেটাবেজ থেকে সমস্ত বিক্রয় মুছে যাবে।\n• চলতি মাসের ও পূর্বের সকল বিক্রয় হিসাব ০ (শূন্য) হবে।\n\nআপনি কি নিশ্চিত?`
-      );
+    const proceedAfterVerification = async () => {
+      const confirmed = await confirm({
+        title: "বিক্রয় ডেটা রিসেট নিশ্চিতকরণ",
+        message: `আপনি কি বর্তমান দোকানের মোট ${currentSales.length}টি বিক্রয় ও ইনভয়েস হিস্ট্রি মুছে ফেলতে চান?\n\n• পণ্য তালিকা, ক্যাটালগ ও স্টক অবিকৃত থাকবে।\n• Supabase ক্লাউড ও লোকাল ডেটাবেজ থেকে সমস্ত বিক্রয় মুছে যাবে।\n• চলতি মাসের ও পূর্বের সকল বিক্রয় হিসাব ০ (শূন্য) হবে।`,
+        itemName: `${activeTenant.name} (${currentSales.length}টি ইনভয়েস)`,
+        confirmText: "হ্যাঁ, সকল বিক্রয় ডাটা মুছুন",
+        cancelText: "বাতিল",
+        type: "danger",
+        icon: "reset",
+        warningNote: "⚠️ এই প্রক্রিয়াটি অপরিবর্তনযোগ্য (Irreversible)! একবার মুছে ফেললে কোনো পূর্ববর্তী ইনভয়েস ডাটা আর ফেরত পাওয়া যাবে না।"
+      });
       if (confirmed) {
         executeClearSales();
       }

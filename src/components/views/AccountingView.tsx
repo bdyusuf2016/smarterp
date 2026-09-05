@@ -27,6 +27,7 @@ import { Tenant, UserRole, AccountingEntry } from '../../types';
 import { storageService } from '../../services/storageService';
 import { Modal } from '../common/Modal';
 import { printReportDocument } from '../../shared/utils/printReceipt';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface AccountingViewProps {
   activeTenant: Tenant;
@@ -75,6 +76,7 @@ const DEFAULT_CHART_OF_ACCOUNTS: AccountHead[] = [
 ];
 
 export const AccountingView: React.FC<AccountingViewProps> = ({ activeTenant }) => {
+  const { confirm } = useConfirm();
   const [entries, setEntries] = useState<AccountingEntry[]>(() => storageService.getAccounting(activeTenant.id));
   const [sales, setSales] = useState(() => storageService.getSales(activeTenant.id));
   const [activeTab, setActiveTab] = useState<'journal' | 'coa' | 'trial_balance'>('journal');
@@ -181,8 +183,18 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ activeTenant }) 
   };
 
   // Handle Delete Entry
-  const handleDeleteEntry = (id: string) => {
-    if (window.confirm('আপনি কি এই জার্নাল এন্ট্রি মুছে ফেলতে চান?')) {
+  const handleDeleteEntry = async (id: string) => {
+    const entry = entries.find(e => e.id === id);
+    const ok = await confirm({
+      title: 'জার্নাল এন্ট্রি মুছে ফেলতে চান?',
+      message: 'আপনি কি নিশ্চিত যে এই জার্নাল ভাউচার এন্ট্রিটি হিসাব খাতা থেকে মুছে ফেলতে চান?',
+      itemName: entry ? `${entry.title} (৳${entry.amount})` : undefined,
+      confirmText: 'হ্যাঁ, মুছে ফেলুন',
+      cancelText: 'বাতিল',
+      type: 'danger',
+      icon: 'trash'
+    });
+    if (ok) {
       storageService.deleteAccountingEntry(id);
       reloadData();
     }

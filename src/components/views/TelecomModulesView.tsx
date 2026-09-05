@@ -35,6 +35,7 @@ import {
 import { storageService } from '../../services/storageService';
 import { Modal } from '../common/Modal';
 import { printRepairToken } from '../../shared/utils/printReceipt';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface TelecomModulesViewProps {
   activeTenant: Tenant;
@@ -46,6 +47,7 @@ export const TelecomModulesView: React.FC<TelecomModulesViewProps> = ({
   activeTenant,
   activeTab: initialTab = 'repairs'
 }) => {
+  const { confirm } = useConfirm();
   const [tab, setTab] = useState<'imei' | 'repairs' | 'trade_in' | 'recharge'>(initialTab);
 
   // Sync tab with initialTab prop when navigated from sidebar
@@ -255,8 +257,18 @@ export const TelecomModulesView: React.FC<TelecomModulesViewProps> = ({
     reloadData();
   };
 
-  const handleDeleteRepair = (id: string) => {
-    if (window.confirm('আপনি কি এই সার্ভিসিং টিকেটটি মুছে ফেলতে চান?')) {
+  const handleDeleteRepair = async (id: string) => {
+    const ticket = repairs.find(r => r.id === id);
+    const ok = await confirm({
+      title: 'সার্ভিসিং টিকেট মুছে ফেলতে চান?',
+      message: 'আপনি কি নিশ্চিত যে এই সার্ভিসিং ও রিপেয়ার টিকেটটি মুছে ফেলতে চান?',
+      itemName: ticket ? `${ticket.device_name} (${ticket.customer_name})` : undefined,
+      confirmText: 'হ্যাঁ, মুছে ফেলুন',
+      cancelText: 'বাতিল',
+      type: 'danger',
+      icon: 'trash'
+    });
+    if (ok) {
       storageService.deleteRepair(id);
       reloadData();
     }
@@ -298,8 +310,18 @@ export const TelecomModulesView: React.FC<TelecomModulesViewProps> = ({
     });
   };
 
-  const handleDeleteRecharge = (id: string) => {
-    if (window.confirm('আপনি কি এই রিচার্জ/MFS রেকর্ডটি মুছে ফেলতে চান?')) {
+  const handleDeleteRecharge = async (id: string) => {
+    const record = recharges.find(r => r.id === id);
+    const ok = await confirm({
+      title: 'রিচার্জ/MFS রেকর্ড মুছে ফেলতে চান?',
+      message: 'আপনি কি নিশ্চিত যে এই রিচার্জ বা মোবাইল ব্যাংকিং লেনদেন রেকর্ডটি মুছে ফেলতে চান?',
+      itemName: record ? `${record.operator}: ${record.phone_number} (৳${record.amount})` : undefined,
+      confirmText: 'হ্যাঁ, মুছে ফেলুন',
+      cancelText: 'বাতিল',
+      type: 'danger',
+      icon: 'trash'
+    });
+    if (ok) {
       storageService.deleteRecharge(id);
       reloadData();
     }

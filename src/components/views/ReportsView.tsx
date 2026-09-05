@@ -34,6 +34,7 @@ import { storageService } from '../../services/storageService';
 import { i18n } from '../../services/i18nService';
 import { Modal } from '../common/Modal';
 import { printReportDocument } from '../../shared/utils/printReceipt';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface ReportsViewProps {
   activeTenant: Tenant;
@@ -43,6 +44,7 @@ interface ReportsViewProps {
 type DateFilterRange = 'today' | 'yesterday' | 'week' | 'month' | 'last_month' | 'all' | 'custom';
 
 export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
+  const { confirm } = useConfirm();
   const [activeTab, setActiveTab] = useState<'statement' | 'expenses' | 'sales' | 'inventory' | 'dues'>('statement');
   const [dateFilter, setDateFilter] = useState<DateFilterRange>('today');
   const [customFromDate, setCustomFromDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
@@ -215,8 +217,18 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
     reloadData();
   };
 
-  const handleDeleteExpense = (id: string) => {
-    if (confirm('আপনি কি এই খরচের এন্ট্রিটি মুছে ফেলতে চান?')) {
+  const handleDeleteExpense = async (id: string) => {
+    const entry = accountingEntries.find(e => e.id === id);
+    const ok = await confirm({
+      title: 'খরচের রেকর্ড মুছে ফেলতে চান?',
+      message: 'আপনি কি নিশ্চিত যে এই খরচের রেকর্ডটি হিসাব থেকে স্থায়ীভাবে মুছে ফেলতে চান?',
+      itemName: entry ? `${entry.title || 'খরচ'} (${currencySymbol}${entry.amount})` : undefined,
+      confirmText: 'হ্যাঁ, মুছে ফেলুন',
+      cancelText: 'বাতিল',
+      type: 'danger',
+      icon: 'trash'
+    });
+    if (ok) {
       storageService.deleteAccountingEntry(id);
       reloadData();
     }

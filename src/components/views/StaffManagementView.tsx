@@ -25,6 +25,7 @@ import { UserProfile, authService } from '../../services/authService';
 import { storageService } from '../../services/storageService';
 import { ALL_PERMISSIONS, ROLE_PERMISSIONS, RbacEngine } from '../../engine/rbacEngine';
 import { PinVerificationModal } from '../common/PinVerificationModal';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface StaffManagementViewProps {
   activeTenant: Tenant;
@@ -35,6 +36,7 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
   activeTenant,
   activeRole
 }) => {
+  const { confirm } = useConfirm();
   const [staffList, setStaffList] = useState<UserProfile[]>(() => authService.getTenantStaff(activeTenant.id));
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('ALL');
@@ -176,7 +178,7 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
     showNotification(`কর্মচারী "${staff.name}" সফলভাবে মুছে ফেলা হয়েছে`);
   };
 
-  const handleDeleteStaff = (staff: UserProfile) => {
+  const handleDeleteStaff = async (staff: UserProfile) => {
     if (staff.role === 'ADMIN') {
       showNotification('দোকান মালিকের মূল অ্যাকাউন্ট মুছে ফেলা যাবে না', 'error');
       return;
@@ -192,7 +194,17 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
         onSuccess: () => confirmDeleteStaff(staff)
       });
     } else {
-      if (window.confirm(`আপনি কি "${staff.name}" কে কর্মচারী তালিকা থেকে মুছে ফেলতে চান?`)) {
+      const ok = await confirm({
+        title: 'কর্মী অ্যাকাউন্ট মুছে ফেলতে চান?',
+        message: `আপনি কি নিশ্চিত যে কর্মী "${staff.name}" (${staff.phone}) কে কর্মচারী তালিকা থেকে মুছে ফেলতে চান?`,
+        itemName: `${staff.name} (${staff.phone})`,
+        confirmText: 'হ্যাঁ, মুছে ফেলুন',
+        cancelText: 'বাতিল',
+        type: 'danger',
+        icon: 'trash',
+        warningNote: 'সতর্কতা: এই কর্মীর অ্যাকাউন্ট ও সংশ্লিষ্ট পারমিশন স্থায়ীভাবে নিষ্ক্রিয় হবে।'
+      });
+      if (ok) {
         confirmDeleteStaff(staff);
       }
     }

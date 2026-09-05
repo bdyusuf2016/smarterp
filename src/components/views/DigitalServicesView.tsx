@@ -16,12 +16,14 @@ import {
 } from 'lucide-react';
 import { Tenant, UserRole } from '../../types';
 import { Modal } from '../common/Modal';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface DigitalServicesViewProps {
   activeTenant: Tenant;
   activeRole: UserRole;
   onNavigateToPOS?: () => void;
 }
+
 
 export interface PhotocopyRateItem {
   id: string;
@@ -69,6 +71,7 @@ export const DigitalServicesView: React.FC<DigitalServicesViewProps> = ({
   activeTenant,
   onNavigateToPOS
 }) => {
+  const { confirm } = useConfirm();
   const storagePhotocopyRatesKey = `dokan_v2_photocopy_rates_${activeTenant.id}`;
   const storageOnlineServicesKey = `dokan_v2_online_services_${activeTenant.id}`;
 
@@ -198,8 +201,17 @@ export const DigitalServicesView: React.FC<DigitalServicesViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleDelete = (item: typeof allServices[0]) => {
-    if (window.confirm(`আপনি কি "${item.title}" সেবার রেটটি মুছে ফেলতে চান?`)) {
+  const handleDelete = async (item: typeof allServices[0]) => {
+    const ok = await confirm({
+      title: 'ডিজিটাল সেবার রেট মুছে ফেলতে চান?',
+      message: `আপনি কি নিশ্চিত যে "${item.title}" সেবার রেট ও বিবরণ মুছে ফেলতে চান?`,
+      itemName: `${item.title} (৳${item.rate})`,
+      confirmText: 'হ্যাঁ, মুছে ফেলুন',
+      cancelText: 'বাতিল',
+      type: 'danger',
+      icon: 'trash'
+    });
+    if (ok) {
       if (item.type === 'PHOTOCOPY') {
         savePhotocopyRates(photocopyRates.filter(r => r.id !== item.id));
       } else {

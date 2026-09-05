@@ -5,8 +5,13 @@
 
 import React from 'react';
 import { AppLayout } from './components/layout/AppLayout';
+import { ConfirmationProvider } from './context/ConfirmationContext';
 
 export default function App() {
-  return <AppLayout />;
+  return (
+    <ConfirmationProvider>
+      <AppLayout />
+    </ConfirmationProvider>
+  );
 }
 

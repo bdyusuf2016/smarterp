@@ -44,6 +44,7 @@ import { CustomFieldRenderer } from '../common/CustomFieldRenderer';
 import { printBarcodeStickers } from '../../shared/utils/printReceipt';
 import { IconRenderer } from '../common/IconRenderer';
 import { PinVerificationModal } from '../common/PinVerificationModal';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface ProductsViewProps {
   activeTenant: Tenant;
@@ -125,6 +126,7 @@ export const BUSINESS_PRODUCT_CATEGORIES: Record<string, { label: string; subcat
 };
 
 export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
+  const { confirm } = useConfirm();
   const products = storageService.getProducts(activeTenant.id);
   const categories = storageService.getCategories();
   
@@ -371,7 +373,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
     alert(`পণ্য "${p.name}" সফলভাবে মুছে ফেলা হয়েছে!`);
   };
 
-  const handleDeleteProduct = (p: GenericProduct) => {
+  const handleDeleteProduct = async (p: GenericProduct) => {
     if (storageService.isPinRequired('delete', activeTenant.id)) {
       setPinModalConfig({
         isOpen: true,
@@ -382,7 +384,17 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
         onSuccess: () => confirmDeleteProduct(p)
       });
     } else {
-      if (window.confirm(`আপনি কি নিশ্চিত যে পণ্য "${p.name}" (${p.code}) মুছে ফেলতে চান?`)) {
+      const ok = await confirm({
+        title: 'পণ্যটি মুছে ফেলতে চান?',
+        message: `আপনি কি নিশ্চিত যে পণ্য "${p.name}" (${p.code}) ইনভেন্টরি ও প্রোডাক্ট ক্যাটালগ থেকে মুছে ফেলতে চান?`,
+        itemName: `${p.name} (${p.code})`,
+        confirmText: 'হ্যাঁ, মুছে ফেলুন',
+        cancelText: 'বাতিল',
+        type: 'danger',
+        icon: 'trash',
+        warningNote: 'সতর্কতা: পণ্যটি মুছে ফেললে পুনরায় ফিরিয়ে আনা সম্ভব নয়!'
+      });
+      if (ok) {
         confirmDeleteProduct(p);
       }
     }

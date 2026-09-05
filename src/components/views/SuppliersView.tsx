@@ -25,6 +25,7 @@ import { Tenant, UserRole, Supplier, AccountingEntry } from '../../types';
 import { storageService } from '../../services/storageService';
 import { Modal } from '../common/Modal';
 import { printReportDocument } from '../../shared/utils/printReceipt';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface SuppliersViewProps {
   activeTenant: Tenant;
@@ -32,6 +33,7 @@ interface SuppliersViewProps {
 }
 
 export const SuppliersView: React.FC<SuppliersViewProps> = ({ activeTenant }) => {
+  const { confirm } = useConfirm();
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => storageService.getSuppliers(activeTenant.id));
   const [accountingEntries, setAccountingEntries] = useState<AccountingEntry[]>(() => storageService.getAccounting(activeTenant.id));
   const [searchTerm, setSearchTerm] = useState('');
@@ -116,8 +118,19 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({ activeTenant }) =>
   };
 
   // Handlers: Delete Supplier
-  const handleDeleteSupplier = (id: string) => {
-    if (window.confirm('আপনি কি এই সাপ্লায়ারের সম্পূর্ণ তথ্য মুছে ফেলতে চান?')) {
+  const handleDeleteSupplier = async (id: string) => {
+    const s = suppliers.find(sup => sup.id === id);
+    const ok = await confirm({
+      title: 'সাপ্লায়ার মুছে ফেলতে চান?',
+      message: 'আপনি কি নিশ্চিত যে এই সাপ্লায়ারের সম্পূর্ণ তথ্য ও লেনদেন হিস্ট্রি মুছে ফেলতে চান?',
+      itemName: s ? `${s.name} (${s.phone || 'N/A'})` : undefined,
+      confirmText: 'হ্যাঁ, মুছে ফেলুন',
+      cancelText: 'বাতিল',
+      type: 'danger',
+      icon: 'trash',
+      warningNote: 'সতর্কতা: সাপ্লায়ারটি তালিকা থেকে স্থায়ীভাবে মুছে যাবে!'
+    });
+    if (ok) {
       storageService.deleteSupplier(id);
       reloadData();
     }
