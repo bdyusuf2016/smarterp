@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { storageService } from "./storageService";
+import { authService, UserProfile } from "./authService";
 
 export interface SupabaseConfig {
   url: string;
@@ -33,6 +34,10 @@ export const SUPABASE_TABLE_COLUMNS: Record<string, string[]> = {
     'id', 'code', 'name', 'owner_name', 'email', 'phone', 'currency', 'currency_symbol',
     'address', 'vat_number', 'subdomain', 'custom_domain', 'status', 'system_branding',
     'enabled_modules', 'created_at', 'updated_at', 'brand_logo_url'
+  ],
+  users: [
+    'id', 'tenant_id', 'tenantId', 'username', 'name', 'phone', 'email', 'role', 'designation',
+    'status', 'password', 'password_hash', 'passwordHash', 'created_at'
   ],
   business_categories: [
     'id', 'code', 'name', 'description', 'icon', 'is_system', 'is_active', 'configuration',
@@ -670,7 +675,7 @@ class SupabaseService {
       }
 
       // 2. Fetch other tables in parallel
-      const tables = ['products', 'customers', 'suppliers', 'sales', 'accounting_entries'];
+      const tables = ['products', 'customers', 'suppliers', 'sales', 'accounting_entries', 'users'];
       const fetches = tables.map(async (table) => {
         try {
           const { data } = await client.from(table).select('*');
@@ -680,6 +685,27 @@ class SupabaseService {
             if (table === 'suppliers') data.forEach((s: any) => storageService.saveSupplier(s));
             if (table === 'sales') data.forEach((s: any) => storageService.saveSale(s));
             if (table === 'accounting_entries') data.forEach((a: any) => storageService.saveAccountingEntry(a));
+            if (table === 'users') {
+              data.forEach((u: any) => {
+                const tid = u.tenant_id || u.tenantId;
+                if (tid) {
+                  const staffUser: UserProfile = {
+                    id: u.id,
+                    username: u.username || u.phone || u.email,
+                    name: u.name || 'ইউজার',
+                    phone: u.phone || '',
+                    email: u.email || '',
+                    role: (u.role || 'CASHIER').toUpperCase() as any,
+                    tenantId: tid,
+                    designation: u.designation || u.role || 'শপ কর্মী',
+                    permissions: u.permissions || [],
+                    status: u.status || 'active',
+                    password: u.password || u.password_hash || u.passwordHash
+                  };
+                  authService.saveStaffMember(staffUser);
+                }
+              });
+            }
           }
         } catch (e) {
           console.warn(`Table fetch ${table} warning:`, e);
@@ -703,6 +729,78 @@ class SupabaseService {
     } finally {
       this.isPullingFromCloud = false;
     }
+  }
+
+  /**
+   * Directly query Supabase Cloud users & tenants tables for an identifier during login.
+   */
+  public async searchCloudUser(identifier: string): Promise<boolean> {
+    const client = this.getClient();
+    if (!client) return false;
+    const clean = identifier.trim();
+    if (!clean) return false;
+
+    try {
+      // 1. Search users table in Supabase Cloud
+      const { data: usersData } = await client
+        .from('users')
+        .select('*')
+        .or(`phone.eq.${clean},username.eq.${clean},email.eq.${clean}`);
+
+      if (usersData && usersData.length > 0) {
+        usersData.forEach((u: any) => {
+          const tid = u.tenant_id || u.tenantId;
+          if (tid) {
+            authService.saveStaffMember({
+              id: u.id,
+              username: u.username || u.phone || u.email,
+              name: u.name || 'ইউজার',
+              phone: u.phone || '',
+              email: u.email || '',
+              role: (u.role || 'CASHIER').toUpperCase() as any,
+              tenantId: tid,
+              designation: u.designation || u.role || 'শপ কর্মী',
+              permissions: u.permissions || [],
+              status: u.status || 'active',
+              password: u.password || u.password_hash || u.passwordHash
+            });
+          }
+        });
+        return true;
+      }
+
+      // 2. Search tenants table in Supabase Cloud (for Shop Owners)
+      const { data: tenantsData } = await client
+        .from('tenants')
+        .select('*')
+        .or(`phone.eq.${clean},code.eq.${clean},email.eq.${clean}`);
+
+      if (tenantsData && tenantsData.length > 0) {
+        tenantsData.forEach((t: any) => {
+          storageService.saveTenant({
+            id: t.id,
+            code: t.code || 'SHOP',
+            name: t.name || 'দোকান',
+            owner_name: t.owner_name || 'দোকান মালিক',
+            email: t.email || '',
+            phone: t.phone || '',
+            currency: t.currency || 'BDT',
+            currency_symbol: t.currency_symbol || '৳',
+            address: t.address || '',
+            status: t.status || 'active',
+            subdomain: t.subdomain || '',
+            custom_domain: t.custom_domain || '',
+            active_categories: t.active_categories || [],
+            enabled_modules: t.enabled_modules || ['SALES', 'PRODUCTS', 'INVENTORY', 'CUSTOMERS', 'ACCOUNTING', 'REPORTS'],
+            created_at: t.created_at || new Date().toISOString(),
+          });
+        });
+        return true;
+      }
+    } catch (e) {
+      console.warn('Supabase searchCloudUser error:', e);
+    }
+    return false;
   }
 
   /**

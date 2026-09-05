@@ -19,6 +19,7 @@ import {
 import { Tenant } from '../../types';
 import { authService, UserProfile, TenantMatchInfo } from '../../services/authService';
 import { routerService } from '../../services/routerService';
+import { supabaseService } from '../../services/supabaseClient';
 
 interface LoginViewProps {
   tenants: Tenant[];
@@ -58,6 +59,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
     tenants: TenantMatchInfo[];
   }>({ matched: false, isSystemAdmin: false, tenants: [] });
 
+  // Auto-sync tenants & user accounts from Supabase Cloud on login screen load
+  useEffect(() => {
+    supabaseService.pullFromCloud().catch(err => {
+      console.warn('Login screen cloud auto-sync warning:', err);
+    });
+  }, []);
+
   // Real-time peek debounced
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -70,12 +78,22 @@ export const LoginView: React.FC<LoginViewProps> = ({
     return () => clearTimeout(timer);
   }, [identifier, selectedTenantId, tenantHint]);
 
-  const executeLogin = (overrideTenantId?: string) => {
+  const executeLogin = async (overrideTenantId?: string) => {
     setErrorMsg('');
     setSuccessMsg('');
 
-    const tid = overrideTenantId || selectedTenantId || tenantHint;
-    const res = authService.smartLogin(identifier, password, tid);
+    let tid = overrideTenantId || selectedTenantId || tenantHint;
+    let res = authService.smartLogin(identifier, password, tid);
+
+    if (!res.success && !res.requiresTenantSelection) {
+      // If user is not found locally, query Supabase Cloud users & tenants tables directly
+      const foundInCloud = await supabaseService.searchCloudUser(identifier);
+      if (foundInCloud) {
+        const peekAfterCloud = authService.peekIdentifier(identifier, tid);
+        setPeekInfo(peekAfterCloud);
+        res = authService.smartLogin(identifier, password, tid);
+      }
+    }
 
     if (res.success && res.user) {
       setSuccessMsg(res.message);
