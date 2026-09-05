@@ -105,6 +105,12 @@ class StorageService {
     }
   }
 
+  private dispatchInstantDelete(table: string, id: string): void {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('dokan_entity_deleted', { detail: { table, id } }));
+    }
+  }
+
   // Categories
   getCategories(): BusinessCategory[] {
     return this.get<BusinessCategory[]>(STORAGE_KEYS.CATEGORIES, INITIAL_BUSINESS_CATEGORIES);
@@ -190,6 +196,7 @@ class StorageService {
   deleteTenant(tenantId: string): void {
     const list = this.getTenants().filter(t => t.id !== tenantId);
     this.set(STORAGE_KEYS.TENANTS, list);
+    this.dispatchInstantDelete('tenants', tenantId);
     this.addAuditLog('TENANT_DELETED', 'TENANTS', `Tenant ${tenantId} was deleted.`);
   }
 
@@ -241,6 +248,7 @@ class StorageService {
     const list = this.get<GenericProduct[]>(STORAGE_KEYS.PRODUCTS, INITIAL_PRODUCTS);
     const filtered = list.filter(p => p.id !== productId);
     this.set(STORAGE_KEYS.PRODUCTS, filtered);
+    this.dispatchInstantDelete('products', productId);
     this.addAuditLog('PRODUCT_DELETED', 'PRODUCTS', `Product ${productId} was deleted.`);
   }
 
@@ -412,6 +420,7 @@ class StorageService {
   deleteCustomer(customerId: string): void {
     const list = this.get<CustomerMember[]>(STORAGE_KEYS.CUSTOMERS, INITIAL_CUSTOMERS).filter(c => c.id !== customerId);
     this.set(STORAGE_KEYS.CUSTOMERS, list);
+    this.dispatchInstantDelete('customers', customerId);
     this.addAuditLog('CUSTOMER_DELETED', 'CUSTOMERS', `Customer ${customerId} deleted.`);
   }
 
@@ -464,63 +473,101 @@ class StorageService {
   // BULK CLOUD SYNC METHODS (PREVENTS DUPLICATION)
   // ==========================================
   syncProductsFromCloud(cloudProducts: GenericProduct[]): void {
+    if (!Array.isArray(cloudProducts)) return;
     const local = this.getProducts();
+    const cloudTenantIds = new Set(cloudProducts.map(p => p.tenant_id).filter(Boolean));
     const map = new Map<string, GenericProduct>();
-    local.forEach(p => map.set(p.id, p));
-    cloudProducts.forEach(p => {
-      const existing = map.get(p.id);
-      map.set(p.id, existing ? { ...existing, ...p } : p);
+
+    local.forEach(p => {
+      if (p.tenant_id && !cloudTenantIds.has(p.tenant_id)) {
+        const key = p.id || p.code;
+        if (key) map.set(key, p);
+      }
     });
+
+    cloudProducts.forEach(p => {
+      const key = p.id || p.code;
+      if (key) map.set(key, p);
+    });
+
     this.set(STORAGE_KEYS.PRODUCTS, Array.from(map.values()));
   }
 
   syncCustomersFromCloud(cloudCustomers: CustomerMember[]): void {
+    if (!Array.isArray(cloudCustomers)) return;
     const local = this.getCustomers();
+    const cloudTenantIds = new Set(cloudCustomers.map(c => c.tenant_id).filter(Boolean));
     const map = new Map<string, CustomerMember>();
-    local.forEach(c => map.set(c.id, c));
-    cloudCustomers.forEach(c => {
-      const existing = map.get(c.id);
-      map.set(c.id, existing ? { ...existing, ...c } : c);
+
+    local.forEach(c => {
+      if (c.tenant_id && !cloudTenantIds.has(c.tenant_id)) {
+        if (c.id) map.set(c.id, c);
+      }
     });
+
+    cloudCustomers.forEach(c => {
+      if (c.id) map.set(c.id, c);
+    });
+
     this.set(STORAGE_KEYS.CUSTOMERS, Array.from(map.values()));
   }
 
   syncSuppliersFromCloud(cloudSuppliers: Supplier[]): void {
+    if (!Array.isArray(cloudSuppliers)) return;
     const local = this.getSuppliers();
+    const cloudTenantIds = new Set(cloudSuppliers.map(s => s.tenant_id).filter(Boolean));
     const map = new Map<string, Supplier>();
-    local.forEach(s => map.set(s.id, s));
-    cloudSuppliers.forEach(s => {
-      const existing = map.get(s.id);
-      map.set(s.id, existing ? { ...existing, ...s } : s);
+
+    local.forEach(s => {
+      if (s.tenant_id && !cloudTenantIds.has(s.tenant_id)) {
+        if (s.id) map.set(s.id, s);
+      }
     });
+
+    cloudSuppliers.forEach(s => {
+      if (s.id) map.set(s.id, s);
+    });
+
     this.set(STORAGE_KEYS.SUPPLIERS, Array.from(map.values()));
   }
 
   syncSalesFromCloud(cloudSales: SaleTransaction[]): void {
+    if (!Array.isArray(cloudSales)) return;
     const local = this.getSales();
+    const cloudTenantIds = new Set(cloudSales.map(s => s.tenant_id).filter(Boolean));
     const map = new Map<string, SaleTransaction>();
+
     local.forEach(s => {
+      if (s.tenant_id && !cloudTenantIds.has(s.tenant_id)) {
+        const k = s.id || s.invoice_no;
+        if (k) map.set(k, s);
+      }
+    });
+
+    cloudSales.forEach(s => {
       const k = s.id || s.invoice_no;
       if (k) map.set(k, s);
     });
-    cloudSales.forEach(s => {
-      const k = s.id || s.invoice_no;
-      if (k) {
-        const existing = map.get(k);
-        map.set(k, existing ? { ...existing, ...s } : s);
-      }
-    });
+
     this.set(STORAGE_KEYS.SALES, Array.from(map.values()));
   }
 
   syncAccountingFromCloud(cloudAccounting: AccountingEntry[]): void {
+    if (!Array.isArray(cloudAccounting)) return;
     const local = this.getAccounting();
+    const cloudTenantIds = new Set(cloudAccounting.map(a => a.tenant_id).filter(Boolean));
     const map = new Map<string, AccountingEntry>();
-    local.forEach(a => map.set(a.id, a));
-    cloudAccounting.forEach(a => {
-      const existing = map.get(a.id);
-      map.set(a.id, existing ? { ...existing, ...a } : a);
+
+    local.forEach(a => {
+      if (a.tenant_id && !cloudTenantIds.has(a.tenant_id)) {
+        if (a.id) map.set(a.id, a);
+      }
     });
+
+    cloudAccounting.forEach(a => {
+      if (a.id) map.set(a.id, a);
+    });
+
     this.set(STORAGE_KEYS.ACCOUNTING, Array.from(map.values()));
   }
 
@@ -528,6 +575,7 @@ class StorageService {
     const list = this.get<Supplier[]>(STORAGE_KEYS.SUPPLIERS, INITIAL_SUPPLIERS);
     const filtered = list.filter(s => s.id !== supplierId);
     this.set(STORAGE_KEYS.SUPPLIERS, filtered);
+    this.dispatchInstantDelete('suppliers', supplierId);
     this.addAuditLog('SUPPLIER_DELETED', 'SUPPLIERS', `Supplier ${supplierId} deleted.`);
   }
 
@@ -793,6 +841,7 @@ class StorageService {
     const list = this.getAccounting();
     const filtered = list.filter(a => a.id !== id);
     this.set(STORAGE_KEYS.ACCOUNTING, filtered);
+    this.dispatchInstantDelete('accounting_entries', id);
   }
 
   // Audit Logs

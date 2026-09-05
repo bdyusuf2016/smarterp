@@ -182,6 +182,15 @@ class SupabaseService {
         this.instantSyncEntity(customEvent.detail.table, customEvent.detail.record).catch(console.warn);
       }
     });
+
+    // Instant Direct Entity Deletion Handler
+    window.addEventListener("dokan_entity_deleted", (e: Event) => {
+      if (!this.currentConfig.isConfigured || this.isPullingFromCloud) return;
+      const customEvent = e as CustomEvent;
+      if (customEvent?.detail?.table && customEvent?.detail?.id) {
+        this.instantDeleteEntity(customEvent.detail.table, customEvent.detail.id).catch(console.warn);
+      }
+    });
   }
 
   private scheduleAutoSync(): void {
@@ -370,6 +379,34 @@ class SupabaseService {
       return { success: true };
     } catch (err: any) {
       console.warn(`Instant Supabase sync error for ${table}:`, err?.message);
+      return { success: false, error: err?.message };
+    }
+  }
+
+  /**
+   * Instant Direct Entity Deletion from Supabase Cloud
+   */
+  public async instantDeleteEntity(
+    table: string,
+    id: string
+  ): Promise<{ success: boolean; error?: string }> {
+    if (this.isPullingFromCloud || !id) return { success: true };
+    const client = this.getClient();
+    if (!client) {
+      return { success: false, error: "Supabase client not configured" };
+    }
+
+    try {
+      const { error } = await client.from(table).delete().eq('id', id);
+
+      if (error) {
+        console.warn(`Instant Supabase delete warning for ${table} (${id}):`, error.message);
+        return { success: false, error: error.message };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      console.warn(`Instant Supabase delete exception for ${table} (${id}):`, err?.message);
       return { success: false, error: err?.message };
     }
   }
