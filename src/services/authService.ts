@@ -205,9 +205,16 @@ class AuthService {
     }
 
     const allTenants = storageService.getTenants();
-    const candidateTenants = tenantHint
-      ? allTenants.filter(t => t.id === tenantHint || t.code?.toLowerCase() === tenantHint.toLowerCase())
-      : allTenants;
+    // Search across ALL tenants first so phone number or username match finds the exact shop
+    let candidateTenants = allTenants;
+
+    // If tenantHint is specified and identifier is generic (like 'shop' or 'admin'), narrow to hint tenant
+    if (tenantHint && !cleanInputPhone) {
+      const hintFiltered = allTenants.filter(t => t.id === tenantHint || t.code?.toLowerCase() === tenantHint.toLowerCase());
+      if (hintFiltered.length > 0) {
+        candidateTenants = hintFiltered;
+      }
+    }
 
     const matchedTenants: TenantMatchInfo[] = [];
 

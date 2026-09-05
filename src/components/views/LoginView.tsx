@@ -70,7 +70,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
   useEffect(() => {
     let isMounted = true;
     const timer = setTimeout(async () => {
-      let res = authService.peekIdentifier(identifier, selectedTenantId || tenantHint);
+      let res = authService.peekIdentifier(identifier);
 
       // If user typed a potential phone number or username (length >= 8) and local match is not exact
       if (identifier.trim().length >= 8) {
@@ -84,7 +84,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         if (!hasExactMatch) {
           const found = await supabaseService.searchCloudUser(identifier);
           if (found && isMounted) {
-            res = authService.peekIdentifier(identifier, selectedTenantId || tenantHint);
+            res = authService.peekIdentifier(identifier);
           }
         }
       }
@@ -100,28 +100,27 @@ export const LoginView: React.FC<LoginViewProps> = ({
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [identifier, selectedTenantId, tenantHint]);
+  }, [identifier]);
 
   const executeLogin = async (overrideTenantId?: string) => {
     setErrorMsg('');
     setSuccessMsg('');
-
-    let tid = overrideTenantId || selectedTenantId || tenantHint;
 
     // Search cloud first if identifier is typed to ensure freshest cloud account data
     if (identifier.trim().length >= 8) {
       await supabaseService.searchCloudUser(identifier);
     }
 
-    let res = authService.smartLogin(identifier, password, tid);
+    // Attempt smartLogin - if overrideTenantId is provided (e.g. from shop card click), use it, otherwise let smartLogin auto-discover shop from identifier
+    let res = authService.smartLogin(identifier, password, overrideTenantId);
 
     if (!res.success && !res.requiresTenantSelection) {
       // Secondary fallback search if first attempt didn't find user
       const foundInCloud = await supabaseService.searchCloudUser(identifier);
       if (foundInCloud) {
-        const peekAfterCloud = authService.peekIdentifier(identifier, tid);
+        const peekAfterCloud = authService.peekIdentifier(identifier, overrideTenantId);
         setPeekInfo(peekAfterCloud);
-        res = authService.smartLogin(identifier, password, tid);
+        res = authService.smartLogin(identifier, password, overrideTenantId);
       }
     }
 
