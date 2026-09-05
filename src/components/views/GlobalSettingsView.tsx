@@ -850,6 +850,27 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
     reader.readAsText(file);
   };
 
+  // Reset Sales Data Only
+  const handleResetSalesData = () => {
+    const currentSales = storageService.getSales(activeTenant.id);
+    if (currentSales.length === 0) {
+      alert("বর্তমানে এই দোকানে কোনো বিক্রয় বা ইনভয়েস ডেটা নেই।");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `⚠️ নিশ্চিতকরণ: আপনি কি বর্তমান দোকানের মোট ${currentSales.length} টি বিক্রয় ও ইনভয়েস হিস্ট্রি মুছে ফেলতে চান?\n\n• পণ্য তালিকা, ক্যাটালগ ও স্টক অবিকৃত থাকবে।\n• ড্যাশবোর্ড ও রিপোর্টের বিক্রয় হিসাব ০ (শূন্য) হবে।\n\nআপনি কি এগিয়ে যেতে চান?`
+    );
+
+    if (confirmed) {
+      storageService.clearSales(activeTenant.id);
+      showSuccess("দোকানের সমস্ত বিক্রয় ডেটা সফলভাবে রিসেট করা হয়েছে!");
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    }
+  };
+
   // Supabase Actions
   const handleTestSupabaseConnection = async () => {
     setIsTesting(true);
@@ -4499,6 +4520,32 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                 className="hidden"
               />
             </label>
+          </div>
+
+          {/* Reset Sales Data Card */}
+          <div className="bg-white p-5 rounded-xl border border-rose-200 shadow-xs space-y-3 text-xs md:col-span-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-rose-100">
+              <h3 className="font-bold text-rose-900 text-sm flex items-center gap-2">
+                <Trash2 className="w-4 h-4 text-rose-600" />
+                <span>বিক্রয় ডেটা ও ইনভয়েস হিস্ট্রি রিসেট (Reset Sales Data)</span>
+              </h3>
+              <span className="px-2.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 font-bold text-[11px] rounded-full w-fit">
+                বর্তমান বিক্রয় রেকর্ড: {storageService.getSales(activeTenant.id).length} টি
+              </span>
+            </div>
+            <p className="text-slate-600 text-[11px] leading-relaxed">
+              টেস্টিং চলাকালে বা নতুন হিসাব শুরুর পূর্বে আপনি যেকোনো সময় বর্তমান দোকানের সকল বিক্রয়, ইনভয়েস ও অর্ডারের হিস্ট্রি মুছে শূন্য (০) করতে পারেন। 
+              <span className="text-rose-700 font-bold"> নোট:</span> এতে আপনার প্রোডাক্ট ক্যাটালগ, ক্যাটেগরি বা দামের কোনো পরিবর্তন হবে না।
+            </p>
+
+            <button
+              type="button"
+              onClick={handleResetSalesData}
+              className="py-2.5 px-5 bg-rose-600 hover:bg-rose-700 active:scale-[0.99] text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm cursor-pointer transition-all w-full sm:w-auto"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>শুধুমাত্র বিক্রয় ডেটা রিসেট করুন (Reset Sales Only)</span>
+            </button>
           </div>
         </div>
       )}

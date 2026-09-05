@@ -550,6 +550,17 @@ class StorageService {
     this.dispatchInstantSync('sales', sale);
   }
 
+  clearSales(tenantId?: string): void {
+    if (!tenantId) {
+      this.set(STORAGE_KEYS.SALES, []);
+    } else {
+      const all = this.get<SaleTransaction[]>(STORAGE_KEYS.SALES, INITIAL_SALES);
+      const remaining = all.filter(s => s.tenant_id !== tenantId);
+      this.set(STORAGE_KEYS.SALES, remaining);
+    }
+    this.addAuditLog('SALES_CLEARED', 'SALES', `Sales transactions cleared for tenant: ${tenantId || 'ALL'}`);
+  }
+
   // Accounting
   getAccounting(tenantId?: string): AccountingEntry[] {
     const all = this.get<AccountingEntry[]>(STORAGE_KEYS.ACCOUNTING, INITIAL_ACCOUNTING);
