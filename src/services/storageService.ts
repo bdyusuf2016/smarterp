@@ -17,7 +17,8 @@ import {
   SaleTransaction,
   AccountingEntry,
   AuditLog,
-  UserRole
+  UserRole,
+  SecurityPinConfig
 } from '../types';
 
 import {
@@ -219,6 +220,13 @@ class StorageService {
     this.set(STORAGE_KEYS.PRODUCTS, list);
     this.dispatchInstantSync('products', product);
     this.addAuditLog('PRODUCT_SAVED', 'PRODUCTS', `Product ${product.name} (${product.code}) saved.`);
+  }
+
+  deleteProduct(productId: string): void {
+    const list = this.get<GenericProduct[]>(STORAGE_KEYS.PRODUCTS, INITIAL_PRODUCTS);
+    const filtered = list.filter(p => p.id !== productId);
+    this.set(STORAGE_KEYS.PRODUCTS, filtered);
+    this.addAuditLog('PRODUCT_DELETED', 'PRODUCTS', `Product ${productId} was deleted.`);
   }
 
   // Specialized: Devices (IMEIs)
@@ -551,14 +559,65 @@ class StorageService {
   }
 
   clearSales(tenantId?: string): void {
-    if (!tenantId) {
-      this.set(STORAGE_KEYS.SALES, []);
-    } else {
-      const all = this.get<SaleTransaction[]>(STORAGE_KEYS.SALES, INITIAL_SALES);
-      const remaining = all.filter(s => s.tenant_id !== tenantId);
-      this.set(STORAGE_KEYS.SALES, remaining);
+    const all = this.get<SaleTransaction[]>(STORAGE_KEYS.SALES, INITIAL_SALES);
+    const targetId = tenantId?.trim();
+    const remaining = targetId
+      ? all.filter(s => (s.tenant_id || '').trim() !== targetId)
+      : [];
+    this.set(STORAGE_KEYS.SALES, remaining);
+
+    // Also remove any accounting entries linked to sales for this tenant
+    try {
+      const accList = this.get<AccountingEntry[]>(STORAGE_KEYS.ACCOUNTING, INITIAL_ACCOUNTING);
+      const remainingAcc = targetId
+        ? accList.filter(a => !( (a.tenant_id || '').trim() === targetId && a.reference_type === 'SALE'))
+        : accList.filter(a => a.reference_type !== 'SALE');
+      this.set(STORAGE_KEYS.ACCOUNTING, remainingAcc);
+    } catch (e) {
+      console.warn('Failed to clean sales accounting entries', e);
     }
-    this.addAuditLog('SALES_CLEARED', 'SALES', `Sales transactions cleared for tenant: ${tenantId || 'ALL'}`);
+
+    this.addAuditLog('SALES_CLEARED', 'SALES', `Sales transactions cleared for tenant: ${targetId || 'ALL'}`);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('dokan_storage_updated', { detail: { key: STORAGE_KEYS.SALES } }));
+    }
+  }
+
+  // Security PIN Verification Configuration
+  getSecurityPinConfig(tenantId?: string): SecurityPinConfig {
+    const defaultConf: SecurityPinConfig = {
+      enabled: true,
+      pin: '1234',
+      requireForDelete: true,
+      requireForEdit: false,
+      requireForReset: true
+    };
+    const key = tenantId ? `dokan_pin_config_${tenantId}` : 'dokan_pin_config';
+    return this.get<SecurityPinConfig>(key, defaultConf);
+  }
+
+  saveSecurityPinConfig(config: SecurityPinConfig, tenantId?: string): void {
+    const key = tenantId ? `dokan_pin_config_${tenantId}` : 'dokan_pin_config';
+    this.set(key, config);
+    this.addAuditLog('SECURITY_PIN_UPDATED', 'SETTINGS', `Security PIN configuration updated (enabled: ${config.enabled})`);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('dokan_pin_config_updated', { detail: { config } }));
+    }
+  }
+
+  verifySecurityPin(pin: string, tenantId?: string): boolean {
+    const conf = this.getSecurityPinConfig(tenantId);
+    if (!conf.enabled) return true;
+    return (conf.pin || '1234').trim() === (pin || '').trim();
+  }
+
+  isPinRequired(action: 'delete' | 'edit' | 'reset', tenantId?: string): boolean {
+    const conf = this.getSecurityPinConfig(tenantId);
+    if (!conf.enabled) return false;
+    if (action === 'delete') return Boolean(conf.requireForDelete);
+    if (action === 'edit') return Boolean(conf.requireForEdit);
+    if (action === 'reset') return Boolean(conf.requireForReset);
+    return false;
   }
 
   // Accounting

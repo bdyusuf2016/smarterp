@@ -66,9 +66,33 @@ export const SUPABASE_TABLE_COLUMNS: Record<string, string[]> = {
     'severity', 'timestamp'
   ],
   custom_field_definitions: [
-    'id', 'category_id', 'field_type', 'is_required'
+    'id', 'category_id', 'field_name', 'field_code', 'field_type', 'is_required'
   ]
 };
+
+const VALID_CATEGORY_IDS = new Set([
+  'cat_telecom',
+  'cat_grocery',
+  'cat_stationery',
+  'cat_library',
+  'cat_electronics'
+]);
+
+const STARTER_CATEGORY_MAP: Record<string, string> = {
+  cat_electronics_telecom: 'cat_telecom',
+  cat_grocery_supermarket: 'cat_grocery',
+  cat_library_bookstore: 'cat_library',
+  cat_stationery_office: 'cat_stationery',
+  cat_services_it: 'cat_telecom',
+  cat_services: 'cat_telecom',
+  cat_general: 'cat_telecom',
+};
+
+export function normalizeCategoryId(catId?: string | null): string {
+  if (!catId) return 'cat_telecom';
+  if (VALID_CATEGORY_IDS.has(catId)) return catId;
+  return STARTER_CATEGORY_MAP[catId] || 'cat_telecom';
+}
 
 export function sanitizeSupabaseRecord(table: string, record: any): Record<string, any> {
   const allowed = SUPABASE_TABLE_COLUMNS[table];
@@ -82,16 +106,14 @@ export function sanitizeSupabaseRecord(table: string, record: any): Record<strin
   }
 
   // Handle table-specific adaptations and FK validations
-  if (table === 'sales') {
-    if (clean.customer_id === 'cash_customer' || !clean.customer_id) {
-      clean.customer_id = null;
-    }
-    clean.specialized_data = {
-      ...(record.specialized_data || {}),
-      ...(record.tax_rate !== undefined ? { tax_rate: record.tax_rate } : {}),
-      ...(record.adjustment_amount !== undefined ? { adjustment_amount: record.adjustment_amount } : {}),
-    };
+  if (table === 'custom_field_definitions') {
+    clean.category_id = normalizeCategoryId(record.category_id || record.business_category_id);
+    clean.field_name = record.name || record.field_name || record.code || 'Custom Field';
+    clean.field_code = record.code || record.field_code || record.id;
+    clean.field_type = record.field_type || 'text';
+    clean.is_required = !!record.is_required;
   } else if (table === 'products') {
+    clean.business_category_id = normalizeCategoryId(record.business_category_id);
     if (record.device_details || record.batch_details || record.book_details) {
       clean.custom_fields = {
         ...(record.custom_fields || {}),
@@ -100,6 +122,22 @@ export function sanitizeSupabaseRecord(table: string, record: any): Record<strin
         ...(record.book_details ? { book_details: record.book_details } : {}),
       };
     }
+  } else if (table === 'sales') {
+    clean.business_category_id = normalizeCategoryId(record.business_category_id);
+    // Nullify non-existent or guest customer IDs to satisfy FK constraint
+    if (
+      !clean.customer_id || 
+      clean.customer_id === 'cash_customer' || 
+      String(clean.customer_id).startsWith('walkin') || 
+      String(clean.customer_id).startsWith('guest')
+    ) {
+      clean.customer_id = null;
+    }
+    clean.specialized_data = {
+      ...(record.specialized_data || {}),
+      ...(record.tax_rate !== undefined ? { tax_rate: record.tax_rate } : {}),
+      ...(record.adjustment_amount !== undefined ? { adjustment_amount: record.adjustment_amount } : {}),
+    };
   } else if (table === 'customers') {
     if (clean.address === undefined) clean.address = '';
   } else if (table === 'tenants') {
@@ -515,41 +553,48 @@ class SupabaseService {
 
       const activePayloads = syncPayloads.filter((p) => p.rows && p.rows.length > 0);
       
-      const syncPromises = activePayloads.map(async (payload) => {
-        try {
-          const { error } = await client
-            .from(payload.table)
-            .upsert(payload.rows, { onConflict: "id" });
+      // 4. Sequential execution strictly respecting foreign key dependencies:
+      // (tenants -> categories -> custom fields -> customers/suppliers -> products -> sales -> accounting/audit)
+      const syncExecution = async () => {
+        const tableResults: Array<{ table: string; success: boolean; count?: number; error?: string }> = [];
+        for (const payload of activePayloads) {
+          try {
+            const { error } = await client
+              .from(payload.table)
+              .upsert(payload.rows, { onConflict: "id" });
 
-          if (error) {
-            console.warn(`Supabase sync warning for ${payload.table}:`, error.message);
-            return { table: payload.table, success: false, error: error.message };
+            if (error) {
+              console.warn(`Supabase sync warning for ${payload.table}:`, error.message);
+              tableResults.push({ table: payload.table, success: false, error: error.message });
+            } else {
+              tableResults.push({ table: payload.table, success: true, count: payload.rows.length });
+            }
+          } catch (err: any) {
+            console.warn(`Supabase sync exception for ${payload.table}:`, err?.message);
+            tableResults.push({ table: payload.table, success: false, error: err?.message });
           }
-          return { table: payload.table, success: true, count: payload.rows.length };
-        } catch (err: any) {
-          console.warn(`Supabase sync exception for ${payload.table}:`, err?.message);
-          return { table: payload.table, success: false, error: err?.message };
         }
-      });
+        return tableResults;
+      };
 
-      // 12-second timeout guard to prevent UI hanging on slow network or free-tier sleep
+      // 25-second timeout guard to allow overseas database connection & cold starts
       const timeoutPromise = new Promise<{ isTimeout: true }>((resolve) =>
-        setTimeout(() => resolve({ isTimeout: true }), 12000)
+        setTimeout(() => resolve({ isTimeout: true }), 25000)
       );
 
-      const results = await Promise.race([
-        Promise.allSettled(syncPromises),
+      const raceResult = await Promise.race([
+        syncExecution(),
         timeoutPromise
       ]);
 
-      if ('isTimeout' in results) {
+      if ('isTimeout' in raceResult) {
         return {
           success: true,
           message: `ক্লাউড সিঙ্ক ব্যাকগ্রাউন্ডে চলছে (Supabase ক্লাউড কানেকশনে কিছুটা সময় নিচ্ছে)। লোকাল স্টোরেজে সকল ডেটা সম্পূর্ণ সুরক্ষিত আছে।`
         };
       }
 
-      const succeeded = results.filter((r) => r.status === "fulfilled" && (r.value as any).success).length;
+      const succeeded = raceResult.filter((r) => r.success).length;
 
       return {
         success: true,
@@ -753,6 +798,36 @@ class SupabaseService {
       return { success: false, count: 0, message: err?.message || 'Unknown error' };
     } finally {
       this.isPullingFromCloud = false;
+    }
+  }
+
+  /**
+   * Delete sales transactions from Supabase Cloud to avoid resurrecting them on reload
+   */
+  public async deleteSales(tenantId?: string): Promise<{ success: boolean; message: string }> {
+    const client = this.getClient();
+    if (!client) {
+      return { success: true, message: "লোকাল ডাটা মুছে ফেলা হয়েছে (ক্লাউড নিষ্ক্রিয়)।" };
+    }
+
+    try {
+      let query = client.from('sales').delete();
+      if (tenantId) {
+        query = query.eq('tenant_id', tenantId);
+      } else {
+        query = query.neq('id', '00000000-0000-0000-0000-000000000000');
+      }
+
+      const { error } = await query;
+      if (error) {
+        console.warn('Supabase deleteSales cloud error:', error);
+        return { success: false, message: `ক্লাউড বিক্রয় রেকর্ড মুছতে সমস্যা: ${error.message}` };
+      }
+
+      return { success: true, message: "Supabase ক্লাউড থেকেও বিক্রয় ডাটা সফলভাবে মুছে ফেলা হয়েছে।" };
+    } catch (err: any) {
+      console.warn('Supabase deleteSales error:', err);
+      return { success: false, message: err?.message || 'ক্লাউড ডিলিট এরর' };
     }
   }
 }

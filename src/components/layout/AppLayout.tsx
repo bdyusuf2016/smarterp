@@ -262,6 +262,8 @@ export const AppLayout: React.FC = () => {
         ? 'pos_sales' 
         : (user.role === 'TECHNICIAN' || (user.role as string) === 'REPAIR_TECHNICIAN') 
         ? 'telecom_repairs' 
+        : user.role === 'LIBRARIAN'
+        ? 'library_circulation'
         : 'dashboard'
     );
 

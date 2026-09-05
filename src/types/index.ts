@@ -22,6 +22,14 @@ export type UserRole =
   | 'TECHNICIAN'    // Technician (টেকনিশিয়ান) — IMEI & Repair Service
   | 'LIBRARIAN';    // Librarian (লাইব্রেরিয়ান) — Book Catalog & Circulation
 
+export interface SecurityPinConfig {
+  enabled: boolean;
+  pin: string; // 4 to 6 digits, default '1234'
+  requireForDelete: boolean;
+  requireForEdit: boolean;
+  requireForReset: boolean;
+}
+
 // ==================================================
 // BUSINESS CATEGORY MODEL
 // ==================================================

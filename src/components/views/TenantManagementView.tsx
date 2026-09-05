@@ -33,6 +33,7 @@ import { supabaseService } from '../../services/supabaseClient';
 import { RbacEngine } from '../../engine/rbacEngine';
 import { CatalogInitEngine } from '../../engine/catalogInitEngine';
 import { IconRenderer } from '../common/IconRenderer';
+import { PinVerificationModal } from '../common/PinVerificationModal';
 
 interface TenantManagementViewProps {
   activeRole: UserRole;
@@ -177,11 +178,44 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
     }
   };
 
+  // Security PIN Verification Modal State
+  const [pinModalConfig, setPinModalConfig] = useState<{
+    isOpen: boolean;
+    actionType: 'delete' | 'edit';
+    title?: string;
+    subtitle?: string;
+    itemName?: string;
+    onSuccess: () => void;
+  }>({
+    isOpen: false,
+    actionType: 'delete',
+    onSuccess: () => {}
+  });
+
   const handleSaveTenant = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!shopName || !shopCode || !ownerPhone) {
+    if (!shopName.trim() || !shopCode.trim() || !ownerPhone.trim()) {
       showNotification('দোকানের নাম, কোড এবং মালিকের মোবাইল নম্বর আবশ্যক', 'error');
+      return;
+    }
+
+    const cleanOwnerPhone = authService.normalizePhone(ownerPhone);
+    if (!cleanOwnerPhone || cleanOwnerPhone.length < 10) {
+      showNotification('অনুগ্রহ করে দোকান মালিকের সঠিক মোবাইল নম্বর লিখুন (যেমন: 017xxxxxxxx)', 'error');
+      return;
+    }
+
+    // Enforce Unique Phone as Username across platform
+    const uniqueCheck = authService.isPhoneUnique(
+      cleanOwnerPhone,
+      editingTenant ? `usr_owner_${editingTenant.id}` : undefined
+    );
+    if (!uniqueCheck.isUnique) {
+      showNotification(
+        uniqueCheck.message || `এই মোবাইল নম্বরটি (${cleanOwnerPhone}) ইতিমধ্যে অন্য একজন ব্যবহারকারীর ইউজারনেম হিসেবে নিবন্ধিত আছে।`,
+        'error'
+      );
       return;
     }
 
@@ -202,8 +236,8 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
       code: shopCode.toUpperCase().trim(),
       name: shopName.trim(),
       owner_name: ownerName.trim() || 'দোকান মালিক',
-      email: ownerEmail.trim() || `${ownerPhone}@dokan.local`,
-      phone: ownerPhone.trim(),
+      email: ownerEmail.trim() || `${cleanOwnerPhone}@dokan.local`,
+      phone: cleanOwnerPhone,
       currency: 'BDT',
       currency_symbol: currencySymbol || '৳',
       address: address.trim() || 'বাংলাদেশ',
@@ -228,13 +262,13 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
       console.log(`Auto-initialized ${initResult.importedCount} products for ${newTenant.name}`);
     }
 
-    // Auto-provision initial Owner Account for this tenant
+    // Auto-provision initial Owner Account for this tenant with phone as unique username
     const ownerUser: UserProfile = {
       id: `usr_owner_${tenantId}`,
-      username: ownerPhone.trim(),
+      username: cleanOwnerPhone,
       name: ownerName.trim() || `${shopName} মালিক`,
-      phone: ownerPhone.trim(),
-      email: ownerEmail.trim() || `${ownerPhone}@dokan.local`,
+      phone: cleanOwnerPhone,
+      email: ownerEmail.trim() || `${cleanOwnerPhone}@dokan.local`,
       role: 'ADMIN',
       tenantId: tenantId,
       designation: 'দোকান স্বত্বাধিকারী (Shop Owner)',
@@ -258,11 +292,26 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
     showNotification(`"${t.name}" দোকানে ${result.importedCount} টি মাস্টার পণ্য স্বয়ংক্রিয়ভাবে ইমপোর্ট করা হয়েছে!`);
   };
 
+  const confirmDeleteTenant = (t: Tenant) => {
+    storageService.deleteTenant(t.id);
+    loadTenants();
+    showNotification(`দোকান "${t.name}" সফলভাবে মুছে ফেলা হয়েছে`);
+  };
+
   const handleDeleteTenant = (t: Tenant) => {
-    if (window.confirm(`আপনি কি নিশ্চিত যে আপনি দোকান "${t.name}" (${t.code}) এবং এর সমস্ত ডেটা মুছে ফেলতে চান?`)) {
-      storageService.deleteTenant(t.id);
-      loadTenants();
-      showNotification(`দোকান "${t.name}" মুছে ফেলা হয়েছে`);
+    if (storageService.isPinRequired('delete')) {
+      setPinModalConfig({
+        isOpen: true,
+        actionType: 'delete',
+        title: 'দোকান মুছে ফেলতে সিকিউরিটি পিন',
+        subtitle: `দোকান "${t.name}" (${t.code}) এবং এর সমস্ত ডাটা মুছে ফেলার জন্য পিন দিন`,
+        itemName: t.name,
+        onSuccess: () => confirmDeleteTenant(t)
+      });
+    } else {
+      if (window.confirm(`আপনি কি নিশ্চিত যে আপনি দোকান "${t.name}" (${t.code}) এবং এর সমস্ত ডেটা মুছে ফেলতে চান?`)) {
+        confirmDeleteTenant(t);
+      }
     }
   };
 
@@ -953,6 +1002,17 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Security PIN Verification Modal */}
+      <PinVerificationModal
+        isOpen={pinModalConfig.isOpen}
+        onClose={() => setPinModalConfig(prev => ({ ...prev, isOpen: false }))}
+        onSuccess={pinModalConfig.onSuccess}
+        actionType={pinModalConfig.actionType}
+        title={pinModalConfig.title}
+        subtitle={pinModalConfig.subtitle}
+        itemName={pinModalConfig.itemName}
+      />
     </div>
   );
 };

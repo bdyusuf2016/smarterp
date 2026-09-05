@@ -43,6 +43,7 @@ import { CameraScannerModal } from '../common/CameraScannerModal';
 import { CustomFieldRenderer } from '../common/CustomFieldRenderer';
 import { printBarcodeStickers } from '../../shared/utils/printReceipt';
 import { IconRenderer } from '../common/IconRenderer';
+import { PinVerificationModal } from '../common/PinVerificationModal';
 
 interface ProductsViewProps {
   activeTenant: Tenant;
@@ -128,11 +129,17 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
   const categories = storageService.getCategories();
   
   const [lang, setLang] = useState<'bn' | 'en'>(() => i18n.getLanguage());
+  const [, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const handleLang = () => setLang(i18n.getLanguage());
+    const handleStorage = () => setRefreshKey(k => k + 1);
     window.addEventListener('dokan_lang_changed', handleLang);
-    return () => window.removeEventListener('dokan_lang_changed', handleLang);
+    window.addEventListener('dokan_storage_updated', handleStorage);
+    return () => {
+      window.removeEventListener('dokan_lang_changed', handleLang);
+      window.removeEventListener('dokan_storage_updated', handleStorage);
+    };
   }, []);
 
   const isEn = lang === 'en';
@@ -344,7 +351,44 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
     setIsCreateModalOpen(true);
   };
 
-  const handleOpenEdit = (product: GenericProduct) => {
+  // Security PIN Verification State
+  const [pinModalConfig, setPinModalConfig] = useState<{
+    isOpen: boolean;
+    actionType: 'delete' | 'edit';
+    title?: string;
+    subtitle?: string;
+    itemName?: string;
+    onSuccess: () => void;
+  }>({
+    isOpen: false,
+    actionType: 'delete',
+    onSuccess: () => {}
+  });
+
+  const confirmDeleteProduct = (p: GenericProduct) => {
+    storageService.deleteProduct(p.id);
+    setRefreshKey(k => k + 1);
+    alert(`পণ্য "${p.name}" সফলভাবে মুছে ফেলা হয়েছে!`);
+  };
+
+  const handleDeleteProduct = (p: GenericProduct) => {
+    if (storageService.isPinRequired('delete', activeTenant.id)) {
+      setPinModalConfig({
+        isOpen: true,
+        actionType: 'delete',
+        title: 'পণ্য মুছে ফেলতে সিকিউরিটি পিন',
+        subtitle: `পণ্য "${p.name}" (${p.code}) মুছে ফেলার জন্য সিকিউরিটি পিন প্রদান করুন`,
+        itemName: p.name,
+        onSuccess: () => confirmDeleteProduct(p)
+      });
+    } else {
+      if (window.confirm(`আপনি কি নিশ্চিত যে পণ্য "${p.name}" (${p.code}) মুছে ফেলতে চান?`)) {
+        confirmDeleteProduct(p);
+      }
+    }
+  };
+
+  const openEditDirect = (product: GenericProduct) => {
     setEditingProduct(product);
     const catId = product.business_category_id || activeTenant.active_categories[0]?.business_category_id || 'cat_stationery';
     setFormCategoryId(catId);
@@ -384,6 +428,21 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
     setNewPropKey('');
     setNewPropVal('');
     setIsCreateModalOpen(true);
+  };
+
+  const handleOpenEdit = (product: GenericProduct) => {
+    if (storageService.isPinRequired('edit', activeTenant.id)) {
+      setPinModalConfig({
+        isOpen: true,
+        actionType: 'edit',
+        title: 'পণ্য সম্পাদনায় সিকিউরিটি পিন',
+        subtitle: `পণ্য "${product.name}" (${product.code}) এর তথ্য এডিট করতে পিন দিন`,
+        itemName: product.name,
+        onSuccess: () => openEditDirect(product)
+      });
+    } else {
+      openEditDirect(product);
+    }
   };
 
   const handleAddAdHocProperty = (e?: React.FormEvent) => {
@@ -800,6 +859,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                             title={isEn ? "Edit Product" : "সম্পাদনা করুন"}
                           >
                             <Edit3 className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProduct(product)}
+                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title={isEn ? "Delete Product" : "পণ্য মুছে ফেলুন"}
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
@@ -1638,6 +1706,18 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
             : undefined
         }
         continuousModeDefault={scannerTarget === 'product_imei'}
+      />
+
+      {/* Security PIN Verification Modal */}
+      <PinVerificationModal
+        isOpen={pinModalConfig.isOpen}
+        onClose={() => setPinModalConfig(prev => ({ ...prev, isOpen: false }))}
+        onSuccess={pinModalConfig.onSuccess}
+        actionType={pinModalConfig.actionType}
+        title={pinModalConfig.title}
+        subtitle={pinModalConfig.subtitle}
+        itemName={pinModalConfig.itemName}
+        tenantId={activeTenant.id}
       />
     </div>
   );

@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Sliders,
   Shield,
+  ShieldCheck,
   Plus,
   Trash2,
   Sparkles,
@@ -54,6 +55,7 @@ import {
   InvoiceTemplateStyle,
   CustomPaymentMethod,
   CustomPaymentMethodType,
+  SecurityPinConfig,
 } from "../../types";
 import { storageService } from "../../services/storageService";
 import { i18n } from "../../services/i18nService";
@@ -63,6 +65,7 @@ import {
 } from "../../services/supabaseClient";
 import { printPosReceipt } from "../../shared/utils/printReceipt";
 import { generateQrCodeSvg } from "../../shared/utils/qrCode";
+import { PinVerificationModal } from "../common/PinVerificationModal";
 
 interface GlobalSettingsViewProps {
   activeTenant: Tenant;
@@ -85,10 +88,37 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
     | "footer"
     | "supabase"
     | "backup"
+    | "security"
   >("theme");
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(
     null,
   );
+
+  // Security PIN Verification System State
+  const [pinConfig, setPinConfig] = useState<SecurityPinConfig>(() =>
+    storageService.getSecurityPinConfig(activeTenant.id)
+  );
+  const [pinInput, setPinInput] = useState(pinConfig.pin || "1234");
+  const [confirmPinInput, setConfirmPinInput] = useState(pinConfig.pin || "1234");
+  const [showPinText, setShowPinText] = useState(false);
+  const [pinChangeError, setPinChangeError] = useState("");
+  const [pinChangeSuccess, setPinChangeSuccess] = useState("");
+
+  // Modal State for PinVerificationModal in GlobalSettingsView
+  const [pinModalConfig, setPinModalConfig] = useState<{
+    isOpen: boolean;
+    actionType: 'delete' | 'edit' | 'reset';
+    title?: string;
+    subtitle?: string;
+    itemName?: string;
+    onSuccess: () => void;
+  }>({
+    isOpen: false,
+    actionType: 'reset',
+    onSuccess: () => {}
+  });
+
+  const [isResettingSales, setIsResettingSales] = useState(false);
 
   // Supabase Cloud DB Settings
   const [supabaseUrl, setSupabaseUrl] = useState(
@@ -138,7 +168,7 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
       currencyText: "BDT (৳)",
       timezoneText: "Asia/Dhaka (GMT+6)",
       showUserBadge: true,
-      supportPhone: "+880 1700-000000",
+      supportPhone: "+880 638837796",
       supportEmail: "support@smarterp.com",
       customNotice: "SmartERP Enterprise Core System • Multi-Tenant Secured",
     };
@@ -465,16 +495,16 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
         currencySymbol.trim() === "$"
           ? "USD"
           : currencySymbol.trim() === "€"
-          ? "EUR"
-          : currencySymbol.trim() === "£"
-          ? "GBP"
-          : currencySymbol.trim() === "₹"
-          ? "INR"
-          : currencySymbol.trim() === "﷼"
-          ? "SAR"
-          : currencySymbol.trim() === "د.إ"
-          ? "AED"
-          : "BDT",
+            ? "EUR"
+            : currencySymbol.trim() === "£"
+              ? "GBP"
+              : currencySymbol.trim() === "₹"
+                ? "INR"
+                : currencySymbol.trim() === "﷼"
+                  ? "SAR"
+                  : currencySymbol.trim() === "د.إ"
+                    ? "AED"
+                    : "BDT",
       tin_number: tinNo.trim(),
       bin_number: binNo.trim(),
       vat_number: binNo.trim(),
@@ -850,7 +880,30 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
     reader.readAsText(file);
   };
 
-  // Reset Sales Data Only
+  // Reset Sales Data Only with Cloud Wipe & PIN Verification
+  const executeClearSales = async () => {
+    setIsResettingSales(true);
+    try {
+      // 1. Wipe from Supabase Cloud table 'sales' so reload/pullFromCloud cannot bring them back
+      await supabaseService.deleteSales(activeTenant.id);
+
+      // 2. Wipe from LocalStorage
+      storageService.clearSales(activeTenant.id);
+
+      showSuccess(
+        isEn
+          ? "All monthly sales & cloud transactions have been successfully reset to 0!"
+          : "চলতি মাসের এবং পূর্বের সমস্ত বিক্রয় ডেটা এবং ক্লাউড রেকর্ড সফলভাবে মুছে শূন্য (০) করা হয়েছে!"
+      );
+    } catch (err: any) {
+      console.error("Sales reset error:", err);
+      storageService.clearSales(activeTenant.id);
+      showSuccess("স্থানীয় বিক্রয় ডেটা রিসেট সম্পন্ন হয়েছে।");
+    } finally {
+      setIsResettingSales(false);
+    }
+  };
+
   const handleResetSalesData = () => {
     const currentSales = storageService.getSales(activeTenant.id);
     if (currentSales.length === 0) {
@@ -858,17 +911,55 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
       return;
     }
 
-    const confirmed = window.confirm(
-      `⚠️ নিশ্চিতকরণ: আপনি কি বর্তমান দোকানের মোট ${currentSales.length} টি বিক্রয় ও ইনভয়েস হিস্ট্রি মুছে ফেলতে চান?\n\n• পণ্য তালিকা, ক্যাটালগ ও স্টক অবিকৃত থাকবে।\n• ড্যাশবোর্ড ও রিপোর্টের বিক্রয় হিসাব ০ (শূন্য) হবে।\n\nআপনি কি এগিয়ে যেতে চান?`
-    );
+    const proceedAfterVerification = () => {
+      const confirmed = window.confirm(
+        `⚠️ চূড়ান্ত নিশ্চিতকরণ: আপনি কি বর্তমান দোকানের মোট ${currentSales.length} টি বিক্রয় ও ইনভয়েস হিস্ট্রি মুছে ফেলতে চান?\n\n• পণ্য তালিকা, ক্যাটালগ ও স্টক অবিকৃত থাকবে।\n• Supabase ক্লাউড ও লোকাল ডেটাবেজ থেকে সমস্ত বিক্রয় মুছে যাবে।\n• চলতি মাসের ও পূর্বের সকল বিক্রয় হিসাব ০ (শূন্য) হবে।\n\nআপনি কি নিশ্চিত?`
+      );
+      if (confirmed) {
+        executeClearSales();
+      }
+    };
 
-    if (confirmed) {
-      storageService.clearSales(activeTenant.id);
-      showSuccess("দোকানের সমস্ত বিক্রয় ডেটা সফলভাবে রিসেট করা হয়েছে!");
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+    if (storageService.isPinRequired("reset", activeTenant.id)) {
+      setPinModalConfig({
+        isOpen: true,
+        actionType: "reset",
+        title: "বিক্রয় ডেটা রিসেট পিন ভেরিফিকেশন",
+        subtitle: `দোকানের ${currentSales.length}টি বিক্রয় রেকর্ড মুছে ফেলতে আপনার সিকিউরিটি পিন দিন`,
+        itemName: "Reset All Sales Data",
+        onSuccess: proceedAfterVerification,
+      });
+    } else {
+      proceedAfterVerification();
     }
+  };
+
+  // Save Security PIN Configuration
+  const handleSavePinConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinChangeError("");
+    setPinChangeSuccess("");
+
+    if (pinInput.length < 4) {
+      setPinChangeError("সিকিউরিটি পিন কমপক্ষে ৪ ডিজিটের হতে হবে।");
+      return;
+    }
+
+    if (pinInput !== confirmPinInput) {
+      setPinChangeError("নতুন পিন এবং নিশ্চিতকরণ পিন একই হতে হবে।");
+      return;
+    }
+
+    const updatedConfig: SecurityPinConfig = {
+      ...pinConfig,
+      pin: pinInput.trim(),
+    };
+
+    setPinConfig(updatedConfig);
+    storageService.saveSecurityPinConfig(updatedConfig, activeTenant.id);
+    setPinChangeSuccess("সিকিউরিটি পিন সেটিংস সফলভাবে সংরক্ষণ করা হয়েছে!");
+    showSuccess("সিকিউরিটি পিন কনফিগারেশন সফলভাবে আপডেট হয়েছে!");
+    setTimeout(() => setPinChangeSuccess(""), 3500);
   };
 
   // Supabase Actions
@@ -915,14 +1006,15 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
   };
 
   const handleSyncToCloud = async () => {
-    if (!activeTenant?.id) {
-      alert("সিঙ্ক করার জন্য কোনো active tenant নির্বাচন করা নেই।");
+    const targetTenant = activeTenant?.id ? activeTenant : storageService.getActiveTenant();
+    if (!targetTenant?.id) {
+      alert("সিঙ্ক করার জন্য কোনো সক্রিয় দোকান (Tenant) নির্বাচন করা নেই। অনুগ্রহ করে সাইডবার বা হেডার থেকে একটি দোকান নির্বাচন করুন।");
       return;
     }
 
     setIsSyncing(true);
     try {
-      const res = await supabaseService.syncToCloud(activeTenant);
+      const res = await supabaseService.syncToCloud(targetTenant);
       if (res.success) {
         setSaveSuccessMessage(res.message);
       } else {
@@ -1128,6 +1220,7 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
     { id: "pos", label: isEn ? "POS & Print Defaults" : "POS ও প্রিন্ট ডিফল্টস", icon: Printer },
     { id: "footer", label: isEn ? "Footer & Branding Settings" : "ফুটার ও ব্র্যান্ডিং সেটিংস", icon: Sparkles },
     { id: "supabase", label: isEn ? "Cloud Database & Supabase" : "ক্লাউড ডেটাবেজ ও Supabase", icon: Cloud },
+    { id: "security", label: isEn ? "Security PIN & Access" : "সিকিউরিটি পিন ও অ্যাকশন কন্ট্রোল", icon: ShieldCheck },
     { id: "backup", label: isEn ? "Data Backup & System" : "ডাটা ব্যাকআপ ও সিস্টেম", icon: Database },
   ];
 
@@ -1202,11 +1295,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 cursor-pointer transition-all ${
-                isActive
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 cursor-pointer transition-all ${isActive
                   ? "bg-indigo-600 text-white shadow-xs"
                   : "bg-white text-slate-700 hover:bg-slate-100 hover:border-slate-300 border border-slate-200"
-              }`}
+                }`}
             >
               <Icon className="w-4 h-4 shrink-0" />
               <span>{tab.label}</span>
@@ -1231,11 +1323,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
               {/* Light Theme Card */}
               <div
                 onClick={() => setThemeMode("light")}
-                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                  themeMode === "light"
+                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${themeMode === "light"
                     ? "border-indigo-600 bg-indigo-50/40 shadow-xs"
                     : "border-slate-200 hover:bg-slate-50"
-                }`}
+                  }`}
               >
                 <div className="w-full h-16 bg-white border border-slate-200 rounded-lg p-2 flex flex-col justify-between mb-2">
                   <div className="w-12 h-2 bg-indigo-600 rounded" />
@@ -1255,11 +1346,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
               {/* Dark Theme Card */}
               <div
                 onClick={() => setThemeMode("dark")}
-                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                  themeMode === "dark"
+                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${themeMode === "dark"
                     ? "border-indigo-600 bg-slate-900 text-white shadow-xs"
                     : "border-slate-200 hover:bg-slate-50"
-                }`}
+                  }`}
               >
                 <div className="w-full h-16 bg-slate-950 border border-slate-800 rounded-lg p-2 flex flex-col justify-between mb-2">
                   <div className="w-12 h-2 bg-indigo-500 rounded" />
@@ -1296,11 +1386,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                     setLanguage("bn");
                     i18n.setLanguage("bn");
                   }}
-                  className={`p-3 rounded-xl border text-center font-bold transition-all cursor-pointer ${
-                    language === "bn"
+                  className={`p-3 rounded-xl border text-center font-bold transition-all cursor-pointer ${language === "bn"
                       ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
                       : "bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200"
-                  }`}
+                    }`}
                 >
                   বাংলা (Bengali - ডিফল্ট)
                 </button>
@@ -1310,11 +1399,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                     setLanguage("en");
                     i18n.setLanguage("en");
                   }}
-                  className={`p-3 rounded-xl border text-center font-bold transition-all cursor-pointer ${
-                    language === "en"
+                  className={`p-3 rounded-xl border text-center font-bold transition-all cursor-pointer ${language === "en"
                       ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
                       : "bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200"
-                  }`}
+                    }`}
                 >
                   English (International)
                 </button>
@@ -1329,22 +1417,20 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                 <button
                   type="button"
                   onClick={() => setLayoutDensity("comfortable")}
-                  className={`p-2.5 rounded-lg border text-center font-semibold transition-all cursor-pointer ${
-                    layoutDensity === "comfortable"
+                  className={`p-2.5 rounded-lg border text-center font-semibold transition-all cursor-pointer ${layoutDensity === "comfortable"
                       ? "bg-slate-800 text-white border-slate-800"
                       : "bg-slate-50 text-slate-700"
-                  }`}
+                    }`}
                 >
                   স্বাভাবিক (Comfortable)
                 </button>
                 <button
                   type="button"
                   onClick={() => setLayoutDensity("compact")}
-                  className={`p-2.5 rounded-lg border text-center font-semibold transition-all cursor-pointer ${
-                    layoutDensity === "compact"
+                  className={`p-2.5 rounded-lg border text-center font-semibold transition-all cursor-pointer ${layoutDensity === "compact"
                       ? "bg-slate-800 text-white border-slate-800"
                       : "bg-slate-50 text-slate-700"
-                  }`}
+                    }`}
                 >
                   কমপ্যাক্ট (Compact POS)
                 </button>
@@ -1473,11 +1559,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                       key={sym}
                       type="button"
                       onClick={() => setCurrencySymbol(sym)}
-                      className={`px-2 py-0.5 rounded text-[10.5px] font-bold border transition-colors cursor-pointer ${
-                        currencySymbol === sym
+                      className={`px-2 py-0.5 rounded text-[10.5px] font-bold border transition-colors cursor-pointer ${currencySymbol === sym
                           ? 'bg-emerald-600 text-white border-emerald-600'
                           : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-200'
-                      }`}
+                        }`}
                     >
                       {sym}
                     </button>
@@ -1642,11 +1727,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                     key={preset.val}
                     type="button"
                     onClick={() => setPageTitleFormat(preset.val)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
-                      pageTitleFormat === preset.val
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${pageTitleFormat === preset.val
                         ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
                         : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-100'
-                    }`}
+                      }`}
                   >
                     {preset.label}
                   </button>
@@ -1723,7 +1807,7 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* Left Controls Column */}
             <div className="lg:col-span-7 space-y-4">
-              
+
               {/* 1. Template Layout Styles */}
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
                 <h4 className="font-bold text-slate-900 text-xs flex items-center gap-2 pb-2 border-b border-slate-100">
@@ -1780,11 +1864,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                             primaryColor: tpl.color,
                           })
                         }
-                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
-                          isSelected
+                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between ${isSelected
                             ? "border-indigo-600 bg-indigo-50/40 shadow-xs"
                             : "border-slate-200 hover:bg-slate-50"
-                        }`}
+                          }`}
                       >
                         <div>
                           <div className="flex items-center justify-between mb-1">
@@ -1843,11 +1926,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                             });
                             setPreviewPaperFormat(fmt.id as any);
                           }}
-                          className={`p-2 rounded-lg font-bold text-center border cursor-pointer transition-all ${
-                            templateConfig.defaultPaperSize === fmt.id
+                          className={`p-2 rounded-lg font-bold text-center border cursor-pointer transition-all ${templateConfig.defaultPaperSize === fmt.id
                               ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
                               : "bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200"
-                          }`}
+                            }`}
                         >
                           {fmt.name}
                         </button>
@@ -1877,11 +1959,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                               primaryColor: c.color,
                             })
                           }
-                          className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all cursor-pointer ${
-                            templateConfig.primaryColor === c.color
+                          className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all cursor-pointer ${templateConfig.primaryColor === c.color
                               ? "border-slate-900 scale-110 shadow-md ring-2 ring-indigo-400"
                               : "border-white hover:scale-105"
-                          }`}
+                            }`}
                           style={{ backgroundColor: c.color }}
                           title={c.name}
                         >
@@ -2059,11 +2140,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                         key={fmt}
                         type="button"
                         onClick={() => setPreviewPaperFormat(fmt)}
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
-                          previewPaperFormat === fmt
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${previewPaperFormat === fmt
                             ? "bg-indigo-600 text-white"
                             : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                        }`}
+                          }`}
                       >
                         {fmt}
                       </button>
@@ -2074,15 +2154,14 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                 {/* Simulated Invoice Sheet */}
                 <div className="bg-slate-100 p-3 rounded-xl mt-3 max-h-[75vh] overflow-y-auto border border-slate-200">
                   <div
-                    className={`bg-white shadow-lg border border-slate-300 rounded-lg p-3.5 mx-auto relative overflow-hidden transition-all ${
-                      previewPaperFormat === "A4"
+                    className={`bg-white shadow-lg border border-slate-300 rounded-lg p-3.5 mx-auto relative overflow-hidden transition-all ${previewPaperFormat === "A4"
                         ? "max-w-md text-[11px]"
                         : previewPaperFormat === "A5"
-                        ? "max-w-sm text-[10.5px]"
-                        : previewPaperFormat === "58mm"
-                        ? "max-w-[240px] text-[9.5px]"
-                        : "max-w-[290px] text-[10px]"
-                    }`}
+                          ? "max-w-sm text-[10.5px]"
+                          : previewPaperFormat === "58mm"
+                            ? "max-w-[240px] text-[9.5px]"
+                            : "max-w-[290px] text-[10px]"
+                      }`}
                   >
                     {/* Watermark */}
                     {templateConfig.showWatermark && (
@@ -2103,18 +2182,16 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
 
                     {/* Shop Header */}
                     <div
-                      className={`flex items-center gap-2.5 pb-2 ${
-                        previewPaperFormat === "80mm" || previewPaperFormat === "58mm"
+                      className={`flex items-center gap-2.5 pb-2 ${previewPaperFormat === "80mm" || previewPaperFormat === "58mm"
                           ? "flex-col text-center"
                           : "justify-between"
-                      }`}
+                        }`}
                     >
                       <div
-                        className={`flex items-center gap-2 ${
-                          previewPaperFormat === "80mm" || previewPaperFormat === "58mm"
+                        className={`flex items-center gap-2 ${previewPaperFormat === "80mm" || previewPaperFormat === "58mm"
                             ? "flex-col text-center"
                             : ""
-                        }`}
+                          }`}
                       >
                         {templateConfig.showLogo && (
                           <div
@@ -2150,11 +2227,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                       </div>
 
                       <div
-                        className={`bg-slate-50 border border-slate-200 rounded p-1.5 text-[9.5px] ${
-                          previewPaperFormat === "80mm" || previewPaperFormat === "58mm"
+                        className={`bg-slate-50 border border-slate-200 rounded p-1.5 text-[9.5px] ${previewPaperFormat === "80mm" || previewPaperFormat === "58mm"
                             ? "w-full text-center mt-1"
                             : "text-right"
-                        }`}
+                          }`}
                       >
                         <div>
                           ইনভয়েস #:{" "}
@@ -2220,11 +2296,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
 
                     {/* Summary & QR */}
                     <div
-                      className={`flex justify-between items-end gap-2 my-1 ${
-                        previewPaperFormat === "80mm" || previewPaperFormat === "58mm"
+                      className={`flex justify-between items-end gap-2 my-1 ${previewPaperFormat === "80mm" || previewPaperFormat === "58mm"
                           ? "flex-col-reverse items-stretch"
                           : ""
-                      }`}
+                        }`}
                     >
                       {templateConfig.showQrCode ? (
                         <div className="p-1 bg-white border border-slate-200 rounded text-center shrink-0 mx-auto">
@@ -3092,11 +3167,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                 {paymentConfig.customMethods.map((cm) => (
                   <div
                     key={cm.id}
-                    className={`p-3.5 rounded-xl border transition-all ${
-                      cm.isActive
+                    className={`p-3.5 rounded-xl border transition-all ${cm.isActive
                         ? "bg-white border-slate-200 shadow-xs"
                         : "bg-slate-50 border-slate-200 opacity-60"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2.5">
@@ -3584,11 +3658,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                       key={c}
                       type="button"
                       onClick={() => setCustomColor(c)}
-                      className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all cursor-pointer ${
-                        customColor === c
+                      className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all cursor-pointer ${customColor === c
                           ? "border-slate-900 scale-110 shadow-md ring-2 ring-indigo-400"
                           : "border-white hover:scale-105"
-                      }`}
+                        }`}
                       style={{ backgroundColor: c }}
                     >
                       {customColor === c && (
@@ -3653,11 +3726,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
           {/* Add / Edit Custom Field Form */}
           <form
             onSubmit={handleSaveCustomField}
-            className={`p-5 rounded-xl border shadow-xs space-y-4 text-xs transition-all ${
-              editingCustomField
+            className={`p-5 rounded-xl border shadow-xs space-y-4 text-xs transition-all ${editingCustomField
                 ? "bg-amber-50/60 border-amber-300 ring-2 ring-amber-400/30"
                 : "bg-white border-slate-200"
-            }`}
+              }`}
           >
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
@@ -3733,11 +3805,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
               <div className="flex items-end gap-2">
                 <button
                   type="submit"
-                  className={`w-full py-2 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition-all ${
-                    editingCustomField
+                  className={`w-full py-2 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition-all ${editingCustomField
                       ? "bg-amber-600 hover:bg-amber-700"
                       : "bg-indigo-600 hover:bg-indigo-700"
-                  }`}
+                    }`}
                 >
                   {editingCustomField ? (
                     <>
@@ -3798,11 +3869,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                   return (
                     <div
                       key={field.id}
-                      className={`p-3.5 flex items-center justify-between transition-colors ${
-                        isCurrentlyEditing
+                      className={`p-3.5 flex items-center justify-between transition-colors ${isCurrentlyEditing
                           ? "bg-amber-50/80 border-l-4 border-l-amber-500"
                           : "hover:bg-slate-50"
-                      }`}
+                        }`}
                     >
                       <div>
                         <div className="font-bold text-slate-900 flex items-center gap-2">
@@ -3826,11 +3896,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
                         <button
                           type="button"
                           onClick={() => handleStartEditCustomField(field)}
-                          className={`p-1.5 rounded-lg cursor-pointer transition-colors flex items-center gap-1 font-bold text-xs ${
-                            isCurrentlyEditing
+                          className={`p-1.5 rounded-lg cursor-pointer transition-colors flex items-center gap-1 font-bold text-xs ${isCurrentlyEditing
                               ? "bg-amber-500 text-white"
                               : "text-indigo-600 hover:bg-indigo-50 bg-indigo-50/50"
-                          }`}
+                            }`}
                           title="প্রোপার্টি এডিট করুন"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -4304,11 +4373,10 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
           {/* Test Result Banner */}
           {testResult && (
             <div
-              className={`p-4 rounded-xl border flex items-start gap-3 text-xs animate-in fade-in ${
-                testResult.connected
+              className={`p-4 rounded-xl border flex items-start gap-3 text-xs animate-in fade-in ${testResult.connected
                   ? "bg-emerald-50 border-emerald-300 text-emerald-950"
                   : "bg-rose-50 border-rose-300 text-rose-950"
-              }`}
+                }`}
             >
               {testResult.connected ? (
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
@@ -4534,21 +4602,256 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
               </span>
             </div>
             <p className="text-slate-600 text-[11px] leading-relaxed">
-              টেস্টিং চলাকালে বা নতুন হিসাব শুরুর পূর্বে আপনি যেকোনো সময় বর্তমান দোকানের সকল বিক্রয়, ইনভয়েস ও অর্ডারের হিস্ট্রি মুছে শূন্য (০) করতে পারেন। 
+              টেস্টিং চলাকালে বা নতুন হিসাব শুরুর পূর্বে আপনি যেকোনো সময় বর্তমান দোকানের সকল বিক্রয়, ইনভয়েস ও অর্ডারের হিস্ট্রি মুছে শূন্য (০) করতে পারেন।
+              সুপাবেস ক্লাউড ও লোকাল ডেটাবেজ উভয়েরই বিক্রয় রেকর্ড মুছে যাবে যাতে রিলোডে পুরোনো বিক্রয় ফিরে না আসে।
               <span className="text-rose-700 font-bold"> নোট:</span> এতে আপনার প্রোডাক্ট ক্যাটালগ, ক্যাটেগরি বা দামের কোনো পরিবর্তন হবে না।
             </p>
 
             <button
               type="button"
+              disabled={isResettingSales}
               onClick={handleResetSalesData}
-              className="py-2.5 px-5 bg-rose-600 hover:bg-rose-700 active:scale-[0.99] text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm cursor-pointer transition-all w-full sm:w-auto"
+              className="py-2.5 px-5 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 active:scale-[0.99] text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm cursor-pointer transition-all w-full sm:w-auto"
             >
-              <Trash2 className="w-4 h-4" />
-              <span>শুধুমাত্র বিক্রয় ডেটা রিসেট করুন (Reset Sales Only)</span>
+              {isResettingSales ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>ক্লাউড ও লোকাল বিক্রয় মুছে ফেলা হচ্ছে...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4" />
+                  <span>শুধুমাত্র বিক্রয় ডেটা রিসেট করুন (Reset Sales Only)</span>
+                </>
+              )}
             </button>
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* TAB 8: SECURITY PIN VERIFICATION CONTROL                                  */}
+      {/* ========================================================================= */}
+      {activeTab === "security" && (
+        <div className="space-y-5">
+          <form onSubmit={handleSavePinConfig} className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6 text-xs">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 leading-tight">
+                    {isEn ? "Action Security PIN Verification System" : "অ্যাকশন সিকিউরিটি পিন নিয়ন্ত্রণ ও সেটিংস"}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {isEn
+                      ? "Control PIN verification rules for critical operations like Delete, Edit, and Data Reset."
+                      : "পণ্য, কর্মচারী, ক্যাটাগরি ডিলিট বা এডিট এবং সেলস ডাটা রিসেট করার সময় পিন সুরক্ষা কনফিগার করুন"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Master Toggle */}
+              <div className="flex items-center gap-3 p-2 bg-slate-50 rounded-xl border border-slate-200 shrink-0">
+                <span className="text-xs font-bold text-slate-700">
+                  {pinConfig.enabled ? (isEn ? "PIN Protection ON" : "পিন সুরক্ষা চালু") : (isEn ? "PIN Protection OFF" : "পিন সুরক্ষা বন্ধ")}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPinConfig((prev) => ({ ...prev, enabled: !prev.enabled }))
+                  }
+                  className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 ${
+                    pinConfig.enabled ? "bg-indigo-600" : "bg-slate-300"
+                  }`}
+                >
+                  <div
+                    className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
+                      pinConfig.enabled ? "translate-x-6" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            {pinChangeSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{pinChangeSuccess}</span>
+              </div>
+            )}
+
+            {pinChangeError && (
+              <div className="p-3 bg-rose-50 border border-rose-300 text-rose-800 rounded-xl text-xs font-bold flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{pinChangeError}</span>
+              </div>
+            )}
+
+            {/* PIN Change Fields */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700">
+                  {isEn ? "Security PIN (4 to 6 Digits)" : "নতুন সিকিউরিটি পিন (৪ থেকে ৬ ডিজিট)"}
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type={showPinText ? "text" : "password"}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    value={pinInput}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "");
+                      setPinInput(val);
+                      setPinChangeError("");
+                    }}
+                    placeholder="যেমন: 1234"
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 focus:border-indigo-600 focus:bg-white rounded-xl text-sm font-mono font-bold tracking-widest outline-none transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPinText(!showPinText)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showPinText ? <Eye className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                  </button>
+                </div>
+                <span className="text-[10px] text-slate-400">
+                  ডিফল্ট পিন: <b>1234</b>
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700">
+                  {isEn ? "Confirm Security PIN" : "পিন নিশ্চিত করুন (Confirm PIN)"}
+                </label>
+                <div className="relative">
+                  <Key className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type={showPinText ? "text" : "password"}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    value={confirmPinInput}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "");
+                      setConfirmPinInput(val);
+                      setPinChangeError("");
+                    }}
+                    placeholder="পুনরায় পিন লিখুন"
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 focus:border-indigo-600 focus:bg-white rounded-xl text-sm font-mono font-bold tracking-widest outline-none transition-all"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Action Rules Checklist */}
+            <div className="pt-3 border-t border-slate-100 space-y-3">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                {isEn ? "PIN Protected Action Rules" : "কোন কোন অ্যাকশনে পিন ভেরিফিকেশন প্রয়োজন হবে:"}
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Rule 1: Delete */}
+                <label className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
+                  pinConfig.requireForDelete ? "bg-rose-50/60 border-rose-200" : "bg-slate-50 border-slate-200"
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={pinConfig.requireForDelete}
+                    onChange={(e) =>
+                      setPinConfig((prev) => ({ ...prev, requireForDelete: e.target.checked }))
+                    }
+                    className="mt-0.5 w-4 h-4 text-rose-600 rounded focus:ring-rose-500 cursor-pointer"
+                  />
+                  <div>
+                    <span className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Delete (মুছে ফেলা)</span>
+                    </span>
+                    <p className="text-[10.5px] text-slate-500 mt-1 leading-relaxed">
+                      পণ্য, কর্মচারী, ক্যাটাগরি, কাস্টমার বা যেকোনো রেকর্ড মুছে ফেলার সময় পিন চাইবে।
+                    </p>
+                  </div>
+                </label>
+
+                {/* Rule 2: Edit */}
+                <label className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
+                  pinConfig.requireForEdit ? "bg-indigo-50/60 border-indigo-200" : "bg-slate-50 border-slate-200"
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={pinConfig.requireForEdit}
+                    onChange={(e) =>
+                      setPinConfig((prev) => ({ ...prev, requireForEdit: e.target.checked }))
+                    }
+                    className="mt-0.5 w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <div>
+                    <span className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                      <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Edit (তথ্য সম্পাদনা)</span>
+                    </span>
+                    <p className="text-[10.5px] text-slate-500 mt-1 leading-relaxed">
+                      পণ্যের মূল্য, নাম বা কর্মচারীর তথ্য ও পারমিশন সম্পাদনা করতে পিন চাইবে।
+                    </p>
+                  </div>
+                </label>
+
+                {/* Rule 3: Reset */}
+                <label className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
+                  pinConfig.requireForReset ? "bg-amber-50/60 border-amber-200" : "bg-slate-50 border-slate-200"
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={pinConfig.requireForReset}
+                    onChange={(e) =>
+                      setPinConfig((prev) => ({ ...prev, requireForReset: e.target.checked }))
+                    }
+                    className="mt-0.5 w-4 h-4 text-amber-600 rounded focus:ring-amber-500 cursor-pointer"
+                  />
+                  <div>
+                    <span className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Reset & System Clear</span>
+                    </span>
+                    <p className="text-[10.5px] text-slate-500 mt-1 leading-relaxed">
+                      বিক্রয় ডাটা রিসেট বা বড় ধরনের সিস্টেম হিস্ট্রি ক্লিয়ার করার সময় পিন চাইবে।
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Save Button */}
+            <div className="flex items-center justify-end pt-3 border-t border-slate-100">
+              <button
+                type="submit"
+                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs flex items-center gap-2 shadow-md cursor-pointer transition-all"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isEn ? "Save Security PIN Settings" : "সিকিউরিটি পিন সেটিংস সংরক্ষণ করুন"}</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Security PIN Verification Modal for Global Settings */}
+      <PinVerificationModal
+        isOpen={pinModalConfig.isOpen}
+        onClose={() => setPinModalConfig((prev) => ({ ...prev, isOpen: false }))}
+        onSuccess={pinModalConfig.onSuccess}
+        actionType={pinModalConfig.actionType}
+        title={pinModalConfig.title}
+        subtitle={pinModalConfig.subtitle}
+        itemName={pinModalConfig.itemName}
+        tenantId={activeTenant.id}
+      />
     </div>
   );
 };

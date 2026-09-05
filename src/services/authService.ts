@@ -80,7 +80,9 @@ class AuthService {
     } else {
       localStorage.removeItem(AUTH_KEY);
     }
-    window.dispatchEvent(new CustomEvent('dokan_auth_changed', { detail: { session } }));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('dokan_auth_changed', { detail: { session } }));
+    }
   }
 
   public saveCurrentUser(user: UserProfile | null): void {
@@ -96,7 +98,79 @@ class AuthService {
   }
 
   /**
-   * Smart Tenant Peek as User Types their Identifier (Phone, Username or Email)
+   * Clean and normalize phone numbers (e.g. BD format 01XXXXXXXXX)
+   */
+  normalizePhone(phone?: string): string {
+    if (!phone) return '';
+    let cleaned = phone.replace(/[\s\-\(\)\+]/g, '').trim();
+    if (cleaned.startsWith('880')) {
+      cleaned = '0' + cleaned.slice(3);
+    }
+    return cleaned;
+  }
+
+  /**
+   * Check if a phone number is unique across all users (staff, tenant owners, system admin)
+   */
+  isPhoneUnique(
+    phone: string,
+    excludeUserId?: string
+  ): { isUnique: boolean; existingUser?: UserProfile; tenantName?: string; message?: string } {
+    const clean = this.normalizePhone(phone);
+    if (!clean || clean.length < 5) {
+      return { isUnique: true };
+    }
+
+    // 1. Check System Admin
+    if (clean === this.normalizePhone(SYSTEM_ADMIN_USER.phone) || clean === SYSTEM_ADMIN_USER.username) {
+      if (excludeUserId !== SYSTEM_ADMIN_USER.id) {
+        return {
+          isUnique: false,
+          existingUser: SYSTEM_ADMIN_USER,
+          tenantName: 'System Platform',
+          message: 'এই ফোন নম্বরটি সিস্টেম অ্যাডমিন ইউজারনেমের জন্য সংরক্ষিত।'
+        };
+      }
+    }
+
+    // 2. Check all tenants and staff
+    const allTenants = storageService.getTenants();
+    for (const tenant of allTenants) {
+      // Check tenant owner phone
+      if (this.normalizePhone(tenant.phone) === clean) {
+        const ownerSyntheticId = `usr_owner_${tenant.id}`;
+        if (excludeUserId !== ownerSyntheticId) {
+          return {
+            isUnique: false,
+            tenantName: tenant.name,
+            message: `এই মোবাইল নম্বরটি "${tenant.name}" দোকানের মালিকের একাউন্টে ব্যবহৃত হচ্ছে।`
+          };
+        }
+      }
+
+      // Check staff members of this tenant
+      const staffList = this.getTenantStaff(tenant.id);
+      for (const staff of staffList) {
+        if (staff.id !== excludeUserId) {
+          const staffPhone = this.normalizePhone(staff.phone);
+          const staffUsername = this.normalizePhone(staff.username);
+          if (staffPhone === clean || staffUsername === clean) {
+            return {
+              isUnique: false,
+              existingUser: staff,
+              tenantName: tenant.name,
+              message: `এই মোবাইল নম্বরটি "${tenant.name}" দোকানের কর্মী "${staff.name}" (${staff.role}) এর ইউজারনেম হিসেবে ইতিমধ্যে ব্যবহৃত হচ্ছে।`
+            };
+          }
+        }
+      }
+    }
+
+    return { isUnique: true };
+  }
+
+  /**
+   * Smart Tenant Peek as User Types their Identifier (Phone is Unique Username)
    */
   peekIdentifier(
     rawIdentifier: string,
@@ -113,10 +187,12 @@ class AuthService {
       return { matched: false, isSystemAdmin: false, tenants: [] };
     }
 
+    const cleanInputPhone = this.normalizePhone(id);
+
     // Check System Admin first
     if (
       id.toLowerCase() === 'bdyusuf2016' ||
-      id === '01711000000' ||
+      cleanInputPhone === this.normalizePhone(SYSTEM_ADMIN_USER.phone) ||
       id.toLowerCase() === 'admin'
     ) {
       return {
@@ -137,23 +213,31 @@ class AuthService {
 
     for (const tenant of candidateTenants) {
       const staffList = this.getTenantStaff(tenant.id);
-      const matchedStaff = staffList.find(
-        u => u.phone === id || u.username?.toLowerCase() === id.toLowerCase() || u.email?.toLowerCase() === id.toLowerCase()
-      );
+      const matchedStaff = staffList.find(u => {
+        const uPhone = this.normalizePhone(u.phone);
+        const uUsername = this.normalizePhone(u.username);
+        return (
+          (cleanInputPhone && (uPhone === cleanInputPhone || uUsername === cleanInputPhone)) ||
+          u.phone === id ||
+          u.username?.toLowerCase() === id.toLowerCase() ||
+          u.email?.toLowerCase() === id.toLowerCase()
+        );
+      });
 
       if (matchedStaff) {
         matchedTenants.push({ tenant, user: matchedStaff });
       } else if (
+        (cleanInputPhone && this.normalizePhone(tenant.phone) === cleanInputPhone) ||
         tenant.phone === id ||
         tenant.email?.toLowerCase() === id.toLowerCase() ||
         tenant.owner_name?.toLowerCase() === id.toLowerCase()
       ) {
-        // Shop Owner synthetic profile
+        // Shop Owner profile
         matchedTenants.push({
           tenant,
           user: {
             id: `usr_owner_${tenant.id}`,
-            username: id,
+            username: cleanInputPhone || tenant.phone || id,
             name: tenant.owner_name,
             phone: tenant.phone || id,
             email: tenant.email || `${id}@dokan.local`,
@@ -461,7 +545,9 @@ class AuthService {
   private saveTenantStaffList(tenantId: string, staffList: UserProfile[]): void {
     try {
       localStorage.setItem(this.getStaffListKey(tenantId), JSON.stringify(staffList));
-      window.dispatchEvent(new CustomEvent('dokan_staff_updated', { detail: { tenantId } }));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('dokan_staff_updated', { detail: { tenantId } }));
+      }
     } catch (e) {
       console.error('Failed to save staff list', e);
     }
@@ -471,8 +557,11 @@ class AuthService {
     const list = this.getTenantStaff(staff.tenantId);
     const existingIndex = list.findIndex(u => u.id === staff.id);
 
+    const cleanPhone = this.normalizePhone(staff.phone || staff.username);
     const updatedUser: UserProfile = {
       ...staff,
+      phone: cleanPhone || staff.phone,
+      username: cleanPhone || staff.username || staff.phone,
       permissions: staff.permissions || RbacEngine.getRolePermissions(staff.role),
       status: staff.status || 'active'
     };

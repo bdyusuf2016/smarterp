@@ -22,7 +22,9 @@ import {
 } from 'lucide-react';
 import { Tenant, UserRole } from '../../types';
 import { UserProfile, authService } from '../../services/authService';
+import { storageService } from '../../services/storageService';
 import { ALL_PERMISSIONS, ROLE_PERMISSIONS, RbacEngine } from '../../engine/rbacEngine';
+import { PinVerificationModal } from '../common/PinVerificationModal';
 
 interface StaffManagementViewProps {
   activeTenant: Tenant;
@@ -82,7 +84,21 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
     setIsStaffModalOpen(true);
   };
 
-  const handleOpenEditModal = (staff: UserProfile) => {
+  // PIN Verification Modal State
+  const [pinModalConfig, setPinModalConfig] = useState<{
+    isOpen: boolean;
+    actionType: 'delete' | 'edit';
+    title?: string;
+    subtitle?: string;
+    itemName?: string;
+    onSuccess: () => void;
+  }>({
+    isOpen: false,
+    actionType: 'delete',
+    onSuccess: () => {}
+  });
+
+  const openEditModalDirect = (staff: UserProfile) => {
     setEditingStaff(staff);
     setFormName(staff.name);
     setFormPhone(staff.phone);
@@ -94,23 +110,54 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
     setIsStaffModalOpen(true);
   };
 
+  const handleOpenEditModal = (staff: UserProfile) => {
+    if (storageService.isPinRequired('edit', activeTenant.id)) {
+      setPinModalConfig({
+        isOpen: true,
+        actionType: 'edit',
+        title: 'কর্মী তথ্য সম্পাদনায় পিন ভেরিফিকেশন',
+        subtitle: `কর্মী "${staff.name}" (${staff.phone}) এর তথ্য এডিট করতে সিকিউরিটি পিন দিন`,
+        itemName: staff.name,
+        onSuccess: () => openEditModalDirect(staff)
+      });
+    } else {
+      openEditModalDirect(staff);
+    }
+  };
+
   const handleSaveStaff = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formName || !formPhone) {
+    if (!formName.trim() || !formPhone.trim()) {
       showNotification('কর্মচারীর নাম ও মোবাইল নম্বর পূরণ করুন', 'error');
+      return;
+    }
+
+    const cleanPhone = authService.normalizePhone(formPhone);
+    if (!cleanPhone || cleanPhone.length < 10) {
+      showNotification('অনুগ্রহ করে সঠিক মোবাইল নম্বর লিখুন (যেমন: 017xxxxxxxx)', 'error');
+      return;
+    }
+
+    // Check unique phone username requirement
+    const uniqueCheck = authService.isPhoneUnique(cleanPhone, editingStaff?.id);
+    if (!uniqueCheck.isUnique) {
+      showNotification(
+        uniqueCheck.message || `এই মোবাইল নম্বরটি (${cleanPhone}) ইতিমধ্যে অন্য একজন ব্যবহারকারীর ইউজারনেম হিসেবে নিবন্ধিত আছে।`,
+        'error'
+      );
       return;
     }
 
     const newStaff: UserProfile = {
       id: editingStaff ? editingStaff.id : `usr_staff_${Date.now()}`,
-      username: formPhone,
-      name: formName,
-      phone: formPhone,
-      email: formEmail || `${formPhone}@dokan.local`,
+      username: cleanPhone,
+      name: formName.trim(),
+      phone: cleanPhone,
+      email: formEmail.trim() || `${cleanPhone}@dokan.local`,
       role: formRole,
       tenantId: activeTenant.id,
-      designation: formDesignation,
+      designation: formDesignation.trim(),
       status: formStatus,
       permissions: editingStaff ? editingStaff.permissions : RbacEngine.getRolePermissions(formRole),
       avatarUrl: editingStaff?.avatarUrl || `https://images.unsplash.com/photo-${1500000000000 + Math.floor(Math.random() * 900000)}?w=150&auto=format&fit=crop&q=80`,
@@ -123,16 +170,31 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
     showNotification(editingStaff ? 'কর্মচারীর তথ্য সফলভাবে আপডেট হয়েছে!' : 'নতুন কর্মচারী সফলভাবে যুক্ত করা হয়েছে!');
   };
 
+  const confirmDeleteStaff = (staff: UserProfile) => {
+    authService.deleteStaffMember(activeTenant.id, staff.id);
+    loadStaff();
+    showNotification(`কর্মচারী "${staff.name}" সফলভাবে মুছে ফেলা হয়েছে`);
+  };
+
   const handleDeleteStaff = (staff: UserProfile) => {
     if (staff.role === 'ADMIN') {
       showNotification('দোকান মালিকের মূল অ্যাকাউন্ট মুছে ফেলা যাবে না', 'error');
       return;
     }
 
-    if (window.confirm(`আপনি কি "${staff.name}" কে কর্মচারী তালিকা থেকে মুছে ফেলতে চান?`)) {
-      authService.deleteStaffMember(activeTenant.id, staff.id);
-      loadStaff();
-      showNotification('কর্মচারী মুছে ফেলা হয়েছে');
+    if (storageService.isPinRequired('delete', activeTenant.id)) {
+      setPinModalConfig({
+        isOpen: true,
+        actionType: 'delete',
+        title: 'কর্মী মুছে ফেলতে সিকিউরিটি পিন',
+        subtitle: `কর্মী "${staff.name}" (${staff.phone}) মুছে ফেলার জন্য পিন প্রদান করুন`,
+        itemName: staff.name,
+        onSuccess: () => confirmDeleteStaff(staff)
+      });
+    } else {
+      if (window.confirm(`আপনি কি "${staff.name}" কে কর্মচারী তালিকা থেকে মুছে ফেলতে চান?`)) {
+        confirmDeleteStaff(staff);
+      }
     }
   };
 
@@ -681,6 +743,18 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Security PIN Verification Modal */}
+      <PinVerificationModal
+        isOpen={pinModalConfig.isOpen}
+        onClose={() => setPinModalConfig(prev => ({ ...prev, isOpen: false }))}
+        onSuccess={pinModalConfig.onSuccess}
+        actionType={pinModalConfig.actionType}
+        title={pinModalConfig.title}
+        subtitle={pinModalConfig.subtitle}
+        itemName={pinModalConfig.itemName}
+        tenantId={activeTenant.id}
+      />
     </div>
   );
 };

@@ -155,13 +155,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
               <div className="mb-6">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20 text-[11px] font-bold uppercase tracking-wider mb-2">
                   <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                  <span>স্মার্ট ইউনিফায়েড লগইন</span>
+                  <span>একক প্ল্যাটফর্ম স্মার্ট লগইন (Single Platform Login)</span>
                 </div>
                 <h2 className="text-xl font-extrabold text-white">
                   {preselectedTenant ? `${preselectedTenant.name}-এ স্বাগতম` : 'প্ল্যাটফর্মে প্রবেশ করুন'}
                 </h2>
                 <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                  আপনার ইউজার আইডি বা মোবাইল নম্বর ও পাসওয়ার্ড প্রদান করুন। সিস্টেম স্বয়ংক্রিয়ভাবে আপনার একাউন্ট ও দোকান শনাক্ত করবে।
+                  ইউনিক ইউজারনেম হিসেবে আপনার মোবাইল নম্বর ও পাসওয়ার্ড দিন। সিস্টেম স্বয়ংক্রিয়ভাবে আপনার রোল ও দোকান শনাক্ত করে নির্দিষ্ট এক্সেস প্রোফাইলে নিয়ে যাবে।
                 </p>
               </div>
 
@@ -225,7 +225,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 {/* Input 1: Identifier */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    ইউজার আইডি, মোবাইল নম্বর বা ইমেইল
+                    ইউজারনেম (মোবাইল নম্বর বা ইউজার আইডি)
                   </label>
                   <div className="relative">
                     <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -233,7 +233,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                       type="text"
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
-                      placeholder="যেমন: bdyusuf2016 অথবা 017xxxxxxxx"
+                      placeholder="যেমন: 017xxxxxxxx অথবা bdyusuf2016"
                       required
                       autoFocus
                       className="w-full pl-10 pr-4 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-mono"
