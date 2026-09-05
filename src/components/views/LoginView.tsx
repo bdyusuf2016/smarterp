@@ -101,43 +101,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
     executeLogin(tenantMatch.tenant.id);
   };
 
-  const handleQuickDemoLogin = (roleType: 'super_admin' | 'shop_admin' | 'staff') => {
-    setErrorMsg('');
-    setSuccessMsg('');
-    let id = '';
-    let pass = '';
-    let tid: string | undefined = undefined;
-
-    if (roleType === 'super_admin') {
-      id = 'bdyusuf2016';
-      pass = 'admin123';
-    } else if (roleType === 'shop_admin') {
-      id = '01700000000';
-      pass = '1234';
-      tid = 'tenant_nexus';
-    } else {
-      id = '01711112222';
-      pass = '1234';
-      tid = 'tenant_nexus';
-    }
-
-    setIdentifier(id);
-    setPassword(pass);
-    if (tid) setSelectedTenantId(tid);
-
-    const res = authService.smartLogin(id, pass, tid);
-    if (res.success && res.user) {
-      setSuccessMsg(res.message);
-      setTimeout(() => {
-        onLoginSuccess(res.user!, res.tenant?.id, res.targetView);
-      }, 350);
-    } else if (res.requiresTenantSelection && res.availableTenants) {
-      setMultiTenantOptions(res.availableTenants);
-    } else {
-      setErrorMsg(res.message || 'লগইন ব্যর্থ হয়েছে');
-    }
-  };
-
   return (
     <div className="min-h-screen w-full bg-[#0c111d] text-slate-100 flex flex-col justify-between select-none relative overflow-hidden font-sans">
       {/* Background glowing gradients */}
@@ -328,44 +291,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
-
-              {/* Quick Demo Credentials Bar */}
-              <div className="mt-5 pt-3.5 border-t border-slate-800/80">
-                <div className="text-[11px] font-bold text-slate-400 mb-2 flex items-center justify-between">
-                  <span>⚡ এক ক্লিকে ইনস্ট্যান্ট ডেমো লগইন:</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleQuickDemoLogin('super_admin')}
-                    className="p-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 text-[11px] font-semibold text-center transition-all cursor-pointer"
-                    title="সিস্টেম অ্যাডমিন রুট প্রবেশ"
-                  >
-                    <div className="font-bold">🛡️ Sys Admin</div>
-                    <div className="text-[9px] font-mono opacity-80 mt-0.5">bdyusuf2016</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleQuickDemoLogin('shop_admin')}
-                    className="p-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-300 text-[11px] font-semibold text-center transition-all cursor-pointer"
-                    title="শপ অ্যাডমিন / দোকান মালিক প্রবেশ"
-                  >
-                    <div className="font-bold">🏪 Shop Admin</div>
-                    <div className="text-[9px] font-mono opacity-80 mt-0.5">01700000000</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleQuickDemoLogin('staff')}
-                    className="p-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[11px] font-semibold text-center transition-all cursor-pointer"
-                    title="ক্যাশিয়ার / দোকান কর্মী প্রবেশ"
-                  >
-                    <div className="font-bold">👤 Staff Cashier</div>
-                    <div className="text-[9px] font-mono opacity-80 mt-0.5">01711112222</div>
-                  </button>
-                </div>
-              </div>
             </div>
 
             {/* Bottom Form Footer */}
