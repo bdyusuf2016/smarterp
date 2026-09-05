@@ -66,16 +66,40 @@ export const LoginView: React.FC<LoginViewProps> = ({
     });
   }, []);
 
-  // Real-time peek debounced
+  // Real-time peek debounced with live Supabase Cloud search
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const res = authService.peekIdentifier(identifier, selectedTenantId || tenantHint);
-      setPeekInfo(res);
-      if (res.matched && res.tenants.length === 1) {
-        setSelectedTenantId(res.tenants[0].tenant.id);
+    let isMounted = true;
+    const timer = setTimeout(async () => {
+      let res = authService.peekIdentifier(identifier, selectedTenantId || tenantHint);
+
+      // If user typed a potential phone number or username (length >= 8) and local match is not exact
+      if (identifier.trim().length >= 8) {
+        const inputClean = authService.normalizePhone(identifier);
+        const hasExactMatch = res.tenants.some(t => {
+          const uPhone = authService.normalizePhone(t.user.phone);
+          const tPhone = authService.normalizePhone(t.tenant.phone);
+          return (inputClean && (uPhone === inputClean || tPhone === inputClean)) || t.user.username?.toLowerCase() === identifier.trim().toLowerCase();
+        });
+
+        if (!hasExactMatch) {
+          const found = await supabaseService.searchCloudUser(identifier);
+          if (found && isMounted) {
+            res = authService.peekIdentifier(identifier, selectedTenantId || tenantHint);
+          }
+        }
       }
-    }, 150);
-    return () => clearTimeout(timer);
+
+      if (isMounted) {
+        setPeekInfo(res);
+        if (res.matched && res.tenants.length === 1) {
+          setSelectedTenantId(res.tenants[0].tenant.id);
+        }
+      }
+    }, 200);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
   }, [identifier, selectedTenantId, tenantHint]);
 
   const executeLogin = async (overrideTenantId?: string) => {
@@ -83,10 +107,16 @@ export const LoginView: React.FC<LoginViewProps> = ({
     setSuccessMsg('');
 
     let tid = overrideTenantId || selectedTenantId || tenantHint;
+
+    // Search cloud first if identifier is typed to ensure freshest cloud account data
+    if (identifier.trim().length >= 8) {
+      await supabaseService.searchCloudUser(identifier);
+    }
+
     let res = authService.smartLogin(identifier, password, tid);
 
     if (!res.success && !res.requiresTenantSelection) {
-      // If user is not found locally, query Supabase Cloud users & tenants tables directly
+      // Secondary fallback search if first attempt didn't find user
       const foundInCloud = await supabaseService.searchCloudUser(identifier);
       if (foundInCloud) {
         const peekAfterCloud = authService.peekIdentifier(identifier, tid);

@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { storageService } from "./storageService";
 import { authService, UserProfile } from "./authService";
+import { RbacEngine } from "../engine/rbacEngine";
 
 export interface SupabaseConfig {
   url: string;
@@ -740,24 +741,53 @@ class SupabaseService {
     const clean = identifier.trim();
     if (!clean) return false;
 
+    // Phone search term without country code (e.g. 1911175276 from 01911175276 or +8801911175276)
+    const rawDigits = clean.replace(/\D/g, '');
+    const phoneSuffix = rawDigits.length >= 10 ? rawDigits.slice(-10) : rawDigits;
+
     try {
       // 1. Search users table in Supabase Cloud
       const { data: usersData } = await client
         .from('users')
         .select('*')
-        .or(`phone.eq.${clean},username.eq.${clean},email.eq.${clean}`);
+        .or(`phone.eq.${clean},phone.eq.%2B88${phoneSuffix},phone.eq.88${phoneSuffix},phone.eq.0${phoneSuffix},phone.ilike.%${phoneSuffix}%,username.eq.${clean},email.eq.${clean}`);
 
       if (usersData && usersData.length > 0) {
-        usersData.forEach((u: any) => {
+        for (const u of usersData) {
           const tid = u.tenant_id || u.tenantId;
           if (tid) {
+            // Ensure tenant is also loaded into local storage
+            const localTenant = storageService.getTenants().find(t => t.id === tid);
+            if (!localTenant) {
+              const { data: tData } = await client.from('tenants').select('*').eq('id', tid).single();
+              if (tData) {
+                storageService.saveTenant({
+                  id: tData.id,
+                  code: tData.code || 'SHOP',
+                  name: tData.name || 'দোকান',
+                  owner_name: tData.owner_name || u.name || 'দোকান মালিক',
+                  email: tData.email || '',
+                  phone: tData.phone || clean,
+                  currency: tData.currency || 'BDT',
+                  currency_symbol: tData.currency_symbol || '৳',
+                  address: tData.address || '',
+                  status: tData.status || 'active',
+                  subdomain: tData.subdomain || '',
+                  custom_domain: tData.custom_domain || '',
+                  active_categories: tData.active_categories || [],
+                  enabled_modules: tData.enabled_modules || ['SALES', 'PRODUCTS', 'INVENTORY', 'CUSTOMERS', 'ACCOUNTING', 'REPORTS'],
+                  created_at: tData.created_at || new Date().toISOString(),
+                });
+              }
+            }
+
             authService.saveStaffMember({
               id: u.id,
               username: u.username || u.phone || u.email,
               name: u.name || 'ইউজার',
-              phone: u.phone || '',
+              phone: u.phone || clean,
               email: u.email || '',
-              role: (u.role || 'CASHIER').toUpperCase() as any,
+              role: (u.role || 'ADMIN').toUpperCase() as any,
               tenantId: tid,
               designation: u.designation || u.role || 'শপ কর্মী',
               permissions: u.permissions || [],
@@ -765,7 +795,7 @@ class SupabaseService {
               password: u.password || u.password_hash || u.passwordHash
             });
           }
-        });
+        }
         return true;
       }
 
@@ -773,17 +803,17 @@ class SupabaseService {
       const { data: tenantsData } = await client
         .from('tenants')
         .select('*')
-        .or(`phone.eq.${clean},code.eq.${clean},email.eq.${clean}`);
+        .or(`phone.eq.${clean},phone.eq.%2B88${phoneSuffix},phone.eq.88${phoneSuffix},phone.eq.0${phoneSuffix},phone.ilike.%${phoneSuffix}%,code.eq.${clean},email.eq.${clean},owner_name.ilike.%${clean}%`);
 
       if (tenantsData && tenantsData.length > 0) {
         tenantsData.forEach((t: any) => {
-          storageService.saveTenant({
+          const tenantObj = {
             id: t.id,
             code: t.code || 'SHOP',
             name: t.name || 'দোকান',
             owner_name: t.owner_name || 'দোকান মালিক',
             email: t.email || '',
-            phone: t.phone || '',
+            phone: t.phone || clean,
             currency: t.currency || 'BDT',
             currency_symbol: t.currency_symbol || '৳',
             address: t.address || '',
@@ -793,6 +823,21 @@ class SupabaseService {
             active_categories: t.active_categories || [],
             enabled_modules: t.enabled_modules || ['SALES', 'PRODUCTS', 'INVENTORY', 'CUSTOMERS', 'ACCOUNTING', 'REPORTS'],
             created_at: t.created_at || new Date().toISOString(),
+          };
+          storageService.saveTenant(tenantObj);
+
+          // Save explicit owner staff profile for auth lookups
+          authService.saveStaffMember({
+            id: `usr_owner_${t.id}`,
+            username: clean,
+            name: t.owner_name || 'দোকান মালিক',
+            phone: t.phone || clean,
+            email: t.email || `${clean}@dokan.local`,
+            role: 'ADMIN',
+            tenantId: t.id,
+            designation: 'দোকান মালিক / শপ অ্যাডমিন',
+            permissions: RbacEngine.getRolePermissions('ADMIN'),
+            status: 'active'
           });
         });
         return true;
