@@ -334,7 +334,16 @@ export const INITIAL_TENANTS: Tenant[] = [
     currency: 'BDT',
     currency_symbol: '৳',
     address: 'মিরপুর ১০, ঢাকা',
-    active_categories: ['cat_electronics_telecom', 'cat_services'],
+    active_categories: [
+      {
+        id: 'tbc_nexus_telecom',
+        tenant_id: 'tenant_nexus',
+        business_category_id: 'cat_electronics_telecom',
+        is_primary: true,
+        is_active: true,
+        created_at: new Date().toISOString()
+      }
+    ],
     enabled_modules: ['SALES', 'PRODUCTS', 'INVENTORY', 'CUSTOMERS', 'ACCOUNTING', 'REPORTS', 'SERVICES', 'REPAIRS'],
     created_at: new Date().toISOString()
   }
