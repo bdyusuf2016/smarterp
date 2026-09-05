@@ -26,4 +26,13 @@ describe('BarcodeService Unit Tests', () => {
     expect(sku).toBeDefined();
     expect(sku.startsWith('SAMS-GALA-A54')).toBe(true);
   });
+
+  it('should generate valid Code 128 SVG barcode elements', async () => {
+    const { generateBarcode128Svg } = await import('../../src/shared/utils/barcodeSvg');
+    const svg = generateBarcode128Svg('201000000018', 30, 1.2, true);
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('</svg>');
+    expect(svg).toContain('<rect');
+    expect(svg).toContain('201000000018');
+  });
 });

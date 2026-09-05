@@ -29,7 +29,9 @@ import {
   Camera,
   Package,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import { 
   Tenant, 
@@ -49,6 +51,7 @@ import { Modal } from '../common/Modal';
 import { CameraScannerModal } from '../common/CameraScannerModal';
 import { printPosReceipt } from '../../shared/utils/printReceipt';
 import { generateQrCodeSvg } from '../../shared/utils/qrCode';
+import { CatalogInitEngine } from '../../engine/catalogInitEngine';
 
 interface POSViewProps {
   activeTenant: Tenant;
@@ -98,6 +101,19 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
   const physicalProducts = useMemo(() => {
     return storageService.getProducts(activeTenant.id) || [];
   }, [activeTenant.id, productsVersion]);
+
+  // Auto-initialize Starter Product Catalog for this tenant if products are empty
+  useEffect(() => {
+    if (activeTenant && activeTenant.id) {
+      const existing = storageService.getProducts(activeTenant.id);
+      if (!existing || existing.length === 0) {
+        const res = CatalogInitEngine.initializeTenantCatalog(activeTenant);
+        if (res.importedCount > 0) {
+          setProductsVersion(v => v + 1);
+        }
+      }
+    }
+  }, [activeTenant?.id]);
 
   const customers = storageService.getCustomers(activeTenant.id) || [];
   const devices = storageService.getDevices() || [];
@@ -180,13 +196,11 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
     );
   };
 
-  // If digital services is disabled by System Admin, strictly filter out all photocopy and online services products
+  // Always filter out photocopy and digital/online services from physical store products.
+  // The rate cards from serviceProducts act as the single source of truth, preventing duplication and ghost category bleeding.
   const effectivePhysicalProducts = useMemo(() => {
-    if (isDigitalServicesEnabled) {
-      return physicalProducts;
-    }
     return physicalProducts.filter(p => !isPhotocopyOrDigitalProduct(p));
-  }, [physicalProducts, isDigitalServicesEnabled]);
+  }, [physicalProducts]);
 
   const serviceProducts: GenericProduct[] = useMemo(() => {
     if (!isDigitalServicesEnabled) return [];
@@ -288,6 +302,22 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('ALL');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    try {
+      return (localStorage.getItem('dokan_pos_view_mode') as 'grid' | 'list') || 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
+
+  const handleSetViewMode = (mode: 'grid' | 'list') => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('dokan_pos_view_mode', mode);
+    } catch (e) {
+      console.error(e);
+    }
+  };
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('cash_customer');
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
@@ -405,10 +435,34 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
     }
   };
 
-  // Category filters
-  const categoriesList = useMemo(() => {
-    return Array.from(new Set(products.map(p => p.category_name))).filter(Boolean);
-  }, [products]);
+  const businessCategories = useMemo(() => {
+    return storageService.getCategories() || [];
+  }, []);
+
+  const getCategoryName = (catId?: string) => {
+    if (!catId) return '';
+    const found = businessCategories.find(c => c.id === catId);
+    return found ? found.name : '';
+  };
+
+  // Category filters with product counts (only actual item categories)
+  const { categoriesList, categoryCounts } = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const catSet = new Set<string>();
+
+    products.forEach(p => {
+      const catName = ((p.category_name || '').trim() || getCategoryName(p.business_category_id) || 'General').trim();
+      if (catName) {
+        counts[catName] = (counts[catName] || 0) + 1;
+        catSet.add(catName);
+      }
+    });
+
+    return {
+      categoriesList: Array.from(catSet).filter(Boolean),
+      categoryCounts: counts
+    };
+  }, [products, businessCategories]);
 
   // Reset category filter if selected category is no longer present in available categories
   useEffect(() => {
@@ -417,16 +471,42 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
     }
   }, [categoriesList, selectedCategoryFilter]);
 
-  const filteredProducts = products.filter(p => {
-    const matchesSearch = 
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.barcode && p.barcode.includes(searchTerm)) ||
-      (p.brand && p.brand.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      Object.values(p.custom_fields || {}).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesCat = selectedCategoryFilter === 'ALL' || p.category_name === selectedCategoryFilter;
-    return matchesSearch && matchesCat && p.is_active;
-  });
+  const filteredProducts = useMemo(() => {
+    return products.filter(p => {
+      const matchesSearch = 
+        !searchTerm ||
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.barcode && p.barcode.includes(searchTerm)) ||
+        (p.brand && p.brand.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        Object.values(p.custom_fields || {}).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase()));
+
+      const catName = ((p.category_name || '').trim() || getCategoryName(p.business_category_id) || 'General').trim();
+
+      const matchesCat = 
+        selectedCategoryFilter === 'ALL' ||
+        catName === selectedCategoryFilter ||
+        (p.category_name && p.category_name.trim() === selectedCategoryFilter);
+
+      return matchesSearch && matchesCat && p.is_active;
+    });
+  }, [products, searchTerm, selectedCategoryFilter, businessCategories]);
+
+  // Group products by category when "ALL" is selected and no search term is entered
+  const groupedProducts = useMemo(() => {
+    if (selectedCategoryFilter !== 'ALL' || searchTerm.trim() !== '') {
+      return null;
+    }
+    const map = new Map<string, GenericProduct[]>();
+    for (const prod of filteredProducts) {
+      const cat = ((prod.category_name || '').trim() || getCategoryName(prod.business_category_id) || 'General').trim();
+      if (!map.has(cat)) {
+        map.set(cat, []);
+      }
+      map.get(cat)!.push(prod);
+    }
+    return map.size > 1 ? Array.from(map.entries()) : null;
+  }, [filteredProducts, selectedCategoryFilter, searchTerm, businessCategories]);
 
   // Calculate totals
   const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
@@ -737,46 +817,245 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
                 <span>রিচার্জ / MFS</span>
               </button>
             )}
+
+            {/* View Mode Toggle: Grid vs List */}
+            <div className="flex items-center bg-[#f1f3f5] p-0.5 rounded-lg border border-[#dee2e6] shrink-0" role="group" aria-label="ভিউ মোড">
+              <button
+                type="button"
+                onClick={() => handleSetViewMode('grid')}
+                className={`px-2 py-1.5 rounded-md transition-all cursor-pointer flex items-center gap-1.5 text-xs ${
+                  viewMode === 'grid'
+                    ? 'bg-white text-blue-600 shadow-xs font-bold'
+                    : 'text-[#6c757d] hover:text-[#212529]'
+                }`}
+                title="গ্রিড ভিউ (Grid View)"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">গ্রিড</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetViewMode('list')}
+                className={`px-2 py-1.5 rounded-md transition-all cursor-pointer flex items-center gap-1.5 text-xs ${
+                  viewMode === 'list'
+                    ? 'bg-white text-blue-600 shadow-xs font-bold'
+                    : 'text-[#6c757d] hover:text-[#212529]'
+                }`}
+                title="লিস্ট ভিউ (List View)"
+              >
+                <List className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">লিস্ট</span>
+              </button>
+            </div>
           </div>
 
           {/* Category Pills Bar */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
-            <button
-              type="button"
-              onClick={() => setSelectedCategoryFilter('ALL')}
-              className={`px-3 py-1 rounded-full font-semibold whitespace-nowrap cursor-pointer transition-colors ${
-                selectedCategoryFilter === 'ALL'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-[#f8f9fa] text-[#495057] hover:bg-gray-200 border border-[#dee2e6]'
-              }`}
-            >
-              সব (All)
-            </button>
-            {categoriesList.map(cat => (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium px-0.5">
+              <span>ক্যাটাগরি ফিল্টার:</span>
+              <span className="font-mono text-slate-400">{filteredProducts.length} আইটেম প্রদর্শিত</span>
+            </div>
+            <div className="flex items-center flex-wrap gap-1.5 text-xs max-h-28 overflow-y-auto pr-1">
               <button
-                key={cat}
                 type="button"
-                onClick={() => setSelectedCategoryFilter(cat)}
+                onClick={() => setSelectedCategoryFilter('ALL')}
                 className={`px-3 py-1 rounded-full font-semibold whitespace-nowrap cursor-pointer transition-colors ${
-                  selectedCategoryFilter === cat
+                  selectedCategoryFilter === 'ALL'
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'bg-[#f8f9fa] text-[#495057] hover:bg-gray-200 border border-[#dee2e6]'
                 }`}
               >
-                {cat}
+                সব (All) ({products.length})
               </button>
-            ))}
+              {categoriesList.map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategoryFilter(cat)}
+                  className={`px-3 py-1 rounded-full font-semibold whitespace-nowrap cursor-pointer transition-colors ${
+                    selectedCategoryFilter === cat
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-[#f8f9fa] text-[#495057] hover:bg-gray-200 border border-[#dee2e6]'
+                  }`}
+                >
+                  {cat} ({categoryCounts[cat] || 0})
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Product Cards Grid */}
+        {/* Product Cards Grid / List View */}
         <div className="flex-1 overflow-y-auto pt-3 pr-1">
           {filteredProducts.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-[#868e96] text-xs py-12">
-              <Search className="w-8 h-8 mb-2 opacity-40 text-blue-500" />
-              <p>কোনো প্রোডাক্ট পাওয়া যায়নি!</p>
+            <div className="h-full flex flex-col items-center justify-center text-[#868e96] text-xs py-12 text-center px-4">
+              <Search className="w-10 h-10 mb-3 opacity-40 text-blue-500" />
+              <p className="font-bold text-slate-700 text-sm">কোনো প্রোডাক্ট পাওয়া যায়নি!</p>
+              <p className="text-slate-400 mt-1 mb-4">এই ক্যাটাগরিতে বা সার্চ অনুযায়ী কোনো পণ্য ক্যাটালগে নেই।</p>
+              <button
+                type="button"
+                onClick={() => {
+                  const res = CatalogInitEngine.initializeTenantCatalog(activeTenant, { overwrite: true });
+                  if (res.importedCount > 0) {
+                    setProductsVersion(v => v + 1);
+                    alert(`✅ ${res.importedCount}টি ক্যাটাগরি প্রোডাক্ট ক্যাটালগে লোড করা হয়েছে!`);
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span>মাস্টার ক্যাটাগরি প্রোডাক্ট লোড করুন</span>
+              </button>
             </div>
-          ) : (
+          ) : groupedProducts ? (
+            <div className="space-y-5">
+              {groupedProducts.map(([catName, catProds]) => (
+                <div key={catName} className="space-y-2">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-blue-600 inline-block"></span>
+                      <h3 className="font-bold text-slate-800 text-xs tracking-wide">
+                        {catName}
+                      </h3>
+                      <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-100">
+                        {catProds.length}টি
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCategoryFilter(catName)}
+                      className="text-[11px] text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
+                    >
+                      শুধু এই ক্যাটাগরি ফিল্টার করুন →
+                    </button>
+                  </div>
+                  {viewMode === 'grid' ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2.5">
+                      {catProds.map(prod => (
+                        <div
+                          key={prod.id}
+                          onClick={() => handleAddToCart(prod)}
+                          className="bg-white hover:bg-blue-50/40 border border-[#dee2e6] hover:border-blue-400 rounded-xl p-2.5 flex flex-col justify-between cursor-pointer transition-all duration-150 hover:-translate-y-0.5 hover:shadow-sm group text-xs relative"
+                        >
+                          <div>
+                            <div className="flex items-center justify-between text-[10px] text-blue-600 font-bold mb-1">
+                              <span className="truncate">{prod.category_name || getCategoryName(prod.business_category_id) || 'General'}</span>
+                              {prod.tracking_mode === 'TRACKING_IMEI' && (
+                                <span className="text-[9px] bg-purple-100 text-purple-700 px-1 rounded font-mono font-bold">IMEI</span>
+                              )}
+                            </div>
+                            <h4 className="font-bold text-[#1a1b1e] text-xs line-clamp-2 leading-snug group-hover:text-blue-600">
+                              {prod.name}
+                            </h4>
+
+                            {/* Dynamic Custom Properties Mini Badges */}
+                            {prod.custom_fields && Object.keys(prod.custom_fields).length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {Object.entries(prod.custom_fields).slice(0, 2).map(([k, v]) => (
+                                  <span key={k} className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded border border-blue-100 font-medium">
+                                    {k}: {String(v)}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="pt-2 flex items-end justify-between mt-auto">
+                            <div>
+                              <div className="font-extrabold text-emerald-600 font-mono text-sm">
+                                ৳{prod.selling_price.toFixed(2)}
+                              </div>
+                              <div className="text-[10px] text-[#868e96] font-mono">
+                                SKU: {prod.code || prod.sku || 'N/A'}
+                              </div>
+                            </div>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-semibold ${
+                              prod.id.startsWith('srv_')
+                                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                : prod.stock_quantity <= prod.min_stock_alert
+                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                : 'bg-[#f1f3f5] text-[#495057]'
+                            }`}>
+                              {prod.id.startsWith('srv_') ? `সেবা / ${prod.unit}` : `${prod.stock_quantity} ${prod.unit}`}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {catProds.map(prod => (
+                        <div
+                          key={prod.id}
+                          onClick={() => handleAddToCart(prod)}
+                          className="bg-white hover:bg-blue-50/50 border border-[#dee2e6] hover:border-blue-400 rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-2.5 sm:gap-3.5 cursor-pointer transition-all duration-150 hover:shadow-xs group text-xs relative"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                              <Package className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <h4 className="font-bold text-[#1a1b1e] text-xs truncate group-hover:text-blue-600 transition-colors">
+                                  {prod.name}
+                                </h4>
+                                <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-medium shrink-0">
+                                  {prod.category_name || getCategoryName(prod.business_category_id) || 'General'}
+                                </span>
+                                {prod.tracking_mode === 'TRACKING_IMEI' && (
+                                  <span className="text-[9px] bg-purple-100 text-purple-700 px-1 rounded font-mono font-bold shrink-0">IMEI</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-[10px] text-[#868e96] font-mono mt-0.5 flex-wrap">
+                                <span>SKU: {prod.code || prod.sku || 'N/A'}</span>
+                                {prod.barcode && <span>• {prod.barcode}</span>}
+                                {prod.brand && <span>• {prod.brand}</span>}
+                                {prod.custom_fields && Object.keys(prod.custom_fields).length > 0 && (
+                                  <span className="text-blue-600 font-sans hidden sm:inline">
+                                    {Object.entries(prod.custom_fields).slice(0, 2).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold ${
+                              prod.id.startsWith('srv_')
+                                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                : prod.stock_quantity <= prod.min_stock_alert
+                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                : 'bg-[#f1f3f5] text-[#495057]'
+                            }`}>
+                              {prod.id.startsWith('srv_') ? `সেবা / ${prod.unit}` : `${prod.stock_quantity} ${prod.unit}`}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="text-right">
+                              <div className="font-extrabold text-emerald-600 font-mono text-xs sm:text-sm">
+                                ৳{prod.selling_price.toFixed(2)}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAddToCart(prod);
+                              }}
+                              className="w-7 h-7 rounded-lg bg-blue-50 group-hover:bg-blue-600 text-blue-600 group-hover:text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                              title="কার্টে যোগ করুন"
+                              aria-label="Add to cart"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2.5">
               {filteredProducts.map(prod => (
                 <div
@@ -786,7 +1065,7 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
                 >
                   <div>
                     <div className="flex items-center justify-between text-[10px] text-blue-600 font-bold mb-1">
-                      <span className="truncate">{prod.category_name || 'General'}</span>
+                      <span className="truncate">{prod.category_name || getCategoryName(prod.business_category_id) || 'General'}</span>
                       {prod.tracking_mode === 'TRACKING_IMEI' && (
                         <span className="text-[9px] bg-purple-100 text-purple-700 px-1 rounded font-mono font-bold">IMEI</span>
                       )}
@@ -825,6 +1104,80 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
                     }`}>
                       {prod.id.startsWith('srv_') ? `সেবা / ${prod.unit}` : `${prod.stock_quantity} ${prod.unit}`}
                     </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {filteredProducts.map(prod => (
+                <div
+                  key={prod.id}
+                  onClick={() => handleAddToCart(prod)}
+                  className="bg-white hover:bg-blue-50/50 border border-[#dee2e6] hover:border-blue-400 rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-2.5 sm:gap-3.5 cursor-pointer transition-all duration-150 hover:shadow-xs group text-xs relative"
+                >
+                  {/* Left: Product Icon & Info */}
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                      <Package className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="font-bold text-[#1a1b1e] text-xs truncate group-hover:text-blue-600 transition-colors">
+                          {prod.name}
+                        </h4>
+                        <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-medium shrink-0">
+                          {prod.category_name || getCategoryName(prod.business_category_id) || 'General'}
+                        </span>
+                        {prod.tracking_mode === 'TRACKING_IMEI' && (
+                          <span className="text-[9px] bg-purple-100 text-purple-700 px-1 rounded font-mono font-bold shrink-0">IMEI</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-[#868e96] font-mono mt-0.5 flex-wrap">
+                        <span>SKU: {prod.code || prod.sku || 'N/A'}</span>
+                        {prod.barcode && <span>• {prod.barcode}</span>}
+                        {prod.brand && <span>• {prod.brand}</span>}
+                        {prod.custom_fields && Object.keys(prod.custom_fields).length > 0 && (
+                          <span className="text-blue-600 font-sans hidden sm:inline">
+                            {Object.entries(prod.custom_fields).slice(0, 2).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Stock Status Badge */}
+                  <div className="shrink-0 text-right">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold ${
+                      prod.id.startsWith('srv_')
+                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                        : prod.stock_quantity <= prod.min_stock_alert
+                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                        : 'bg-[#f1f3f5] text-[#495057]'
+                    }`}>
+                      {prod.id.startsWith('srv_') ? `সেবা / ${prod.unit}` : `${prod.stock_quantity} ${prod.unit}`}
+                    </span>
+                  </div>
+
+                  {/* Price & Quick Add (+) Action */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="text-right">
+                      <div className="font-extrabold text-emerald-600 font-mono text-xs sm:text-sm">
+                        ৳{prod.selling_price.toFixed(2)}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddToCart(prod);
+                      }}
+                      className="w-7 h-7 rounded-lg bg-blue-50 group-hover:bg-blue-600 text-blue-600 group-hover:text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                      title="কার্টে যোগ করুন"
+                      aria-label="Add to cart"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               ))}

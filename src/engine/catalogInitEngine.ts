@@ -633,6 +633,36 @@ export const CATEGORY_STARTER_PACKS: Record<string, BusinessCategoryStarterPack>
 };
 
 export class CatalogInitEngine {
+  static resolveStarterPack(id: string): BusinessCategoryStarterPack | undefined {
+    if (CATEGORY_STARTER_PACKS[id]) return CATEGORY_STARTER_PACKS[id];
+    const lower = id.toLowerCase();
+    if (lower.includes('telecom') || lower.includes('mobile') || lower.includes('electronics')) {
+      return CATEGORY_STARTER_PACKS['cat_electronics_telecom'];
+    }
+    if (lower.includes('grocery') || lower.includes('supermarket')) {
+      return CATEGORY_STARTER_PACKS['cat_grocery_supermarket'];
+    }
+    if (lower.includes('stationery') || lower.includes('library') || lower.includes('book')) {
+      return CATEGORY_STARTER_PACKS['cat_library_bookstore'];
+    }
+    if (lower.includes('service') || lower.includes('digital') || lower.includes('photocopy')) {
+      return CATEGORY_STARTER_PACKS['cat_digital_services'];
+    }
+    if (lower.includes('pharmacy') || lower.includes('health') || lower.includes('medicine')) {
+      return CATEGORY_STARTER_PACKS['cat_pharmacy_health'];
+    }
+    if (lower.includes('fashion') || lower.includes('clothing') || lower.includes('cloth')) {
+      return CATEGORY_STARTER_PACKS['cat_fashion_clothing'];
+    }
+    if (lower.includes('restaurant') || lower.includes('cafe') || lower.includes('food')) {
+      return CATEGORY_STARTER_PACKS['cat_restaurant_cafe'];
+    }
+    if (lower.includes('hardware') || lower.includes('sanitary')) {
+      return CATEGORY_STARTER_PACKS['cat_hardware_sanitary'];
+    }
+    return undefined;
+  }
+
   /**
    * Automatically import and provision starter catalog for a tenant
    */
@@ -661,7 +691,7 @@ export class CatalogInitEngine {
     const categoriesImported: string[] = [];
 
     for (const catId of targetCatIds) {
-      const pack = CATEGORY_STARTER_PACKS[catId];
+      const pack = this.resolveStarterPack(catId);
       if (!pack) continue;
 
       categoriesImported.push(pack.categoryName);
