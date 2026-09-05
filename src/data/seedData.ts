@@ -321,9 +321,24 @@ export const INITIAL_CUSTOM_FIELDS: CustomFieldDefinition[] = [
 ];
 
 // ==================================================
-// MULTI-TENANTS (CLEAN INITIAL STATE)
+// MULTI-TENANTS (CLEAN INITIAL STATE WITH DEFAULT DEMO SHOP)
 // ==================================================
-export const INITIAL_TENANTS: Tenant[] = [];
+export const INITIAL_TENANTS: Tenant[] = [
+  {
+    id: 'tenant_nexus',
+    code: 'NEXUS',
+    name: 'নেক্সাস টেলিকম ও গ্যাজেট (Nexus Telecom)',
+    owner_name: 'শপ অ্যাডমিন (Shop Admin)',
+    email: 'shopadmin@smarterp.io',
+    phone: '01700000000',
+    currency: 'BDT',
+    currency_symbol: '৳',
+    address: 'মিরপুর ১০, ঢাকা',
+    active_categories: ['cat_electronics_telecom', 'cat_services'],
+    enabled_modules: ['SALES', 'PRODUCTS', 'INVENTORY', 'CUSTOMERS', 'ACCOUNTING', 'REPORTS', 'SERVICES', 'REPAIRS'],
+    created_at: new Date().toISOString()
+  }
+];
 
 // ==================================================
 // GENERIC PRODUCTS & INVENTORY (CLEAN INITIAL STATE)
