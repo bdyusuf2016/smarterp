@@ -338,8 +338,8 @@ class AuthService {
         success: true,
         message: 'সিস্টেম অ্যাডমিন পোর্টালে স্বাগতম, Md. Yusuf Ali!',
         user,
-        targetView: 'dashboard',
-        redirectUrl: '#/dashboard',
+        targetView: 'tenant_management',
+        redirectUrl: '#/tenant_management',
         isSystemAdmin: true
       };
     }

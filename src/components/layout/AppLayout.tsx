@@ -67,7 +67,13 @@ export const AppLayout: React.FC = () => {
     return tenants.length > 0 ? tenants[0] : fallbackTenant;
   });
 
-  const [activeViewId, setActiveViewIdState] = useState<string>(() => initialRoute.viewId || 'dashboard');
+  const [activeViewId, setActiveViewIdState] = useState<string>(() => {
+    if (initialRoute.viewId) return initialRoute.viewId;
+    const user = authService.getCurrentUser();
+    if (user?.role === 'SUPER_ADMIN') return 'tenant_management';
+    return 'dashboard';
+  });
+
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAuthRoute, setIsAuthRoute] = useState<boolean>(() => initialRoute.isAuthRoute);
@@ -84,6 +90,13 @@ export const AppLayout: React.FC = () => {
     window.addEventListener('dokan_lang_changed', handleLang);
     return () => window.removeEventListener('dokan_lang_changed', handleLang);
   }, []);
+
+  // Ensure System Admin is directed to tenant_management on launch
+  useEffect(() => {
+    if (currentUser?.role === 'SUPER_ADMIN' && (activeViewId === 'dashboard' || !activeViewId)) {
+      setActiveViewIdState('tenant_management');
+    }
+  }, [currentUser?.role]);
 
   // Auto-pull existing cloud tenants and data when app launches or opens on any device
   useEffect(() => {
@@ -258,7 +271,9 @@ export const AppLayout: React.FC = () => {
 
     // Smart role-based landing page
     const landingView = targetView || (
-      user.role === 'CASHIER' 
+      user.role === 'SUPER_ADMIN'
+        ? 'tenant_management'
+        : user.role === 'CASHIER' 
         ? 'pos_sales' 
         : (user.role === 'TECHNICIAN' || (user.role as string) === 'REPAIR_TECHNICIAN') 
         ? 'telecom_repairs' 
@@ -268,9 +283,9 @@ export const AppLayout: React.FC = () => {
     );
 
     if (user.role === 'SUPER_ADMIN') {
-      // System Admin stays at clean root level
-      setActiveViewId(landingView);
-      routerService.navigate(landingView);
+      const adminTarget = targetView || 'tenant_management';
+      setActiveViewId(adminTarget);
+      routerService.navigate(adminTarget);
     } else if (resolvedTenant && resolvedTenant.id) {
       // Store staff / owners navigate to their tenant URL
       setActiveViewId(landingView, { tenant: resolvedTenant.code });

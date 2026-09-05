@@ -321,33 +321,9 @@ export const INITIAL_CUSTOM_FIELDS: CustomFieldDefinition[] = [
 ];
 
 // ==================================================
-// MULTI-TENANTS (CLEAN INITIAL STATE WITH DEFAULT DEMO SHOP)
+// MULTI-TENANTS (CLEAN INITIAL STATE - NO DEMO SHOPS)
 // ==================================================
-export const INITIAL_TENANTS: Tenant[] = [
-  {
-    id: 'tenant_nexus',
-    code: 'NEXUS',
-    name: 'নেক্সাস টেলিকম ও গ্যাজেট (Nexus Telecom)',
-    owner_name: 'Md. Yusuf Ali (দোকান মালিক)',
-    email: 'bdyusuf2016@gmail.com',
-    phone: '01911175276',
-    currency: 'BDT',
-    currency_symbol: '৳',
-    address: 'মিরপুর ১০, ঢাকা',
-    active_categories: [
-      {
-        id: 'tbc_nexus_telecom',
-        tenant_id: 'tenant_nexus',
-        business_category_id: 'cat_electronics_telecom',
-        is_primary: true,
-        is_active: true,
-        created_at: new Date().toISOString()
-      }
-    ],
-    enabled_modules: ['SALES', 'PRODUCTS', 'INVENTORY', 'CUSTOMERS', 'ACCOUNTING', 'REPORTS', 'SERVICES', 'REPAIRS'],
-    created_at: new Date().toISOString()
-  }
-];
+export const INITIAL_TENANTS: Tenant[] = [];
 
 // ==================================================
 // GENERIC PRODUCTS & INVENTORY (CLEAN INITIAL STATE)
