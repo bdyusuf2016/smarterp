@@ -683,11 +683,11 @@ class SupabaseService {
         try {
           const { data } = await client.from(table).select('*');
           if (data && Array.isArray(data)) {
-            if (table === 'products') data.forEach((p: any) => storageService.saveProduct(p));
-            if (table === 'customers') data.forEach((c: any) => storageService.saveCustomer(c));
-            if (table === 'suppliers') data.forEach((s: any) => storageService.saveSupplier(s));
-            if (table === 'sales') data.forEach((s: any) => storageService.saveSale(s));
-            if (table === 'accounting_entries') data.forEach((a: any) => storageService.saveAccountingEntry(a));
+            if (table === 'products') storageService.syncProductsFromCloud(data);
+            if (table === 'customers') storageService.syncCustomersFromCloud(data);
+            if (table === 'suppliers') storageService.syncSuppliersFromCloud(data);
+            if (table === 'sales') storageService.syncSalesFromCloud(data);
+            if (table === 'accounting_entries') storageService.syncAccountingFromCloud(data);
             if (table === 'users') {
               data.forEach((u: any) => {
                 const tid = u.tenant_id || u.tenantId;
@@ -905,10 +905,9 @@ class SupabaseService {
       }
 
       if (cloudCustomers && Array.isArray(cloudCustomers)) {
-        let imported = 0;
-        cloudCustomers.forEach((c: any) => {
+        const formattedCustomers = cloudCustomers.map((c: any) => {
           const resolvedTenantId = c.tenant_id || tenantId || storageService.getActiveTenant()?.id;
-          storageService.saveCustomer({
+          return {
             id: c.id,
             tenant_id: resolvedTenantId,
             name: c.name,
@@ -923,9 +922,10 @@ class SupabaseService {
             credit_limit: Number(c.credit_limit) || 10000,
             status: c.status || 'active',
             created_at: c.created_at || new Date().toISOString()
-          });
-          imported++;
+          };
         });
+
+        storageService.syncCustomersFromCloud(formattedCustomers);
 
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('dokan_storage_updated', { detail: { key: 'customers' } }));
@@ -933,8 +933,8 @@ class SupabaseService {
 
         return {
           success: true,
-          count: imported,
-          message: `Supabase ক্লাউড থেকে ${imported} জন কাস্টমার সফলভাবে সিঙ্ক ও রিস্টোর হয়েছে!`
+          count: formattedCustomers.length,
+          message: `Supabase ক্লাউড থেকে ${formattedCustomers.length} জন কাস্টমার সফলভাবে সিঙ্ক ও রিস্টোর হয়েছে!`
         };
       }
 

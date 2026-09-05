@@ -205,8 +205,23 @@ class StorageService {
   // Generic Products
   getProducts(tenantId?: string): GenericProduct[] {
     const all = this.get<GenericProduct[]>(STORAGE_KEYS.PRODUCTS, INITIAL_PRODUCTS);
-    if (!tenantId) return all;
-    return all.filter(p => p.tenant_id === tenantId);
+    const seen = new Set<string>();
+    const unique: GenericProduct[] = [];
+    let hadDuplicates = false;
+    for (const p of all) {
+      const key = p.id || p.code;
+      if (key && seen.has(key)) {
+        hadDuplicates = true;
+        continue;
+      }
+      if (key) seen.add(key);
+      unique.push(p);
+    }
+    if (hadDuplicates) {
+      this.set(STORAGE_KEYS.PRODUCTS, unique);
+    }
+    if (!tenantId) return unique;
+    return unique.filter(p => p.tenant_id === tenantId);
   }
 
   saveProduct(product: GenericProduct): void {
@@ -362,8 +377,23 @@ class StorageService {
   // Customers & Members
   getCustomers(tenantId?: string): CustomerMember[] {
     const all = this.get<CustomerMember[]>(STORAGE_KEYS.CUSTOMERS, INITIAL_CUSTOMERS);
-    if (!tenantId) return all;
-    return all.filter(c => c.tenant_id === tenantId);
+    const seen = new Set<string>();
+    const unique: CustomerMember[] = [];
+    let hadDuplicates = false;
+    for (const c of all) {
+      const key = c.id;
+      if (key && seen.has(key)) {
+        hadDuplicates = true;
+        continue;
+      }
+      if (key) seen.add(key);
+      unique.push(c);
+    }
+    if (hadDuplicates) {
+      this.set(STORAGE_KEYS.CUSTOMERS, unique);
+    }
+    if (!tenantId) return unique;
+    return unique.filter(c => c.tenant_id === tenantId);
   }
 
   saveCustomer(customer: CustomerMember): void {
@@ -398,8 +428,23 @@ class StorageService {
   // Suppliers
   getSuppliers(tenantId?: string): Supplier[] {
     const all = this.get<Supplier[]>(STORAGE_KEYS.SUPPLIERS, INITIAL_SUPPLIERS);
-    if (!tenantId) return all;
-    return all.filter(s => s.tenant_id === tenantId);
+    const seen = new Set<string>();
+    const unique: Supplier[] = [];
+    let hadDuplicates = false;
+    for (const s of all) {
+      const key = s.id;
+      if (key && seen.has(key)) {
+        hadDuplicates = true;
+        continue;
+      }
+      if (key) seen.add(key);
+      unique.push(s);
+    }
+    if (hadDuplicates) {
+      this.set(STORAGE_KEYS.SUPPLIERS, unique);
+    }
+    if (!tenantId) return unique;
+    return unique.filter(s => s.tenant_id === tenantId);
   }
 
   saveSupplier(supplier: Supplier): void {
@@ -413,6 +458,70 @@ class StorageService {
     this.set(STORAGE_KEYS.SUPPLIERS, list);
     this.dispatchInstantSync('suppliers', supplier);
     this.addAuditLog('SUPPLIER_SAVED', 'SUPPLIERS', `Supplier ${supplier.name} saved.`);
+  }
+
+  // ==========================================
+  // BULK CLOUD SYNC METHODS (PREVENTS DUPLICATION)
+  // ==========================================
+  syncProductsFromCloud(cloudProducts: GenericProduct[]): void {
+    const local = this.getProducts();
+    const map = new Map<string, GenericProduct>();
+    local.forEach(p => map.set(p.id, p));
+    cloudProducts.forEach(p => {
+      const existing = map.get(p.id);
+      map.set(p.id, existing ? { ...existing, ...p } : p);
+    });
+    this.set(STORAGE_KEYS.PRODUCTS, Array.from(map.values()));
+  }
+
+  syncCustomersFromCloud(cloudCustomers: CustomerMember[]): void {
+    const local = this.getCustomers();
+    const map = new Map<string, CustomerMember>();
+    local.forEach(c => map.set(c.id, c));
+    cloudCustomers.forEach(c => {
+      const existing = map.get(c.id);
+      map.set(c.id, existing ? { ...existing, ...c } : c);
+    });
+    this.set(STORAGE_KEYS.CUSTOMERS, Array.from(map.values()));
+  }
+
+  syncSuppliersFromCloud(cloudSuppliers: Supplier[]): void {
+    const local = this.getSuppliers();
+    const map = new Map<string, Supplier>();
+    local.forEach(s => map.set(s.id, s));
+    cloudSuppliers.forEach(s => {
+      const existing = map.get(s.id);
+      map.set(s.id, existing ? { ...existing, ...s } : s);
+    });
+    this.set(STORAGE_KEYS.SUPPLIERS, Array.from(map.values()));
+  }
+
+  syncSalesFromCloud(cloudSales: SaleTransaction[]): void {
+    const local = this.getSales();
+    const map = new Map<string, SaleTransaction>();
+    local.forEach(s => {
+      const k = s.id || s.invoice_no;
+      if (k) map.set(k, s);
+    });
+    cloudSales.forEach(s => {
+      const k = s.id || s.invoice_no;
+      if (k) {
+        const existing = map.get(k);
+        map.set(k, existing ? { ...existing, ...s } : s);
+      }
+    });
+    this.set(STORAGE_KEYS.SALES, Array.from(map.values()));
+  }
+
+  syncAccountingFromCloud(cloudAccounting: AccountingEntry[]): void {
+    const local = this.getAccounting();
+    const map = new Map<string, AccountingEntry>();
+    local.forEach(a => map.set(a.id, a));
+    cloudAccounting.forEach(a => {
+      const existing = map.get(a.id);
+      map.set(a.id, existing ? { ...existing, ...a } : a);
+    });
+    this.set(STORAGE_KEYS.ACCOUNTING, Array.from(map.values()));
   }
 
   deleteSupplier(supplierId: string): void {
