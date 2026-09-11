@@ -49,6 +49,7 @@ import { RuleEngine } from '../../engine/ruleEngine';
 import { RbacEngine } from '../../engine/rbacEngine';
 import { Modal } from '../common/Modal';
 import { CameraScannerModal } from '../common/CameraScannerModal';
+import { WarningModal } from '../common/WarningModal';
 import { printPosReceipt } from '../../shared/utils/printReceipt';
 import { generateQrCodeSvg } from '../../shared/utils/qrCode';
 import { CatalogInitEngine } from '../../engine/catalogInitEngine';
@@ -430,6 +431,42 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
   const [cameraScannerTarget, setCameraScannerTarget] = useState<'catalog' | 'imei_modal'>('catalog');
 
+  // Custom Warning Dialogue Modal State
+  const [warningConfig, setWarningConfig] = useState<{
+    isOpen: boolean;
+    title?: string;
+    message: string;
+    itemName?: string;
+    currentStock?: number | string;
+    requestedQty?: number | string;
+    unit?: string;
+    type?: 'warning' | 'danger' | 'info';
+  }>({
+    isOpen: false,
+    message: ''
+  });
+
+  const showStockWarning = (options: {
+    title?: string;
+    message: string;
+    itemName?: string;
+    currentStock?: number | string;
+    requestedQty?: number | string;
+    unit?: string;
+    type?: 'warning' | 'danger';
+  }) => {
+    setWarningConfig({
+      isOpen: true,
+      title: options.title || 'স্টক সতর্কতা (Stock Warning)',
+      message: options.message,
+      itemName: options.itemName,
+      currentStock: options.currentStock,
+      requestedQty: options.requestedQty,
+      unit: options.unit || 'টি',
+      type: options.type || 'warning'
+    });
+  };
+
   // Camera scan success handler (Auto adds matching product or populates search / IMEI)
   const handleCameraScanSuccess = (scannedCode: string) => {
     const trimmed = scannedCode.trim();
@@ -561,7 +598,14 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
 
     // Strict stock check: Physical products cannot be sold if out of stock
     if (liveProduct.tracking_mode !== 'TRACKING_NONE' && liveProduct.stock_quantity <= 0) {
-      alert(`দুঃখিত, "${liveProduct.name}" এর পর্যাপ্ত স্টক নেই (বর্তমান স্টক: 0)! স্টক যুক্ত না করে বিক্রি করা সম্ভব নয়।`);
+      showStockWarning({
+        title: 'পর্যাপ্ত স্টক নেই (Out of Stock)',
+        message: `দুঃখিত, "${liveProduct.name}" এর পর্যাপ্ত মজুদ স্টক নেই! নতুন স্টক ইনওয়ার্ড না করে এটি বিক্রি করা সম্ভব নয়।`,
+        itemName: liveProduct.name,
+        currentStock: 0,
+        unit: liveProduct.unit,
+        type: 'danger'
+      });
       return;
     }
 
@@ -592,7 +636,15 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
 
       // Strict stock limit: Cannot exceed available stock
       if (liveProduct.tracking_mode !== 'TRACKING_NONE' && currentQty + 1 > liveProduct.stock_quantity) {
-        alert(`"${liveProduct.name}" এর সর্বোচ্চ মজুদ স্টক ${liveProduct.stock_quantity} ${liveProduct.unit || 'টি'}। স্টকের অতিরিক্ত বিক্রি করা যাবে না!`);
+        showStockWarning({
+          title: 'স্টক সীমা অতিক্রম (Stock Limit)',
+          message: `"${liveProduct.name}" এর সর্বোচ্চ মজুদ স্টক ${liveProduct.stock_quantity} ${liveProduct.unit || 'টি'}। বিদ্যমান স্টকের চেয়ে বেশি কার্টে যোগ করা যাবে না!`,
+          itemName: liveProduct.name,
+          currentStock: liveProduct.stock_quantity,
+          requestedQty: currentQty + 1,
+          unit: liveProduct.unit,
+          type: 'warning'
+        });
         return;
       }
 
@@ -775,7 +827,15 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
       if (delta > 0 && item.product.tracking_mode !== 'TRACKING_NONE') {
         const liveProduct = products.find(p => p.id === item.product.id) || item.product;
         if (newQty > liveProduct.stock_quantity) {
-          alert(`"${liveProduct.name}" এর মজুদ স্টক মাত্র ${liveProduct.stock_quantity} ${liveProduct.unit || 'টি'}। স্টকের অতিরিক্ত বিক্রি করা সম্ভব নয়!`);
+          showStockWarning({
+            title: 'স্টক সীমা অতিক্রম (Stock Limit)',
+            message: `"${liveProduct.name}" এর মজুদ স্টক মাত্র ${liveProduct.stock_quantity} ${liveProduct.unit || 'টি'}। স্টকের অতিরিক্ত বিক্রি করা সম্ভব নয়!`,
+            itemName: liveProduct.name,
+            currentStock: liveProduct.stock_quantity,
+            requestedQty: newQty,
+            unit: liveProduct.unit,
+            type: 'warning'
+          });
           return;
         }
       }
@@ -795,7 +855,15 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
       if (item.product.tracking_mode !== 'TRACKING_NONE') {
         const liveProduct = products.find(p => p.id === item.product.id) || item.product;
         if (qty > liveProduct.stock_quantity) {
-          alert(`"${liveProduct.name}" এর মজুদ স্টক ${liveProduct.stock_quantity} ${liveProduct.unit || 'টি'}। সর্বোচ্চ মজুদ অনুযায়ী পরিমাণ সমন্বয় করা হলো।`);
+          showStockWarning({
+            title: 'স্টক অনুযায়ী পরিমাণ সমন্বয় (Adjusted to Stock)',
+            message: `"${liveProduct.name}" এর মজুদ স্টক ${liveProduct.stock_quantity} ${liveProduct.unit || 'টি'}। অতিরিক্ত চাওয়ার কারণে সর্বোচ্চ বিদ্যমান মজুদ অনুযায়ী পরিমাণ সমন্বয় করা হলো।`,
+            itemName: liveProduct.name,
+            currentStock: liveProduct.stock_quantity,
+            requestedQty: qty,
+            unit: liveProduct.unit,
+            type: 'warning'
+          });
           finalQty = Math.max(1, liveProduct.stock_quantity);
         }
       }
@@ -857,7 +925,15 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
         if (item.quantity > liveProduct.stock_quantity) {
           const msg = `"${liveProduct.name}" এর বিক্রির পরিমাণ (${item.quantity} ${liveProduct.unit || 'টি'}) বর্তমান মজুদ স্টক (${liveProduct.stock_quantity}) এর চেয়ে বেশি! স্টক অতিক্রম করে বিক্রি সম্পন্ন করা যাবে না।`;
           setErrorMessage(msg);
-          alert(msg);
+          showStockWarning({
+            title: 'চেকআউট বাতিল: স্টক অমিল',
+            message: msg,
+            itemName: liveProduct.name,
+            currentStock: liveProduct.stock_quantity,
+            requestedQty: item.quantity,
+            unit: liveProduct.unit,
+            type: 'danger'
+          });
           return;
         }
       }
@@ -2677,6 +2753,21 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
         onScanSuccess={handleCameraScanSuccess}
         title={cameraScannerTarget === 'imei_modal' ? `IMEI স্ক্যান করুন — ${imeiModalProduct?.name || 'হ্যান্ডসেট'}` : undefined}
         subtitle={cameraScannerTarget === 'imei_modal' ? 'মোবাইল বা ডিভাইসের বক্সের ১৫-ডিজিট IMEI বারকোডটি ক্যামেরার সামনে ধরুন' : undefined}
+      />
+
+      {/* ========================================================================= */}
+      {/* 7. Custom Warning Dialogue Modal                                          */}
+      {/* ========================================================================= */}
+      <WarningModal
+        isOpen={warningConfig.isOpen}
+        title={warningConfig.title}
+        message={warningConfig.message}
+        itemName={warningConfig.itemName}
+        currentStock={warningConfig.currentStock}
+        requestedQty={warningConfig.requestedQty}
+        unit={warningConfig.unit}
+        type={warningConfig.type}
+        onConfirm={() => setWarningConfig(prev => ({ ...prev, isOpen: false }))}
       />
     </div>
   );
