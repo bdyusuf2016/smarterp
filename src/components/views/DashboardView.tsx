@@ -940,7 +940,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             {/* Quick Switch Switcher Tabs & Collapse Button */}
             <div className="flex items-center gap-2 flex-wrap justify-end">
-              <div className="flex bg-slate-800/90 p-1.5 rounded-2xl border border-slate-700/60 overflow-x-auto max-w-full shadow-inner">
+              <div className="flex flex-wrap bg-slate-800/90 p-1.5 rounded-2xl border border-slate-700/60 no-scrollbar filter-bar max-w-full shadow-inner">
                 {[
                   { id: 'today_sales', label: isEn ? "Today Sales" : 'আজকের বিক্রি' },
                   { id: 'month_sales', label: isEn ? "Month Sales" : 'মাসের বিক্রি' },

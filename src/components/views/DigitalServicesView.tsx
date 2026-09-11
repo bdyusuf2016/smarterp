@@ -360,7 +360,7 @@ export const DigitalServicesView: React.FC<DigitalServicesViewProps> = ({
         </div>
 
         {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+        <div className="flex items-center flex-wrap gap-1.5 pb-1 text-xs no-scrollbar filter-bar">
           {[
             { id: 'ALL', label: `সকল সেবা (${allServices.length})` },
             { id: 'PHOTOCOPY_PRINT', label: `ফটোকপি ও প্রিন্ট (${allServices.filter(s => s.category === 'PHOTOCOPY_PRINT').length})` },

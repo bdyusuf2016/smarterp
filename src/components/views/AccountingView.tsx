@@ -350,7 +350,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({ activeTenant }) 
       </div>
 
       {/* Tabs Bar */}
-      <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl font-semibold text-xs overflow-x-auto">
+      <div className="flex items-center flex-wrap gap-1.5 bg-slate-100 p-1 rounded-xl font-semibold text-xs no-scrollbar filter-bar">
         <button
           type="button"
           onClick={() => setActiveTab('journal')}

@@ -129,3 +129,26 @@ html.dark .bg-rose-50 {
 * {
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
+
+/* ========================================================================= */
+/* UNIVERSAL SCROLLBAR HIDING FOR FILTERS & TABS                             */
+/* ========================================================================= */
+.no-scrollbar,
+[data-filter-bar],
+.filter-bar,
+.category-pills,
+.filter-container {
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}
+
+.no-scrollbar::-webkit-scrollbar,
+[data-filter-bar]::-webkit-scrollbar,
+.filter-bar::-webkit-scrollbar,
+.category-pills::-webkit-scrollbar,
+.filter-container::-webkit-scrollbar {
+  display: none !important;  /* Chrome, Safari, Opera */
+  width: 0 !important;
+  height: 0 !important;
+}
+

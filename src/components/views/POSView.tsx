@@ -1022,7 +1022,7 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
               <span>ক্যাটাগরি ফিল্টার:</span>
               <span className="font-mono text-slate-400">{filteredProducts.length} আইটেম প্রদর্শিত</span>
             </div>
-            <div className="flex items-center flex-wrap gap-1.5 text-xs max-h-28 overflow-y-auto pr-1">
+            <div className="flex items-center flex-wrap gap-1.5 text-xs no-scrollbar filter-bar py-0.5">
               <button
                 type="button"
                 onClick={() => setSelectedCategoryFilter('ALL')}
@@ -2086,7 +2086,7 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
             </div>
 
             {availableDevicesForProduct.length > 0 ? (
-              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden max-h-52 overflow-y-auto bg-white shadow-2xs">
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden max-h-52 overflow-y-auto no-scrollbar bg-white shadow-2xs">
                 {availableDevicesForProduct
                   .filter((dev) => !imeiSearchQuery || dev.imei.includes(imeiSearchQuery))
                   .map((dev) => (
@@ -2165,7 +2165,7 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
 
           <div className="space-y-1.5">
             <span className="font-bold text-slate-700 text-xs">বিদ্যমান ব্যাচ তালিকা:</span>
-            <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto bg-white">
+            <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto no-scrollbar bg-white">
               {batches
                 .filter((b) => b.product_id === batchModalProduct?.id)
                 .map((b) => (

@@ -746,7 +746,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ activeTenant }) => {
       </div>
 
       {/* Main Tab Navigation */}
-      <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-semibold overflow-x-auto">
+      <div className="flex items-center flex-wrap gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-semibold no-scrollbar filter-bar">
         <button
           type="button"
           onClick={() => setActiveTab('statement')}

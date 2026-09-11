@@ -1391,7 +1391,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                 </div>
 
                 {imeiList.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1.5 bg-white rounded-lg border border-blue-200">
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto no-scrollbar p-1.5 bg-white rounded-lg border border-blue-200">
                     {imeiList.map((imei, idx) => (
                       <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-900 rounded font-mono text-[11px]">
                         <span>{imei}</span>
