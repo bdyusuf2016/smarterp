@@ -6,12 +6,15 @@
 import React from 'react';
 import { AppLayout } from './components/layout/AppLayout';
 import { ConfirmationProvider } from './context/ConfirmationContext';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 export default function App() {
   return (
-    <ConfirmationProvider>
-      <AppLayout />
-    </ConfirmationProvider>
+    <ErrorBoundary>
+      <ConfirmationProvider>
+        <AppLayout />
+      </ConfirmationProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -5,7 +5,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
   return {
-    base: './',
+    base: process.env.VITE_BASE_PATH || (process.env.GITHUB_ACTIONS ? '/smarterp/' : './'),
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

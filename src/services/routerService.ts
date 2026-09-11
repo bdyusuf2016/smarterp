@@ -139,7 +139,9 @@ class RouterService {
       routeString = '/' + (parts[0] || '');
       queryString = parts[1] || '';
     } else {
-      routeString = rawPath.length > 1 ? rawPath : '/dashboard';
+      // Strip GitHub Pages repository folder prefix if present (e.g., /smarterp/)
+      const strippedPath = rawPath.replace(/^\/smarterp(?:\/|$)/i, '/') || '/dashboard';
+      routeString = strippedPath.length > 1 ? strippedPath : '/dashboard';
       queryString = rawSearch.startsWith('?') ? rawSearch.slice(1) : rawSearch;
     }
 
@@ -151,11 +153,20 @@ class RouterService {
       routeString = '/' + (shopPrefixMatch[2] || 'dashboard');
     }
 
-    // Subdomain detection (e.g. store1.smarterp.io)
+    // Subdomain detection (e.g. store1.smarterp.io) - exclude cloud hosts like github.io, vercel, etc.
     let subdomainTenant: string | undefined = undefined;
     if (typeof window !== 'undefined' && window.location.hostname) {
       const hostname = window.location.hostname.toLowerCase();
-      if (!hostname.includes('localhost') && !hostname.includes('127.0.0.1') && !hostname.includes('0.0.0.0')) {
+      const isDevOrCloudHost = 
+        hostname.includes('localhost') || 
+        hostname.includes('127.0.0.1') || 
+        hostname.includes('0.0.0.0') ||
+        hostname.includes('github.io') ||
+        hostname.includes('vercel.app') ||
+        hostname.includes('netlify.app') ||
+        hostname.includes('pages.dev');
+
+      if (!isDevOrCloudHost) {
         const parts = hostname.split('.');
         if (parts.length >= 3 && parts[0] !== 'admin' && parts[0] !== 'www' && parts[0] !== 'api') {
           subdomainTenant = parts[0];
