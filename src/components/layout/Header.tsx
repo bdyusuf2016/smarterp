@@ -16,12 +16,14 @@ import {
   Sun,
   Moon,
   Globe,
-  Menu
+  Menu,
+  Database
 } from 'lucide-react';
 import { Tenant, UserRole, BusinessCategory } from '../../types';
 import { storageService } from '../../services/storageService';
 import { UserProfile, authService } from '../../services/authService';
 import { i18n } from '../../services/i18nService';
+import { localPostgresService, PostgresDbStatus } from '../../services/localPostgresService';
 import { IconRenderer } from '../common/IconRenderer';
 import { Badge } from '../common/Badge';
 import { useConfirm } from '../../context/ConfirmationContext';
@@ -74,6 +76,8 @@ export const Header: React.FC<HeaderProps> = ({
   });
   const [lastSyncInfo, setLastSyncInfo] = useState<{ time: string; table?: string } | null>(null);
 
+  const [dbStatus, setDbStatus] = useState<PostgresDbStatus>(() => localPostgresService.getStatus());
+
   useEffect(() => {
     const handleLang = () => setCurrentLang(i18n.getLanguage());
     const handleTheme = () => {
@@ -87,10 +91,14 @@ export const Header: React.FC<HeaderProps> = ({
         table: customEvent?.detail?.table
       });
     };
+    const unsubscribeDb = localPostgresService.subscribe((status) => {
+      setDbStatus(status);
+    });
     window.addEventListener('dokan_lang_changed', handleLang);
     window.addEventListener('dokan_theme_changed', handleTheme);
     window.addEventListener('smarterp_cloud_synced', handleSync);
     return () => {
+      unsubscribeDb();
       window.removeEventListener('dokan_lang_changed', handleLang);
       window.removeEventListener('dokan_theme_changed', handleTheme);
       window.removeEventListener('smarterp_cloud_synced', handleSync);
@@ -244,6 +252,42 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <Globe className="w-3.5 h-3.5" />
           <span>{currentLang === 'bn' ? 'বাংলা' : 'EN'}</span>
+        </button>
+
+        {/* Database Live Status Badge */}
+        <button
+          type="button"
+          onClick={onOpenGlobalSettings}
+          className={`px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs ${
+            dbStatus.connected
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+              : dbStatus.isBackendReachable
+              ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+              : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+          }`}
+          title={
+            dbStatus.connected
+              ? `PostgreSQL সক্রিয় (${dbStatus.latencyMs}ms) - ক্লিক করে ডেটাবেজ ম্যানেজমেন্ট খুলুন`
+              : `লোকাল স্টোরেজ মোড - ক্লিক করে ডেটাবেজ সেটআপ ও কানেক্ট করুন`
+          }
+        >
+          <Database className={`w-3.5 h-3.5 ${dbStatus.connected ? 'text-emerald-600' : 'text-slate-500'}`} />
+          <span className="hidden sm:inline">
+            {dbStatus.connected
+              ? `PostgreSQL (${dbStatus.latencyMs}ms)`
+              : dbStatus.isBackendReachable
+              ? 'DB Connecting...'
+              : 'Local Mode'}
+          </span>
+          <span
+            className={`w-2 h-2 rounded-full ${
+              dbStatus.connected
+                ? 'bg-emerald-500 animate-pulse'
+                : dbStatus.isBackendReachable
+                ? 'bg-amber-500'
+                : 'bg-slate-400'
+            }`}
+          />
         </button>
 
         {/* Category Studio CTA (Visible to Super Admin Platform Owner only) */}

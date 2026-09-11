@@ -31,8 +31,9 @@ ENV PORT=5000
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-# Copy compiled assets from builder
+# Copy compiled assets and migrations from builder
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src/db/migrations ./src/db/migrations
 
 # Create unprivileged user for security
 RUN addgroup -S dokangroup && adduser -S dokanuser -G dokangroup

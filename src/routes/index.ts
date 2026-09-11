@@ -14,6 +14,7 @@ import { groceryRouter } from '../modules/plugins/grocery/grocery.routes';
 import { libraryRouter } from '../modules/plugins/library/library.routes';
 import { accountingRouter } from '../modules/accounting/accounting.routes';
 import { reportsRouter } from '../modules/reports/reports.routes';
+import { systemDbRouter } from '../modules/system/database.routes';
 
 export const rootRouter = Router();
 
@@ -72,5 +73,6 @@ apiV1Router.use('/grocery', groceryRouter);
 apiV1Router.use('/library', libraryRouter);
 apiV1Router.use('/accounting', accountingRouter);
 apiV1Router.use('/reports', reportsRouter);
+apiV1Router.use('/system/db', systemDbRouter);
 
 rootRouter.use('/api/v1', apiV1Router);

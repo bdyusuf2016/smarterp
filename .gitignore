@@ -11,7 +11,11 @@ build/
 # Environment & Secrets
 .env
 .env.local
+.env.production
 .env.*.local
+*.dump
+*.sql.gz
+*.backup
 
 # IDE
 .vscode/
@@ -33,3 +37,5 @@ coverage/
 # Misc
 *.tgz
 .cache/
+smarterp/
+

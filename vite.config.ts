@@ -5,13 +5,17 @@ import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
   return {
-    // Use relative base so the site works when served from GitHub Pages
-    base: './',
+    base: '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
+    },
+    build: {
+      outDir: 'dist/public',
+      emptyOutDir: true,
+      chunkSizeWarningLimit: 1500,
     },
     server: {
       port: 5173,
@@ -24,6 +28,16 @@ export default defineConfig(() => {
       },
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+    },
+    preview: {
+      port: 4173,
+      host: '0.0.0.0',
+      proxy: {
+        '/api': {
+          target: 'http://localhost:5000',
+          changeOrigin: true,
+        },
+      },
     },
   };
 });

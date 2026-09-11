@@ -44,6 +44,10 @@ import {
   Palette,
   Eye,
   FileCheck,
+  Server,
+  HardDrive,
+  Terminal,
+  ArrowRight,
 } from "lucide-react";
 import {
   Tenant,
@@ -63,6 +67,7 @@ import {
   supabaseService,
   ConnectionTestResult,
 } from "../../services/supabaseClient";
+import { localPostgresService, PostgresDbStatus } from "../../services/localPostgresService";
 import { printPosReceipt } from "../../shared/utils/printReceipt";
 import { generateQrCodeSvg } from "../../shared/utils/qrCode";
 import { PinVerificationModal } from "../common/PinVerificationModal";
@@ -88,6 +93,7 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
     | "categories"
     | "pos"
     | "footer"
+    | "postgres"
     | "supabase"
     | "backup"
     | "security"
@@ -121,6 +127,30 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
   });
 
   const [isResettingSales, setIsResettingSales] = useState(false);
+
+  // Local / Server PostgreSQL State
+  const [pgStatus, setPgStatus] = useState<PostgresDbStatus>(() => localPostgresService.getStatus());
+  const [customPgUrl, setCustomPgUrl] = useState<string>("postgresql://postgres:postgres@localhost:5432/smarterp_db");
+  const [isTestingPg, setIsTestingPg] = useState(false);
+  const [pgTestMsg, setPgTestMsg] = useState<{ success: boolean; message: string } | null>(null);
+  const [isMigratingPg, setIsMigratingPg] = useState(false);
+  const [pgMigrateMsg, setPgMigrateMsg] = useState<{ success: boolean; message: string } | null>(null);
+  const [isSeedingPg, setIsSeedingPg] = useState(false);
+  const [pgSeedMsg, setPgSeedMsg] = useState<{ success: boolean; message: string } | null>(null);
+  const [isSyncingPg, setIsSyncingPg] = useState(false);
+  const [pgSyncMsg, setPgSyncMsg] = useState<{ success: boolean; message: string } | null>(null);
+  const [isExportingPg, setIsExportingPg] = useState(false);
+  const [pgExportMsg, setPgExportMsg] = useState<{ success: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    const unsub = localPostgresService.subscribe((s) => {
+      setPgStatus(s);
+      if (s.config?.databaseUrl && !s.config.databaseUrl.includes('****')) {
+        setCustomPgUrl(s.config.databaseUrl);
+      }
+    });
+    return () => unsub();
+  }, []);
 
   // Supabase Cloud DB Settings
   const [supabaseUrl, setSupabaseUrl] = useState(
@@ -971,6 +1001,99 @@ export const GlobalSettingsView: React.FC<GlobalSettingsViewProps> = ({
     setTimeout(() => setPinChangeSuccess(""), 3500);
   };
 
+  // PostgreSQL Action Handlers
+  const handleTestPgConnection = async () => {
+    setIsTestingPg(true);
+    setPgTestMsg(null);
+    try {
+      const res = await localPostgresService.testConnection(customPgUrl);
+      setPgTestMsg({ success: res.success, message: res.message });
+    } catch (err: any) {
+      setPgTestMsg({ success: false, message: err?.message || "কানেকশন টেস্ট ব্যর্থ হয়েছে" });
+    } finally {
+      setIsTestingPg(false);
+    }
+  };
+
+  const handleRunPgMigrations = async () => {
+    setIsMigratingPg(true);
+    setPgMigrateMsg(null);
+    try {
+      const res = await localPostgresService.runMigrations();
+      setPgMigrateMsg({ success: res.success, message: res.message });
+      if (res.success) {
+        setSaveSuccessMessage("পোস্টগ্রেস ডেটাবেজ মাইগ্রেশন সফল হয়েছে!");
+        setTimeout(() => setSaveSuccessMessage(null), 3000);
+      }
+    } catch (err: any) {
+      setPgMigrateMsg({ success: false, message: err?.message || "মাইগ্রেশন ব্যর্থ হয়েছে" });
+    } finally {
+      setIsMigratingPg(false);
+    }
+  };
+
+  const handleSeedPg = async () => {
+    if (!window.confirm("আপনি কি নিশ্চিত যে আপনি সিস্টেমে ডেমো ও প্রাথমিক ডেটা সিড করতে চান?")) return;
+    setIsSeedingPg(true);
+    setPgSeedMsg(null);
+    try {
+      const res = await localPostgresService.seedDatabase();
+      setPgSeedMsg({ success: res.success, message: res.message });
+      if (res.success) {
+        setSaveSuccessMessage("সিস্টেম ডেটাবেজে প্রাথমিক তথ্য সফলভাবে লোড হয়েছে!");
+        setTimeout(() => setSaveSuccessMessage(null), 3000);
+      }
+    } catch (err: any) {
+      setPgSeedMsg({ success: false, message: err?.message || "সিড ব্যর্থ হয়েছে" });
+    } finally {
+      setIsSeedingPg(false);
+    }
+  };
+
+  const handleSyncToPg = async () => {
+    setIsSyncingPg(true);
+    setPgSyncMsg(null);
+    try {
+      const payload = {
+        tenants: storageService.getTenants(),
+        products: storageService.getProducts(),
+        customers: storageService.getCustomers(),
+        suppliers: storageService.getSuppliers(),
+        sales: storageService.getSales(),
+      };
+      const res = await localPostgresService.syncBrowserToPostgres(payload);
+      setPgSyncMsg({ success: res.success, message: res.message });
+      if (res.success) {
+        setSaveSuccessMessage("ব্রাউজারের তথ্য PostgreSQL ডেটাবেজে সফলভাবে সংরক্ষণ করা হয়েছে!");
+        setTimeout(() => setSaveSuccessMessage(null), 3000);
+      }
+    } catch (err: any) {
+      setPgSyncMsg({ success: false, message: err?.message || "সিঙ্কিং ব্যর্থ হয়েছে" });
+    } finally {
+      setIsSyncingPg(false);
+    }
+  };
+
+  const handlePullFromPg = async () => {
+    if (!window.confirm("PostgreSQL থেকে ডেটা লোড করলে ব্রাউজারের বর্তমান লোকাল ক্যাশ আপডেট হবে। আপনি কি নিশ্চিত?")) return;
+    setIsExportingPg(true);
+    setPgExportMsg(null);
+    try {
+      const res = await localPostgresService.exportPostgresToBrowser();
+      if (res.success && res.data) {
+        setPgExportMsg({ success: true, message: "PostgreSQL থেকে তথ্য সফলভাবে সিঙ্ক হয়েছে!" });
+        setSaveSuccessMessage("PostgreSQL থেকে তথ্য সফলভাবে আপডেট হয়েছে!");
+        setTimeout(() => setSaveSuccessMessage(null), 3000);
+      } else {
+        setPgExportMsg({ success: false, message: res.message || "কোনো ডেটা পাওয়া যায়নি" });
+      }
+    } catch (err: any) {
+      setPgExportMsg({ success: false, message: err?.message || "ডেটা লোড ব্যর্থ হয়েছে" });
+    } finally {
+      setIsExportingPg(false);
+    }
+  };
+
   // Supabase Actions
   const handleTestSupabaseConnection = async () => {
     setIsTesting(true);
@@ -1228,6 +1351,7 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
     },
     { id: "pos", label: isEn ? "POS & Print Defaults" : "POS ও প্রিন্ট ডিফল্টস", icon: Printer },
     { id: "footer", label: isEn ? "Footer & Branding Settings" : "ফুটার ও ব্র্যান্ডিং সেটিংস", icon: Sparkles },
+    { id: "postgres", label: isEn ? "PostgreSQL (Local / Server)" : "পোস্টগ্রেস ডেটাবেজ (Local/Server)", icon: Server },
     { id: "supabase", label: isEn ? "Cloud Database & Supabase" : "ক্লাউড ডেটাবেজ ও Supabase", icon: Cloud },
     { id: "security", label: isEn ? "Security PIN & Access" : "সিকিউরিটি পিন ও অ্যাকশন কন্ট্রোল", icon: ShieldCheck },
     { id: "backup", label: isEn ? "Data Backup & System" : "ডাটা ব্যাকআপ ও সিস্টেম", icon: Database },
@@ -4332,6 +4456,451 @@ CREATE POLICY "Allow public all custom_fields" ON custom_field_definitions FOR A
             </button>
           </div>
         </form>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB: POSTGRESQL (LOCAL & REAL SERVER) DATABASE MANAGEMENT                   */}
+      {/* ========================================================================= */}
+      {activeTab === "postgres" && (
+        <div className="space-y-6">
+          {/* Top Banner & Live Status */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 rounded-2xl border border-indigo-900 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-300">
+                  <Server className="w-5 h-5" />
+                </div>
+                <h3 className="font-extrabold text-lg tracking-tight">
+                  {isEn ? "Local & Production PostgreSQL Database" : "PostgreSQL ডেটাবেজ ম্যানেজমেন্ট (Local & Server)"}
+                </h3>
+                <span
+                  className={`px-2.5 py-0.5 font-mono text-xs font-bold rounded-full flex items-center gap-1.5 border ${
+                    pgStatus.connected
+                      ? "bg-emerald-500/20 border-emerald-400/30 text-emerald-300"
+                      : pgStatus.isBackendReachable
+                      ? "bg-amber-500/20 border-amber-400/30 text-amber-300"
+                      : "bg-rose-500/20 border-rose-400/30 text-rose-300"
+                  }`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      pgStatus.connected
+                        ? "bg-emerald-400 animate-pulse"
+                        : pgStatus.isBackendReachable
+                        ? "bg-amber-400"
+                        : "bg-rose-400"
+                    }`}
+                  />
+                  {pgStatus.connected
+                    ? `Active (${pgStatus.latencyMs}ms)`
+                    : pgStatus.isBackendReachable
+                    ? "Database Offline"
+                    : "Backend Server Offline"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                {isEn
+                  ? "Manage your local offline PostgreSQL or production server database directly. Run migrations, seed initial data, and synchronize browser storage with zero external dependencies."
+                  : "আপনার লোকাল অফলাইন বা রিয়েল সার্ভার PostgreSQL ডেটাবেজ সরাসরি পরিচালনা করুন। কোনো গিটহাব বা বাহ্যিক ক্লাউড ছাড়াই সম্পূর্ণ নিজস্ব সার্ভার ও কম্পিউটারে ডেটা নিরাপদে সংরক্ষণ করুন।"}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => localPostgresService.checkStatus()}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-sm cursor-pointer transition-all"
+                title="স্ট্যাটাস রিফ্রেশ করুন"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>{isEn ? "Refresh Status" : "স্ট্যাটাস রিফ্রেশ"}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Metrics Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+              <span className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">
+                {isEn ? "Database Name" : "ডেটাবেজের নাম"}
+              </span>
+              <div className="text-base font-extrabold text-slate-900 mt-1 truncate">
+                {pgStatus.database || "smarterp_db"}
+              </div>
+              <span className="text-[10px] text-slate-500 font-mono">
+                {pgStatus.version || "PostgreSQL 16+"}
+              </span>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+              <span className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">
+                {isEn ? "Connection Speed" : "কানেকশন স্পিড"}
+              </span>
+              <div className="text-base font-extrabold text-slate-900 mt-1">
+                {pgStatus.connected ? `${pgStatus.latencyMs} ms` : "N/A"}
+              </div>
+              <span className="text-[10px] text-slate-500 font-mono">
+                Port: {pgStatus.config?.port || 5000} (API)
+              </span>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+              <span className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">
+                {isEn ? "Schema & Tables" : "মোট স্কিমা টেবিল"}
+              </span>
+              <div className="text-base font-extrabold text-slate-900 mt-1">
+                {pgStatus.tableCount !== undefined ? `${pgStatus.tableCount} Tables` : "অপ্রস্তুত"}
+              </div>
+              <span className="text-[10px] text-slate-500">
+                {pgStatus.tableCount && pgStatus.tableCount > 0 ? "Drizzle ORM Active" : "মাইগ্রেশন প্রয়োজন"}
+              </span>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+              <span className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">
+                {isEn ? "Stored Records" : "সংরক্ষিত তথ্য"}
+              </span>
+              <div className="text-base font-extrabold text-slate-900 mt-1">
+                {pgStatus.counts
+                  ? `${(pgStatus.counts.products || 0) + (pgStatus.counts.customers || 0)} Items`
+                  : "0 Items"}
+              </div>
+              <span className="text-[10px] text-slate-500 font-mono">
+                {pgStatus.counts ? `Prod: ${pgStatus.counts.products || 0} | Cust: ${pgStatus.counts.customers || 0}` : "তথ্য নেই"}
+              </span>
+            </div>
+          </div>
+
+          {/* Connection Test & Config Card */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Database className="w-5 h-5 text-indigo-600" />
+                <h4 className="font-extrabold text-sm text-slate-900">
+                  {isEn ? "PostgreSQL Connection String" : "PostgreSQL কানেকশন স্ট্রিং কনফিগারেশন"}
+                </h4>
+              </div>
+              <span className="text-xs text-slate-500 font-mono bg-slate-100 px-2.5 py-1 rounded-lg">
+                .env (DATABASE_URL)
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  value={customPgUrl}
+                  onChange={(e) => setCustomPgUrl(e.target.value)}
+                  placeholder="postgresql://postgres:postgres@localhost:5432/smarterp_db"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleTestPgConnection}
+                disabled={isTestingPg}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+              >
+                {isTestingPg ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Activity className="w-4 h-4" />
+                )}
+                <span>{isTestingPg ? (isEn ? "Testing..." : "টেস্ট হচ্ছে...") : (isEn ? "Test Connection" : "🔌 কানেকশন টেস্ট")}</span>
+              </button>
+            </div>
+
+            {pgTestMsg && (
+              <div
+                className={`p-3.5 rounded-xl border text-xs flex items-center gap-2.5 ${
+                  pgTestMsg.success
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                    : "bg-rose-50 border-rose-200 text-rose-800"
+                }`}
+              >
+                {pgTestMsg.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                )}
+                <span>{pgTestMsg.message}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Database Operations Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Card 1: Run Migrations */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 flex flex-col justify-between">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
+                    <Layers className="w-4 h-4" />
+                  </div>
+                  <h5 className="font-extrabold text-sm text-slate-900">
+                    {isEn ? "1. Run Database Migrations" : "১. স্কিমা ও টেবিল তৈরি করুন (Migration)"}
+                  </h5>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  {isEn
+                    ? "Applies Drizzle ORM migrations to create all required tables (users, tenants, products, customers, sales, accounting, etc.) in PostgreSQL."
+                    : "Drizzle ORM-এর সাহায্যে PostgreSQL ডেটাবেজে প্রয়োজনীয় সকল টেবিল (পণ্য, কাস্টমার, সেলস, একাউন্টিং, ইত্যাদি) স্বয়ংক্রিয়ভাবে তৈরি করে।"}
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handleRunPgMigrations}
+                  disabled={isMigratingPg}
+                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isMigratingPg ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Layers className="w-4 h-4 text-indigo-400" />
+                  )}
+                  <span>{isMigratingPg ? "মাইগ্রেশন চলছে..." : "🛠️ মাইগ্রেশন চালান (Create Tables)"}</span>
+                </button>
+
+                {pgMigrateMsg && (
+                  <div
+                    className={`p-2.5 rounded-lg text-xs flex items-center gap-2 ${
+                      pgMigrateMsg.success
+                        ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                        : "bg-rose-50 text-rose-800 border border-rose-200"
+                    }`}
+                  >
+                    <span>{pgMigrateMsg.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Card 2: Seed Initial Data */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 flex flex-col justify-between">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <h5 className="font-extrabold text-sm text-slate-900">
+                    {isEn ? "2. Seed Initial System Data" : "২. প্রাথমিক ও ডেমো ডেটা সিড করুন (Seed)"}
+                  </h5>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  {isEn
+                    ? "Populates PostgreSQL with default business categories (Telecom, Grocery, Library), default admin user, role permissions, and demo shop."
+                    : "ডেটাবেজে প্রাথমিক বিজনেস ক্যাটাগরি (টেলিকম, গ্রোসারি, লাইব্রেরি), সিস্টেম রোল পারমিশন এবং ডেমো দোকান ও এডমিন ইউজার লোড করে।"}
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handleSeedPg}
+                  disabled={isSeedingPg}
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isSeedingPg ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 text-emerald-200" />
+                  )}
+                  <span>{isSeedingPg ? "ডেটা সিডিং হচ্ছে..." : "🌱 প্রাথমিক ডেটা সিড করুন (Seed Data)"}</span>
+                </button>
+
+                {pgSeedMsg && (
+                  <div
+                    className={`p-2.5 rounded-lg text-xs flex items-center gap-2 ${
+                      pgSeedMsg.success
+                        ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                        : "bg-rose-50 text-rose-800 border border-rose-200"
+                    }`}
+                  >
+                    <span>{pgSeedMsg.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Card 3: Sync Browser -> PostgreSQL */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 flex flex-col justify-between">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                    <Upload className="w-4 h-4" />
+                  </div>
+                  <h5 className="font-extrabold text-sm text-slate-900">
+                    {isEn ? "3. Push Browser Storage to PostgreSQL" : "৩. ব্রাউজার ডেটা PostgreSQL-এ সংরক্ষণ"}
+                  </h5>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  {isEn
+                    ? "Transfers your currently loaded browser items (Products, Customers, Suppliers, Sales, Tenants) directly into the PostgreSQL database tables."
+                    : "বর্তমানে ব্রাউজারে থাকা আপনার সকল পণ্য, কাস্টমার, সাপ্লায়ার এবং সেলসের তথ্য এক ক্লিকে PostgreSQL ডেটাবেজে স্থায়ীভাবে সেভ করুন।"}
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handleSyncToPg}
+                  disabled={isSyncingPg}
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isSyncingPg ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4 text-blue-200" />
+                  )}
+                  <span>{isSyncingPg ? "সিঙ্ক হচ্ছে..." : "🔄 ব্রাউজার ডেটা PostgreSQL-এ সিঙ্ক করুন"}</span>
+                </button>
+
+                {pgSyncMsg && (
+                  <div
+                    className={`p-2.5 rounded-lg text-xs flex items-center gap-2 ${
+                      pgSyncMsg.success
+                        ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                        : "bg-rose-50 text-rose-800 border border-rose-200"
+                    }`}
+                  >
+                    <span>{pgSyncMsg.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Card 4: Pull PostgreSQL -> Browser */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 flex flex-col justify-between">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-purple-50 text-purple-600">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  <h5 className="font-extrabold text-sm text-slate-900">
+                    {isEn ? "4. Pull from PostgreSQL to Browser" : "৪. PostgreSQL থেকে তথ্য ব্রাউজারে আনুন"}
+                  </h5>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  {isEn
+                    ? "Queries the PostgreSQL database and refreshes browser offline cache with the server records."
+                    : "PostgreSQL ডেটাবেজ থেকে সর্বশেষ ডেটা পড়ে নিয়ে ব্রাউজারের লোকাল ক্যাশ আপডেট করে।"}
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handlePullFromPg}
+                  disabled={isExportingPg}
+                  className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isExportingPg ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4 text-purple-200" />
+                  )}
+                  <span>{isExportingPg ? "লোড হচ্ছে..." : "⬇️ PostgreSQL থেকে তথ্য রিফ্রেশ করুন"}</span>
+                </button>
+
+                {pgExportMsg && (
+                  <div
+                    className={`p-2.5 rounded-lg text-xs flex items-center gap-2 ${
+                      pgExportMsg.success
+                        ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                        : "bg-rose-50 text-rose-800 border border-rose-200"
+                    }`}
+                  >
+                    <span>{pgExportMsg.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Step-by-Step Setup Guides */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Guide 1: Local Windows PostgreSQL */}
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
+              <div className="flex items-center gap-2 text-slate-900">
+                <Terminal className="w-4 h-4 text-indigo-600" />
+                <h5 className="font-extrabold text-xs uppercase tracking-wider">
+                  {isEn ? "Windows Local Setup Guide" : "উইন্ডোজ লোকাল PostgreSQL সেটআপ নির্দেশিকা"}
+                </h5>
+              </div>
+
+              <div className="space-y-2 text-xs text-slate-700">
+                <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
+                  <div className="font-bold text-slate-900">ধাপ ১: PostgreSQL ইনস্টল করুন</div>
+                  <p className="text-[11px] text-slate-500 leading-normal">
+                    postgresql.org থেকে Windows ইনস্টলার ডাউনলোড করে ইনস্টল করুন। ডিফল্ট পোর্ট 5432 এবং পাসওয়ার্ড (যেমন: postgres) দিন।
+                  </p>
+                </div>
+
+                <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
+                  <div className="font-bold text-slate-900">ধাপ ২: ডেটাবেজ তৈরি করুন</div>
+                  <p className="text-[11px] text-slate-500 leading-normal">
+                    PowerShell বা Command Prompt খুলে নিচের কমান্ডটি চালান:
+                  </p>
+                  <code className="block bg-slate-900 text-emerald-400 p-2 rounded-lg font-mono text-[11px]">
+                    createdb -U postgres smarterp_db
+                  </code>
+                </div>
+
+                <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
+                  <div className="font-bold text-slate-900">ধাপ ৩: একযোগে অ্যাপ চালু করুন</div>
+                  <p className="text-[11px] text-slate-500 leading-normal">
+                    টার্মিনালে শুধু নিচের কমান্ড দিন (Vite ও Express ব্যাকএন্ড একসাথে চালু হবে):
+                  </p>
+                  <code className="block bg-slate-900 text-emerald-400 p-2 rounded-lg font-mono text-[11px]">
+                    npm run dev
+                  </code>
+                </div>
+              </div>
+            </div>
+
+            {/* Guide 2: Real Server Deployment */}
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
+              <div className="flex items-center gap-2 text-slate-900">
+                <HardDrive className="w-4 h-4 text-emerald-600" />
+                <h5 className="font-extrabold text-xs uppercase tracking-wider">
+                  {isEn ? "Real Server (VPS / Linux) Deployment" : "রিয়েল সার্ভার (VPS / Linux) ডিপ্লয়মেন্ট"}
+                </h5>
+              </div>
+
+              <div className="space-y-2 text-xs text-slate-700">
+                <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
+                  <div className="font-bold text-slate-900">পদ্ধতি ১: Docker Compose (১-ক্লিক ডেপ্লয়)</div>
+                  <p className="text-[11px] text-slate-500 leading-normal">
+                    সার্ভারে ফোল্ডারটি নিয়ে কমান্ড দিন:
+                  </p>
+                  <code className="block bg-slate-900 text-emerald-400 p-2 rounded-lg font-mono text-[11px]">
+                    docker compose up -d
+                  </code>
+                  <span className="text-[10px] text-slate-400">PostgreSQL ও SmartERP অটো-স্টার্ট হবে।</span>
+                </div>
+
+                <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
+                  <div className="font-bold text-slate-900">পদ্ধতি ২: Native Node.js + PM2</div>
+                  <p className="text-[11px] text-slate-500 leading-normal">
+                    বিল্ড ও রান করার একক কমান্ড:
+                  </p>
+                  <code className="block bg-slate-900 text-emerald-400 p-2 rounded-lg font-mono text-[11px]">
+                    npm run build && npm start
+                  </code>
+                  <span className="text-[10px] text-slate-400">অথবা PM2 দিয়ে: pm2 start ecosystem.config.cjs</span>
+                </div>
+
+                <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 text-[11px] text-indigo-900 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <span>সম্পূর্ণ ডিপ্লয়মেন্ট গাইডের জন্য <b>DEPLOYMENT_GUIDE.md</b> ফাইলটি দেখুন।</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ========================================================================= */}

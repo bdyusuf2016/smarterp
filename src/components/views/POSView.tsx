@@ -83,11 +83,13 @@ const DEFAULT_ONLINE_SERVICES = [
 
 export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) => {
   const [productsVersion, setProductsVersion] = useState(0);
+  const [devicesVersion, setDevicesVersion] = useState(0);
 
   useEffect(() => {
     const handleStorage = (e: any) => {
-      if (!e.detail || e.detail.key === 'dokan_v2_products' || e.detail.key === 'dokan_tenants' || e.detail.key === 'dokan_active_tenant') {
+      if (!e.detail || e.detail.key === 'dokan_v2_products' || e.detail.key === 'dokan_tenants' || e.detail.key === 'dokan_active_tenant' || e.detail.key === 'dokan_devices' || e.detail.key === 'dokan_batches') {
         setProductsVersion(v => v + 1);
+        setDevicesVersion(v => v + 1);
       }
     };
     window.addEventListener('dokan_storage_updated', handleStorage);
@@ -116,8 +118,8 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
   }, [activeTenant?.id]);
 
   const customers = storageService.getCustomers(activeTenant.id) || [];
-  const devices = storageService.getDevices() || [];
-  const batches = storageService.getBatches() || [];
+  const devices = useMemo(() => storageService.getDevices() || [], [devicesVersion]);
+  const batches = useMemo(() => storageService.getBatches() || [], [devicesVersion]);
   const tradeIns = (storageService.getTradeIns(activeTenant.id) || []).filter(t => t.status === 'pending' || t.status === 'accepted');
 
   // Load customized photocopy and online services rates
@@ -394,7 +396,17 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
 
   // Specialized Selection Modals
   const [imeiModalProduct, setImeiModalProduct] = useState<GenericProduct | null>(null);
+  const [manualImeiInput, setManualImeiInput] = useState('');
+  const [manualImeiColor, setManualImeiColor] = useState('Standard');
+  const [manualImeiStorage, setManualImeiStorage] = useState('128GB');
+  const [manualImeiWarranty, setManualImeiWarranty] = useState<number>(12);
+  const [imeiSearchQuery, setImeiSearchQuery] = useState('');
+  const [imeiError, setImeiError] = useState('');
+
   const [batchModalProduct, setBatchModalProduct] = useState<GenericProduct | null>(null);
+  const [manualBatchNumber, setManualBatchNumber] = useState('');
+  const [manualBatchExpiry, setManualBatchExpiry] = useState('2027-12-31');
+
   const [weightModalProduct, setWeightModalProduct] = useState<GenericProduct | null>(null);
   const [tempWeightInput, setTempWeightInput] = useState<number>(1.0);
 
@@ -416,11 +428,26 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
 
   // Camera Barcode & QR Scanner Modal State
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
+  const [cameraScannerTarget, setCameraScannerTarget] = useState<'catalog' | 'imei_modal'>('catalog');
 
-  // Camera scan success handler (Auto adds matching product or populates search)
+  // Camera scan success handler (Auto adds matching product or populates search / IMEI)
   const handleCameraScanSuccess = (scannedCode: string) => {
     const trimmed = scannedCode.trim();
     if (!trimmed) return;
+
+    if (cameraScannerTarget === 'imei_modal') {
+      setManualImeiInput(trimmed);
+      setIsCameraScannerOpen(false);
+      setImeiError('');
+      // If the scanned IMEI matches an available device in stock, select it immediately
+      if (imeiModalProduct) {
+        const matched = availableDevicesForProduct.find(d => d.imei === trimmed);
+        if (matched) {
+          handleSelectImei(matched);
+        }
+      }
+      return;
+    }
 
     const found = products.find(p => 
       (p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()) ||
@@ -532,11 +559,15 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
   const handleAddToCart = (product: GenericProduct) => {
     if (product.tracking_mode === 'TRACKING_IMEI') {
       setImeiModalProduct(product);
+      setManualImeiInput('');
+      setImeiError('');
+      setImeiSearchQuery('');
       return;
     }
 
     if (product.tracking_mode === 'TRACKING_BATCH') {
       setBatchModalProduct(product);
+      setManualBatchNumber('');
       return;
     }
 
@@ -564,18 +595,108 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
     }
   };
 
+  const availableDevicesForProduct = useMemo(() => {
+    if (!imeiModalProduct) return [];
+    
+    // 1. Devices already in storageService devices
+    const fromDevices = devices.filter(
+      d =>
+        (d.product_id === imeiModalProduct.id ||
+         (d.model && d.model.toLowerCase().trim() === imeiModalProduct.name.toLowerCase().trim())) &&
+        d.status === 'available' &&
+        !cart.some(item => item.selected_imei === d.imei)
+    );
+
+    // 2. Extra IMEIs in product.custom_fields?.imei (from Product Catalog)
+    const customImeisRaw = imeiModalProduct.custom_fields?.imei;
+    const customImeiList: string[] = Array.isArray(customImeisRaw)
+      ? customImeisRaw.map(String)
+      : typeof customImeisRaw === 'string'
+      ? customImeisRaw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
+      : [];
+
+    const existingImeis = new Set(fromDevices.map(d => d.imei));
+    const extraDevices: DeviceItem[] = [];
+
+    customImeiList.forEach(imei => {
+      const clean = imei.trim();
+      if (clean && !existingImeis.has(clean) && !cart.some(item => item.selected_imei === clean)) {
+        existingImeis.add(clean);
+        extraDevices.push({
+          id: `dev_cf_${clean}`,
+          product_id: imeiModalProduct.id,
+          imei: clean,
+          model: imeiModalProduct.name,
+          color: 'Standard',
+          storage: 'Standard',
+          status: 'available',
+          warranty_months: 12,
+          cost_price: imeiModalProduct.purchase_price || 0,
+          selling_price: imeiModalProduct.selling_price || 0,
+        });
+      }
+    });
+
+    return [...fromDevices, ...extraDevices];
+  }, [devices, imeiModalProduct, cart]);
+
   const handleSelectImei = (device: DeviceItem) => {
     if (!imeiModalProduct) return;
+
+    // Ensure device is registered in storageService
+    const existing = devices.find(d => d.imei === device.imei);
+    if (!existing) {
+      storageService.saveDevice(device);
+      setDevicesVersion(v => v + 1);
+    }
+
     setCart([...cart, {
       product: imeiModalProduct,
       quantity: 1,
-      unit_price: device.selling_price,
+      unit_price: device.selling_price || imeiModalProduct.selling_price,
       discount: 0,
-      total: device.selling_price,
+      total: device.selling_price || imeiModalProduct.selling_price,
       selected_imei: device.imei,
-      warranty_months: device.warranty_months
+      warranty_months: device.warranty_months || 12
     }]);
     setImeiModalProduct(null);
+    setManualImeiInput('');
+    setImeiError('');
+  };
+
+  const handleAddManualImei = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setImeiError('');
+    const trimmed = manualImeiInput.trim();
+    if (!trimmed) {
+      setImeiError('দয়া করে একটি বৈধ IMEI নম্বর লিখুন বা বারকোড স্ক্যানার দিয়ে স্ক্যান করুন');
+      return;
+    }
+    if (cart.some(item => item.selected_imei === trimmed)) {
+      setImeiError('এই IMEI নম্বরটি ইতিমধ্যে কার্টে যুক্ত রয়েছে!');
+      return;
+    }
+    if (!imeiModalProduct) return;
+
+    let matchedDevice = devices.find(d => d.imei === trimmed);
+    if (!matchedDevice) {
+      matchedDevice = {
+        id: `dev_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        product_id: imeiModalProduct.id,
+        imei: trimmed,
+        model: imeiModalProduct.name,
+        color: manualImeiColor || 'Standard',
+        storage: manualImeiStorage || '128GB',
+        status: 'available',
+        warranty_months: Number(manualImeiWarranty) || 12,
+        cost_price: imeiModalProduct.purchase_price || 0,
+        selling_price: imeiModalProduct.selling_price || 0,
+      };
+      storageService.saveDevice(matchedDevice);
+      setDevicesVersion(v => v + 1);
+    }
+
+    handleSelectImei(matchedDevice);
   };
 
   const handleSelectBatch = (batch: ProductBatch) => {
@@ -589,6 +710,41 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
       selected_batch: batch.batch_number
     }]);
     setBatchModalProduct(null);
+  };
+
+  const handleAddManualBatch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!batchModalProduct) return;
+    const batchNum = manualBatchNumber.trim() || `BAT-${Date.now().toString().slice(-4)}`;
+    const newBatch: ProductBatch = {
+      id: `batch_${Date.now()}`,
+      product_id: batchModalProduct.id,
+      batch_number: batchNum,
+      quantity: 100,
+      mfg_date: new Date().toISOString().split('T')[0],
+      expiry_date: manualBatchExpiry || '2027-12-31',
+      cost_price: batchModalProduct.purchase_price || 0,
+      selling_price: batchModalProduct.selling_price || 0,
+      status: 'active',
+    };
+    storageService.saveBatch(newBatch);
+    setDevicesVersion(v => v + 1);
+    handleSelectBatch(newBatch);
+    setManualBatchNumber('');
+  };
+
+  const handleConfirmWeight = () => {
+    if (!weightModalProduct) return;
+    const weight = Math.max(0.01, Number(tempWeightInput) || 1);
+    const total = Math.round(weight * weightModalProduct.selling_price);
+    setCart([...cart, {
+      product: weightModalProduct,
+      quantity: weight,
+      unit_price: weightModalProduct.selling_price,
+      discount: 0,
+      total,
+    }]);
+    setWeightModalProduct(null);
   };
 
   const handleUpdateQty = (index: number, delta: number) => {
@@ -716,6 +872,14 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
         prod.stock_quantity = Math.max(0, prod.stock_quantity - item.quantity);
         storageService.saveProduct(prod);
       }
+      if (item.selected_imei) {
+        const dev = storageService.getDevices().find(d => d.imei === item.selected_imei);
+        if (dev) {
+          dev.status = 'sold';
+          dev.sold_invoice_no = newSale.invoice_no;
+          storageService.saveDevice(dev);
+        }
+      }
     });
 
     if (dueAmount > 0 && selectedCust) {
@@ -798,7 +962,10 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
             {/* Mobile / Device Camera Barcode Scanner Button */}
             <button
               type="button"
-              onClick={() => setIsCameraScannerOpen(true)}
+              onClick={() => {
+                setCameraScannerTarget('catalog');
+                setIsCameraScannerOpen(true);
+              }}
               className="px-2.5 sm:px-3 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 shadow-xs shadow-indigo-600/20 cursor-pointer shrink-0 transition-all active:scale-[0.97]"
               title="মোবাইল ক্যামেরা দিয়ে বারকোড বা QR স্ক্যান করুন"
             >
@@ -1754,35 +1921,332 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
       {/* ========================================================================= */}
       <Modal
         isOpen={Boolean(imeiModalProduct)}
-        onClose={() => setImeiModalProduct(null)}
+        onClose={() => {
+          setImeiModalProduct(null);
+          setManualImeiInput('');
+          setImeiError('');
+        }}
         title={`IMEI নির্বাচন করুন — ${imeiModalProduct?.name}`}
-        subtitle="হ্যান্ডসেট স্টক হতে নির্দিষ্ট ইউনিট নির্বাচন"
+        subtitle="হ্যান্ডসেট স্টক হতে নির্দিষ্ট ইউনিট নির্বাচন করুন অথবা নতুন IMEI স্ক্যান/টাইপ করুন"
       >
-        <div className="space-y-3 text-xs">
-          <div className="divide-y divide-[#dee2e6] border border-[#dee2e6] rounded-lg overflow-hidden max-h-60 overflow-y-auto">
-            {devices
-              .filter(d => d.product_id === imeiModalProduct?.id && d.status === 'available')
-              .map(dev => (
-                <div
-                  key={dev.id}
-                  onClick={() => handleSelectImei(dev)}
-                  className="p-2.5 hover:bg-blue-50 flex items-center justify-between cursor-pointer text-xs transition-colors"
-                >
-                  <div>
-                    <div className="font-mono font-bold text-[#1a1b1e] flex items-center gap-1.5">
-                      <Smartphone className="w-3.5 h-3.5 text-blue-600" />
-                      <span>IMEI: {dev.imei}</span>
-                    </div>
-                    <p className="text-[11px] text-[#868e96] mt-0.5">
-                      {dev.color} • {dev.storage} • {dev.warranty_months} Months Warranty
-                    </p>
-                  </div>
-                  <button type="button" className="px-2.5 py-1 bg-blue-600 text-white font-bold rounded text-xs">
-                    নির্বাচন
-                  </button>
-                </div>
-              ))}
+        <div className="space-y-4 text-xs">
+          {/* Product Quick Info Card */}
+          <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-xl flex items-center justify-between">
+            <div>
+              <div className="font-extrabold text-slate-800 text-sm flex items-center gap-1.5">
+                <Smartphone className="w-4 h-4 text-blue-600" />
+                <span>{imeiModalProduct?.name}</span>
+              </div>
+              <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                মডেল কোড: {imeiModalProduct?.code} {imeiModalProduct?.barcode ? `| বারকোড: ${imeiModalProduct.barcode}` : ''}
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] text-slate-400 block uppercase font-bold">বিক্রয় মূল্য</span>
+              <span className="text-base font-extrabold text-blue-700">
+                ৳{imeiModalProduct?.selling_price?.toLocaleString('bn-BD')}
+              </span>
+            </div>
           </div>
+
+          {/* 1. Fast Barcode / IMEI Scanner Input */}
+          <form onSubmit={handleAddManualImei} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <label className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
+                <Barcode className="w-4 h-4 text-indigo-600" />
+                <span>IMEI স্ক্যান করুন বা লিখুন (Barcode / Manual IMEI):</span>
+              </label>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCameraScannerTarget('imei_modal');
+                    setIsCameraScannerOpen(true);
+                  }}
+                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-[11px] rounded-lg flex items-center gap-1 shadow-xs cursor-pointer transition-all active:scale-[0.97]"
+                  title="মোবাইল বা ডিভাইসের ক্যামেরা দিয়ে IMEI বারকোড স্ক্যান করুন"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>ক্যামেরা স্ক্যান</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  autoFocus
+                  value={manualImeiInput}
+                  onChange={(e) => {
+                    setManualImeiInput(e.target.value);
+                    setImeiError('');
+                  }}
+                  placeholder="বারকোড স্ক্যানার দিয়ে স্ক্যান করুন বা ১৫ ডিজিট IMEI লিখুন..."
+                  className="w-full pl-3 pr-10 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCameraScannerTarget('imei_modal');
+                    setIsCameraScannerOpen(true);
+                  }}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md cursor-pointer transition-colors"
+                  title="ক্যামেরা দিয়ে IMEI বারকোড স্ক্যান করুন"
+                >
+                  <Camera className="w-4 h-4" />
+                </button>
+              </div>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>কার্টে যোগ করুন</span>
+              </button>
+            </div>
+
+            {/* Optional device attributes */}
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              <div>
+                <label className="text-[10px] text-slate-500 font-bold block mb-1">কালার (রং):</label>
+                <input
+                  type="text"
+                  value={manualImeiColor}
+                  onChange={(e) => setManualImeiColor(e.target.value)}
+                  placeholder="Black, Blue..."
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded text-[11px]"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500 font-bold block mb-1">স্টোরেজ (ROM):</label>
+                <input
+                  type="text"
+                  value={manualImeiStorage}
+                  onChange={(e) => setManualImeiStorage(e.target.value)}
+                  placeholder="64GB, 128GB..."
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded text-[11px]"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500 font-bold block mb-1">ওয়ারেন্টি (মাস):</label>
+                <div className="flex gap-1">
+                  <input
+                    type="number"
+                    min={0}
+                    max={120}
+                    value={manualImeiWarranty}
+                    onChange={(e) => setManualImeiWarranty(Math.max(0, parseInt(e.target.value) || 0))}
+                    placeholder="১২"
+                    className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded text-[11px] font-mono font-bold text-slate-900 focus:ring-1 focus:ring-blue-500"
+                    title="ম্যানুয়ালি যেকোনো মাসের ওয়ারেন্টি লিখুন"
+                  />
+                  <select
+                    value={manualImeiWarranty}
+                    onChange={(e) => setManualImeiWarranty(Number(e.target.value))}
+                    className="px-1 py-1.5 bg-slate-100 border border-slate-200 rounded text-[10px] font-bold text-slate-600 cursor-pointer shrink-0"
+                    title="প্রিসেট হতে দ্রুত নির্বাচন করুন"
+                  >
+                    <option value={0}>০ মাস</option>
+                    <option value={1}>১ মাস</option>
+                    <option value={3}>৩ মাস</option>
+                    <option value={6}>৬ মাস</option>
+                    <option value={12}>১২ মাস</option>
+                    <option value={18}>১৮ মাস</option>
+                    <option value={24}>২৪ মাস</option>
+                    <option value={36}>৩৬ মাস</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {imeiError && (
+              <p className="text-[11px] text-rose-600 font-bold flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span>{imeiError}</span>
+              </p>
+            )}
+          </form>
+
+          {/* 2. Available Units in Stock */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-slate-700 text-xs">
+                স্টকে সংরক্ষিত ইউনিটসমূহ ({availableDevicesForProduct.length}টি উপলব্ধ):
+              </span>
+              {availableDevicesForProduct.length > 3 && (
+                <input
+                  type="text"
+                  placeholder="IMEI ফিল্টার করুন..."
+                  value={imeiSearchQuery}
+                  onChange={(e) => setImeiSearchQuery(e.target.value)}
+                  className="px-2 py-1 bg-white border border-slate-200 rounded text-[11px] w-36"
+                />
+              )}
+            </div>
+
+            {availableDevicesForProduct.length > 0 ? (
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden max-h-52 overflow-y-auto bg-white shadow-2xs">
+                {availableDevicesForProduct
+                  .filter((dev) => !imeiSearchQuery || dev.imei.includes(imeiSearchQuery))
+                  .map((dev) => (
+                    <div
+                      key={dev.id}
+                      onClick={() => handleSelectImei(dev)}
+                      className="p-2.5 hover:bg-blue-50/80 flex items-center justify-between cursor-pointer transition-colors"
+                    >
+                      <div>
+                        <div className="font-mono font-bold text-slate-900 flex items-center gap-1.5">
+                          <Smartphone className="w-3.5 h-3.5 text-blue-600" />
+                          <span>IMEI: {dev.imei}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          {dev.color || 'Standard'} • {dev.storage || '128GB'} • {dev.warranty_months || 12} Months Warranty
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs cursor-pointer"
+                      >
+                        নির্বাচন
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-200 text-amber-900 text-center space-y-1">
+                <p className="font-bold text-xs">
+                  ℹ️ স্টকে এই মডেলের পূর্বে কোনো IMEI সংরক্ষিত নেই
+                </p>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  হ্যান্ডসেটের বক্সের বারকোড স্ক্যানার দিয়ে স্ক্যান করুন অথবা উপরের বক্সে ১৫ ডিজিট IMEI টাইপ করে{' '}
+                  <strong className="text-blue-700">"কার্টে যোগ করুন"</strong> চাপুন।
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
+
+      {/* 2b. Batch Selection Modal */}
+      <Modal
+        isOpen={Boolean(batchModalProduct)}
+        onClose={() => setBatchModalProduct(null)}
+        title={`ব্যাচ নির্বাচন করুন — ${batchModalProduct?.name}`}
+        subtitle="গ্রোসারি/ফার্মেসি ব্যাচ ও মেয়াদোত্তীর্ণ তারিখ নির্বাচন"
+      >
+        <div className="space-y-4 text-xs">
+          <form onSubmit={handleAddManualBatch} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+            <label className="font-bold text-slate-800 text-xs block">
+              নতুন ব্যাচ নম্বর ও মেয়াদ লিখুন:
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="text"
+                value={manualBatchNumber}
+                onChange={(e) => setManualBatchNumber(e.target.value)}
+                placeholder="ব্যাচ নম্বর (যেমন: BAT-2026-A)"
+                className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+              />
+              <input
+                type="date"
+                value={manualBatchExpiry}
+                onChange={(e) => setManualBatchExpiry(e.target.value)}
+                className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg cursor-pointer"
+            >
+              ব্যাচ যুক্ত করুন ও কার্টে নিন
+            </button>
+          </form>
+
+          <div className="space-y-1.5">
+            <span className="font-bold text-slate-700 text-xs">বিদ্যমান ব্যাচ তালিকা:</span>
+            <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto bg-white">
+              {batches
+                .filter((b) => b.product_id === batchModalProduct?.id)
+                .map((b) => (
+                  <div
+                    key={b.id}
+                    onClick={() => handleSelectBatch(b)}
+                    className="p-2.5 hover:bg-emerald-50 flex items-center justify-between cursor-pointer transition-colors"
+                  >
+                    <div>
+                      <div className="font-mono font-bold text-slate-900">ব্যাচ: {b.batch_number}</div>
+                      <p className="text-[11px] text-slate-500">মেয়াদ: {b.expiry_date} | স্টক: {b.quantity}</p>
+                    </div>
+                    <button type="button" className="px-3 py-1 bg-emerald-600 text-white font-bold rounded-lg text-xs">
+                      নির্বাচন
+                    </button>
+                  </div>
+                ))}
+              {batches.filter((b) => b.product_id === batchModalProduct?.id).length === 0 && (
+                <div className="p-3 text-center text-slate-400 text-xs">
+                  কোনো সংরক্ষিত ব্যাচ পাওয়া যায়নি। উপরের ফর্মে ব্যাচ নম্বর দিন।
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 2c. Weight Selection Modal */}
+      <Modal
+        isOpen={Boolean(weightModalProduct)}
+        onClose={() => setWeightModalProduct(null)}
+        title={`ওজন নির্ধারণ করুন — ${weightModalProduct?.name}`}
+        subtitle="স্কেল অনুযায়ী পরিমাণ (কেজি/গ্রাম) দিন"
+      >
+        <div className="space-y-4 text-xs p-1">
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex justify-between items-center">
+            <span className="font-bold text-amber-900">প্রতি কেজির মূল্য:</span>
+            <span className="text-base font-extrabold text-amber-800">
+              ৳{weightModalProduct?.selling_price?.toLocaleString('bn-BD')}
+            </span>
+          </div>
+
+          <div>
+            <label className="font-bold text-slate-700 block mb-1">পরিমাপ / ওজন (কেজিতে):</label>
+            <input
+              type="number"
+              step="0.05"
+              min="0.01"
+              value={tempWeightInput}
+              onChange={(e) => setTempWeightInput(Math.max(0.01, parseFloat(e.target.value) || 0))}
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-lg font-bold font-mono text-center focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
+
+          <div className="flex gap-2">
+            {[0.25, 0.5, 1, 2, 5].map((w) => (
+              <button
+                key={w}
+                type="button"
+                onClick={() => setTempWeightInput(w)}
+                className="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs"
+              >
+                {w >= 1 ? `${w} কেজি` : `${w * 1000} গ্রাম`}
+              </button>
+            ))}
+          </div>
+
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center">
+            <span className="font-bold text-slate-600">মোট মূল্য:</span>
+            <span className="text-lg font-extrabold text-slate-900">
+              ৳{(Math.round((tempWeightInput || 1) * (weightModalProduct?.selling_price || 0))).toLocaleString('bn-BD')}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleConfirmWeight}
+            className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-xs"
+          >
+            কার্টে যোগ করুন
+          </button>
         </div>
       </Modal>
 
@@ -2134,6 +2598,8 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
         isOpen={isCameraScannerOpen}
         onClose={() => setIsCameraScannerOpen(false)}
         onScanSuccess={handleCameraScanSuccess}
+        title={cameraScannerTarget === 'imei_modal' ? `IMEI স্ক্যান করুন — ${imeiModalProduct?.name || 'হ্যান্ডসেট'}` : undefined}
+        subtitle={cameraScannerTarget === 'imei_modal' ? 'মোবাইল বা ডিভাইসের বক্সের ১৫-ডিজিট IMEI বারকোডটি ক্যামেরার সামনে ধরুন' : undefined}
       />
     </div>
   );

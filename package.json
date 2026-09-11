@@ -5,12 +5,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --port=5173 --host=0.0.0.0",
-    "dev:server": "tsx watch src/server.ts",
+    "dev": "node scripts/dev.js",
     "dev:ui": "vite --port=5173 --host=0.0.0.0",
-    "build:server": "tsc",
+    "dev:server": "tsx watch src/server.ts",
     "build:ui": "vite build",
-    "build": "tsc",
+    "build:server": "esbuild src/server.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/server.js --packages=external --resolve-extensions=.ts,.js",
+    "build": "npm run build:ui && npm run build:server",
     "preview": "vite preview",
     "start": "node dist/server.js",
     "test": "vitest run",
@@ -20,8 +20,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
-    "lint": "tsc --noEmit",
-    "deploy": "npm run build:ui && gh-pages -d dist"
+    "setup:db": "tsx src/db/migrate.ts && tsx src/db/seed.ts",
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -60,7 +60,6 @@
     "autoprefixer": "^10.4.21",
     "drizzle-kit": "^0.30.4",
     "esbuild": "^0.25.0",
-    "gh-pages": "^5.0.0",
     "pino-pretty": "^13.0.0",
     "supertest": "^7.0.0",
     "tailwindcss": "^4.1.14",

@@ -32,7 +32,9 @@ import {
   UserRole, 
   GenericProduct, 
   TrackingMode,
-  CustomFieldDefinition
+  CustomFieldDefinition,
+  BusinessCategory,
+  ProductBatch
 } from '../../types';
 import { storageService } from '../../services/storageService';
 import { i18n } from '../../services/i18nService';
@@ -162,6 +164,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
   const [inwardSellingPrice, setInwardSellingPrice] = useState<number>(0);
   const [inwardSupplier, setInwardSupplier] = useState<string>('');
   const [inwardNotes, setInwardNotes] = useState<string>('');
+  const [inwardBatchNo, setInwardBatchNo] = useState<string>('');
+  const [inwardExpiryDate, setInwardExpiryDate] = useState<string>('');
+  const [inwardWarranty, setInwardWarranty] = useState<number>(0);
+  const [inwardCustomPropKey, setInwardCustomPropKey] = useState<string>('');
+  const [inwardCustomPropVal, setInwardCustomPropVal] = useState<string>('');
+
+  // Custom Category & Subcategory on the fly entry
+  const [isCustomCat, setIsCustomCat] = useState<boolean>(false);
+  const [customCategoryName, setCustomCategoryName] = useState<string>('');
+  const [isCustomSubcat, setIsCustomSubcat] = useState<boolean>(false);
 
   // Form State
   const [formData, setFormData] = useState<Partial<GenericProduct>>({
@@ -330,6 +342,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
       initialUnit = 'service';
     }
 
+    setIsCustomCat(false);
+    setCustomCategoryName('');
+    setIsCustomSubcat(false);
+
     setFormData({
       id: `prod_${Date.now()}`,
       tenant_id: activeTenant.id,
@@ -405,6 +421,23 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
     const catId = product.business_category_id || activeTenant.active_categories[0]?.business_category_id || 'cat_stationery';
     setFormCategoryId(catId);
     setFormData({ ...product });
+
+    // Check if category or subcategory is custom
+    const matchingCat = categories.find(c => c.id === catId);
+    if (!matchingCat) {
+      setIsCustomCat(true);
+      setCustomCategoryName(product.category_name || '');
+    } else {
+      setIsCustomCat(false);
+      setCustomCategoryName('');
+    }
+
+    const knownSubcats = BUSINESS_PRODUCT_CATEGORIES[catId]?.subcategories || [];
+    if (product.category_name && !knownSubcats.some(s => s.name === product.category_name)) {
+      setIsCustomSubcat(true);
+    } else {
+      setIsCustomSubcat(false);
+    }
 
     // Load IMEIs if available
     const existingImeis = Array.isArray(product.custom_fields?.imei) 
@@ -522,7 +555,43 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
       finalCustomFields['publisher'] = publisherName.trim();
     }
 
-    const currentCatObj = categories.find(c => c.id === formCategoryId);
+    let finalCatId = formCategoryId;
+    let finalCatName = formData.category_name?.trim() || '';
+
+    // If user provided a custom business/mother category
+    if (isCustomCat && customCategoryName.trim()) {
+      const cleanCatName = customCategoryName.trim();
+      const existingCat = categories.find(c => c.name.toLowerCase() === cleanCatName.toLowerCase());
+      if (existingCat) {
+        finalCatId = existingCat.id;
+      } else {
+        const now = new Date().toISOString();
+        const newCat: BusinessCategory = {
+          id: `cat_custom_${Date.now()}`,
+          code: cleanCatName.toUpperCase().replace(/[^A-Z0-9]/g, '_').slice(0, 12) || `CAT_${Date.now().toString().slice(-4)}`,
+          name: cleanCatName,
+          description: cleanCatName,
+          icon: 'Tag',
+          is_system: false,
+          is_active: true,
+          configuration: {},
+          created_at: now,
+          updated_at: now
+        };
+        storageService.saveCategory(newCat);
+        setRefreshKey(k => k + 1);
+        finalCatId = newCat.id;
+      }
+    }
+
+    const currentCatObj = categories.find(c => c.id === finalCatId);
+    if (!finalCatName) {
+      finalCatName = isCustomCat ? customCategoryName.trim() : (currentCatObj?.name || 'General');
+    }
+
+    // Explicitly preserve category and subcategory in custom_fields
+    finalCustomFields['category_name'] = isCustomCat ? customCategoryName.trim() : (currentCatObj?.name || 'General');
+    finalCustomFields['subcategory'] = finalCatName;
 
     // Auto-calculate stock quantity for IMEI items if IMEIs were provided
     const calculatedStock = formData.tracking_mode === 'TRACKING_IMEI' && imeiList.length > 0
@@ -532,12 +601,12 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
     const productToSave: GenericProduct = {
       id: formData.id || `prod_${Date.now()}`,
       tenant_id: activeTenant.id,
-      business_category_id: formCategoryId,
+      business_category_id: finalCatId,
       code: formData.code.trim(),
       sku: formData.sku?.trim() || formData.code.trim(),
       barcode: formData.barcode?.trim() || '',
       name: formData.name.trim(),
-      category_name: formData.category_name || currentCatObj?.name || 'General',
+      category_name: finalCatName,
       brand: formData.brand?.trim() || '',
       unit: formData.unit?.trim() || 'pcs',
       purchase_price: Number(formData.purchase_price) || 0,
@@ -551,6 +620,29 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
     };
 
     storageService.saveProduct(productToSave);
+
+    // Synchronize IMEIs into central device registry
+    if (formData.tracking_mode === 'TRACKING_IMEI' && Array.isArray(imeiList)) {
+      const existingDevs = storageService.getDevices();
+      imeiList.forEach(imeiStr => {
+        const cleanImei = String(imeiStr).trim();
+        if (cleanImei && !existingDevs.some(d => d.imei === cleanImei)) {
+          storageService.saveDevice({
+            id: `dev_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+            product_id: productToSave.id,
+            imei: cleanImei,
+            model: productToSave.name,
+            color: 'Standard',
+            storage: 'Standard',
+            status: 'available',
+            warranty_months: 12,
+            cost_price: productToSave.purchase_price || 0,
+            selling_price: productToSave.selling_price || 0
+          });
+        }
+      });
+    }
+
     setIsCreateModalOpen(false);
   };
 
@@ -589,14 +681,22 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
       setInwardProductId(targetProd.id);
       setInwardPurchasePrice(targetProd.purchase_price);
       setInwardSellingPrice(targetProd.selling_price);
+      setInwardBatchNo(String(targetProd.custom_fields?.batch_no || ''));
+      setInwardExpiryDate(String(targetProd.custom_fields?.expiry_date || ''));
+      setInwardWarranty(Number(targetProd.custom_fields?.warranty_months || 0));
     } else {
       setInwardProductId('');
       setInwardPurchasePrice(0);
       setInwardSellingPrice(0);
+      setInwardBatchNo('');
+      setInwardExpiryDate('');
+      setInwardWarranty(0);
     }
     setInwardQty(10);
     setInwardSupplier('');
     setInwardNotes('');
+    setInwardCustomPropKey('');
+    setInwardCustomPropVal('');
     setIsStockInwardModalOpen(true);
   };
 
@@ -608,14 +708,40 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
       return;
     }
 
+    const updatedCustomFields: Record<string, unknown> = {
+      ...(prod.custom_fields || {})
+    };
+    if (inwardBatchNo.trim()) updatedCustomFields['batch_no'] = inwardBatchNo.trim();
+    if (inwardExpiryDate.trim()) updatedCustomFields['expiry_date'] = inwardExpiryDate.trim();
+    if (inwardWarranty > 0) updatedCustomFields['warranty_months'] = inwardWarranty;
+    if (inwardCustomPropKey.trim() && inwardCustomPropVal.trim()) {
+      updatedCustomFields[inwardCustomPropKey.trim()] = inwardCustomPropVal.trim();
+    }
+
     const updatedProd: GenericProduct = {
       ...prod,
       stock_quantity: prod.stock_quantity + Number(inwardQty),
       purchase_price: Number(inwardPurchasePrice) || prod.purchase_price,
-      selling_price: Number(inwardSellingPrice) || prod.selling_price
+      selling_price: Number(inwardSellingPrice) || prod.selling_price,
+      custom_fields: updatedCustomFields
     };
 
     storageService.saveProduct(updatedProd);
+
+    // If batch number was entered, register into storageService.saveBatch
+    if (inwardBatchNo.trim()) {
+      storageService.saveBatch({
+        id: `batch_${Date.now()}`,
+        product_id: prod.id,
+        batch_number: inwardBatchNo.trim(),
+        quantity: Number(inwardQty),
+        mfg_date: new Date().toISOString().split('T')[0],
+        expiry_date: inwardExpiryDate.trim() || '2027-12-31',
+        cost_price: Number(inwardPurchasePrice) || prod.purchase_price,
+        selling_price: Number(inwardSellingPrice) || prod.selling_price,
+        status: 'active'
+      });
+    }
 
     // Audit log
     storageService.addAuditLog(
@@ -915,38 +1041,100 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* 1. Business Category */}
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    {isEn ? '1. Business Domain / Category *' : '১. দোকানের বিজনেস ক্যাটাগরি (Business Domain) *'}
-                  </label>
-                  <select
-                    value={formCategoryId}
-                    onChange={e => handleCategoryChange(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-indigo-300 rounded-lg font-bold text-indigo-900 focus:ring-2 focus:ring-indigo-500 shadow-2xs"
-                  >
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name} ({cat.code})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-semibold text-slate-700 text-xs">
+                      {isEn ? '1. Business Category *' : '১. বিজনেস ক্যাটাগরি *'}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomCat(!isCustomCat);
+                        if (!isCustomCat) setCustomCategoryName('');
+                      }}
+                      className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold underline cursor-pointer"
+                    >
+                      {isCustomCat ? (isEn ? 'Choose from list' : 'তালিকা থেকে বাছাই') : (isEn ? '+ Custom Category' : '+ কাস্টম ক্যাটাগরি লিখুন')}
+                    </button>
+                  </div>
+                  {isCustomCat ? (
+                    <input
+                      type="text"
+                      placeholder={isEn ? "Type Custom Category Name..." : "যেমন: মোবাইল এক্সেসরিজ, কম্পিউটার, গ্যাজেট..."}
+                      value={customCategoryName}
+                      onChange={e => setCustomCategoryName(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-indigo-400 rounded-lg font-bold text-indigo-900 focus:ring-2 focus:ring-indigo-500 shadow-2xs text-xs"
+                      autoFocus
+                    />
+                  ) : (
+                    <select
+                      value={formCategoryId}
+                      onChange={e => {
+                        if (e.target.value === '__custom__') {
+                          setIsCustomCat(true);
+                          setCustomCategoryName('');
+                        } else {
+                          handleCategoryChange(e.target.value);
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-white border border-indigo-300 rounded-lg font-bold text-indigo-900 focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+                    >
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name} ({cat.code})
+                        </option>
+                      ))}
+                      <option value="__custom__">➕ নতুন / কাস্টম ক্যাটাগরি তৈরি করুন...</option>
+                    </select>
+                  )}
                 </div>
 
                 {/* 2. Product Category / Subcategory */}
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    {isEn ? '2. Product Subcategory *' : '২. পণ্যের ক্যাটাগরি / সাব-ক্যাটাগরি (Product Category) *'}
-                  </label>
-                  <div className="flex gap-1.5">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-semibold text-slate-700 text-xs">
+                      {isEn ? '2. Product Subcategory *' : '২. পণ্যের সাব-ক্যাটাগরি *'}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomSubcat(!isCustomSubcat);
+                        if (!isCustomSubcat && !formData.category_name) {
+                          setFormData(prev => ({ ...prev, category_name: '' }));
+                        }
+                      }}
+                      className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold underline cursor-pointer"
+                    >
+                      {isCustomSubcat ? (isEn ? 'Choose from list' : 'তালিকা থেকে বাছাই') : (isEn ? '+ Custom Subcategory' : '+ কাস্টম সাব-ক্যাটাগরি লিখুন')}
+                    </button>
+                  </div>
+                  {isCustomSubcat ? (
+                    <input
+                      type="text"
+                      placeholder={isEn ? "Type Custom Subcategory (e.g., Charger, Display, Case)..." : "যেমন: চার্জার, ডিসপ্লে, হেডফোন, কাভার, গ্লাস..."}
+                      value={formData.category_name || ''}
+                      onChange={e => setFormData({ ...formData, category_name: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-indigo-400 rounded-lg font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 shadow-2xs text-xs"
+                      autoFocus
+                    />
+                  ) : (
                     <select
                       value={formData.category_name || ''}
-                      onChange={e => handleSubcategoryChange(e.target.value)}
+                      onChange={e => {
+                        if (e.target.value === '__custom__') {
+                          setIsCustomSubcat(true);
+                          setFormData({ ...formData, category_name: '' });
+                        } else {
+                          handleSubcategoryChange(e.target.value);
+                        }
+                      }}
                       className="w-full px-3 py-2 bg-white border border-indigo-300 rounded-lg font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                     >
                       {(BUSINESS_PRODUCT_CATEGORIES[formCategoryId]?.subcategories || []).map(sub => (
                         <option key={sub.name} value={sub.name}>{sub.name}</option>
                       ))}
+                      <option value="__custom__">➕ নতুন / কাস্টম সাব-ক্যাটাগরি লিখুন...</option>
                     </select>
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -1396,6 +1584,21 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
               </span>
             </div>
 
+            {/* Quick Suggestion Tags for Custom Fields */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] text-slate-500 font-semibold">{isEn ? 'Quick Field Suggestions:' : 'জনপ্রিয় কাস্টম ফিল্ড:'}</span>
+              {['ওয়ারেন্টি', 'কালার', 'সাইজ', 'মডেল', 'ব্যাচ নং', 'মেয়াদ', 'ব্র্যান্ড', 'র‍্যাম/রম', 'দেশ'].map(tag => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => setNewPropKey(tag)}
+                  className="px-2 py-0.5 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-[10px] font-semibold cursor-pointer transition-all"
+                >
+                  + {tag}
+                </button>
+              ))}
+            </div>
+
             {/* Input row to add new property on the fly */}
             <div className="flex flex-col sm:flex-row items-center gap-2 bg-white p-2.5 rounded-lg border border-indigo-200 shadow-2xs">
               <div className="w-full sm:w-1/3">
@@ -1657,6 +1860,72 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ activeTenant }) => {
                   onChange={e => setInwardNotes(e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg"
                 />
+              </div>
+            </div>
+
+            {/* Custom Fields & Batch Info for Stock Inward */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+              <div className="flex items-center justify-between font-bold text-slate-700 text-xs">
+                <span className="flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>{isEn ? 'Custom Fields & Batch Specification (Optional)' : 'কাস্টম ফিল্ড, ওয়ারেন্টি ও ব্যাচ স্পেসিফিকেশন (ঐচ্ছিক)'}</span>
+                </span>
+                <span className="text-[10px] text-slate-400 font-normal">{isEn ? 'Will update product record' : 'স্টক ইনওয়ার্ডের সাথে আপডেট হবে'}</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">{isEn ? 'Batch No' : 'ব্যাচ নম্বর (Batch No)'}</label>
+                  <input
+                    type="text"
+                    placeholder="BAT-2026-X"
+                    value={inwardBatchNo}
+                    onChange={e => setInwardBatchNo(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">{isEn ? 'Expiry Date' : 'মেয়াদোত্তীর্ণ তারিখ (Expiry)'}</label>
+                  <input
+                    type="date"
+                    value={inwardExpiryDate}
+                    onChange={e => setInwardExpiryDate(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">{isEn ? 'Warranty (Months)' : 'ওয়ারেন্টি (মাস)'}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={120}
+                    placeholder="১২"
+                    value={inwardWarranty || ''}
+                    onChange={e => setInwardWarranty(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-indigo-700"
+                  />
+                </div>
+              </div>
+
+              {/* Extra Dynamic Custom Field Key-Value */}
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/80">
+                <div>
+                  <input
+                    type="text"
+                    placeholder={isEn ? "Field Name (e.g., Color, Size, RAM)" : "কাস্টম ফিল্ড নাম (যেমন: কালার, সাইজ, RAM)"}
+                    value={inwardCustomPropKey}
+                    onChange={e => setInwardCustomPropKey(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <input
+                    type="text"
+                    placeholder={isEn ? "Field Value (e.g., Blue, XL, 8GB)" : "ফিল্ড মান (যেমন: Blue, XL, 8GB)"}
+                    value={inwardCustomPropVal}
+                    onChange={e => setInwardCustomPropVal(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                  />
+                </div>
               </div>
             </div>
 

@@ -21,7 +21,8 @@ import {
   Layers,
   Sparkles,
   Check,
-  FileText
+  FileText,
+  Camera
 } from 'lucide-react';
 import { 
   Tenant, 
@@ -34,6 +35,7 @@ import {
 } from '../../types';
 import { storageService } from '../../services/storageService';
 import { Modal } from '../common/Modal';
+import { CameraScannerModal } from '../common/CameraScannerModal';
 import { printRepairToken } from '../../shared/utils/printReceipt';
 import { useConfirm } from '../../context/ConfirmationContext';
 
@@ -136,6 +138,23 @@ export const TelecomModulesView: React.FC<TelecomModulesViewProps> = ({
     offered_credit: 7500,
     notes: 'ডিসপ্লে ও ব্যাটারি চেক করা হয়েছে। কন্ডিশন ভালো।'
   });
+
+  // Camera Barcode / IMEI Scanner State
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraTarget, setCameraTarget] = useState<'imei' | 'repair' | 'trade_in'>('imei');
+
+  const handleCameraScanSuccess = (code: string) => {
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    if (cameraTarget === 'imei') {
+      setNewImeiData(prev => ({ ...prev, imei: trimmed }));
+    } else if (cameraTarget === 'repair') {
+      setRepairData(prev => ({ ...prev, imei_or_serial: trimmed }));
+    } else if (cameraTarget === 'trade_in') {
+      setTradeInData(prev => ({ ...prev, imei: trimmed }));
+    }
+    setIsCameraOpen(false);
+  };
 
   // Handlers: IMEI
   const handleCreateImei = (e: React.FormEvent) => {
@@ -942,14 +961,41 @@ export const TelecomModulesView: React.FC<TelecomModulesViewProps> = ({
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">IMEI / সিরিয়াল নম্বর</label>
-              <input
-                type="text"
-                placeholder="354891098..."
-                value={repairData.imei_or_serial || ''}
-                onChange={e => setRepairData({ ...repairData, imei_or_serial: e.target.value })}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-semibold text-slate-700 text-xs">IMEI / সিরিয়াল নম্বর</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCameraTarget('repair');
+                    setIsCameraOpen(true);
+                  }}
+                  className="text-indigo-600 hover:text-indigo-800 font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                  title="ক্যামেরা দিয়ে IMEI বারকোড স্ক্যান করুন"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>ক্যামেরা স্ক্যান</span>
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="354891098..."
+                  value={repairData.imei_or_serial || ''}
+                  onChange={e => setRepairData({ ...repairData, imei_or_serial: e.target.value })}
+                  className="w-full pl-3 pr-9 py-2 bg-white border border-slate-300 rounded-lg font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCameraTarget('repair');
+                    setIsCameraOpen(true);
+                  }}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md cursor-pointer transition-colors"
+                  title="ক্যামেরা দিয়ে IMEI স্ক্যান করুন"
+                >
+                  <Camera className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1266,16 +1312,43 @@ export const TelecomModulesView: React.FC<TelecomModulesViewProps> = ({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">15-Digit ইউনিক IMEI *</label>
-              <input
-                type="text"
-                required
-                maxLength={18}
-                placeholder="354891098492000"
-                value={newImeiData.imei || ''}
-                onChange={e => setNewImeiData({ ...newImeiData, imei: e.target.value })}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900 text-sm"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-semibold text-slate-700 text-xs">15-Digit ইউনিক IMEI *</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCameraTarget('imei');
+                    setIsCameraOpen(true);
+                  }}
+                  className="text-indigo-600 hover:text-indigo-800 font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                  title="ক্যামেরা দিয়ে মোবাইলের বক্সের IMEI বারকোড স্ক্যান করুন"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>ক্যামেরা স্ক্যান</span>
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  maxLength={18}
+                  placeholder="354891098492000"
+                  value={newImeiData.imei || ''}
+                  onChange={e => setNewImeiData({ ...newImeiData, imei: e.target.value })}
+                  className="w-full pl-3 pr-9 py-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCameraTarget('imei');
+                    setIsCameraOpen(true);
+                  }}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md cursor-pointer transition-colors"
+                  title="ক্যামেরা দিয়ে IMEI বারকোড স্ক্যান করুন"
+                >
+                  <Camera className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <div>
               <label className="block font-semibold text-slate-700 mb-1">সিরিয়াল নম্বর (S/N)</label>
@@ -1289,7 +1362,7 @@ export const TelecomModulesView: React.FC<TelecomModulesViewProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">ক্রয় মূল্য (৳)</label>
               <input
@@ -1326,6 +1399,19 @@ export const TelecomModulesView: React.FC<TelecomModulesViewProps> = ({
                 value={newImeiData.storage || ''}
                 onChange={e => setNewImeiData({ ...newImeiData, storage: e.target.value })}
                 className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">ওয়ারেন্টি (মাস)</label>
+              <input
+                type="number"
+                min={0}
+                max={120}
+                placeholder="12"
+                value={newImeiData.warranty_months ?? 12}
+                onChange={e => setNewImeiData({ ...newImeiData, warranty_months: Math.max(0, parseInt(e.target.value) || 0) })}
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-bold text-indigo-700"
+                title="ম্যানুয়ালি যেকোনো মাসের ওয়ারেন্টি লিখুন"
               />
             </div>
           </div>
@@ -1457,6 +1543,15 @@ export const TelecomModulesView: React.FC<TelecomModulesViewProps> = ({
           </div>
         </form>
       </Modal>
+
+      {/* Live Camera Scanner Modal */}
+      <CameraScannerModal
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onScanSuccess={handleCameraScanSuccess}
+        title={cameraTarget === 'imei' ? 'হ্যান্ডসেট IMEI স্ক্যান করুন' : 'IMEI / বারকোড স্ক্যানার'}
+        subtitle="মোবাইল বা ডিভাইসের বক্সের ১৫-ডিজিট IMEI বারকোডটি ক্যামেরার সামনে ধরুন"
+      />
     </div>
   );
 };

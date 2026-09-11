@@ -1,6 +1,8 @@
 import express, { Express } from 'express';
 import helmet from 'helmet';
 import pinoHttp from 'pino-http';
+import path from 'path';
+import fs from 'fs';
 import { logger } from './config/logger';
 import { corsMiddleware } from './config/cors';
 import { requestIdMiddleware } from './middleware/request-id.middleware';
@@ -11,8 +13,13 @@ import { rootRouter } from './routes/index';
 export function createApp(): Express {
   const app = express();
 
-  // Security Headers
-  app.use(helmet());
+  // Security Headers (relaxed CSP so UI assets, QR codes, icons load properly)
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+    })
+  );
 
   // CORS Whitelist
   app.use(corsMiddleware);
@@ -53,10 +60,28 @@ export function createApp(): Express {
     })
   );
 
-  // Mount Root Routes
+  // Mount API & System Routes
   app.use(rootRouter);
 
-  // 404 Route Not Found Handler
+  // Real Server Production Static SPA Serving
+  const candidates = [
+    path.resolve(process.cwd(), 'dist/public'),
+    path.resolve(process.cwd(), 'dist'),
+  ];
+  const staticDir = candidates.find((dir) => fs.existsSync(path.join(dir, 'index.html')));
+
+  if (staticDir && process.env.NODE_ENV !== 'test') {
+    logger.info(`📦 Serving production SPA assets from: ${staticDir}`);
+    app.use(express.static(staticDir));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api') || req.path.startsWith('/health')) {
+        return next();
+      }
+      res.sendFile(path.join(staticDir, 'index.html'));
+    });
+  }
+
+  // 404 Route Not Found Handler (for unmatched API routes)
   app.use(notFoundHandler);
 
   // Global Error Handler

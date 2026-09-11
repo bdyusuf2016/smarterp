@@ -28,7 +28,7 @@ export async function runSeed() {
   const isConnected = await testDatabaseConnection();
   if (!isConnected) {
     logger.error('❌ Cannot seed database: Connection failed');
-    process.exit(1);
+    throw new Error('Cannot seed database: Connection to PostgreSQL failed');
   }
 
   // 1. SEED BUSINESS CATEGORIES

@@ -740,7 +740,7 @@ class SupabaseService {
                     designation: u.designation || u.role || 'শপ কর্মী',
                     permissions: u.permissions || [],
                     status: u.status || 'active',
-                    password: u.password || u.password_hash || u.passwordHash
+                    password: u.password || u.passwordHash || (u as any).password_hash
                   };
                   authService.saveStaffMember(staffUser);
                 }
