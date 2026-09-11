@@ -557,40 +557,56 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
   const isCheckoutDisabled = cart.length === 0;
 
   const handleAddToCart = (product: GenericProduct) => {
-    if (product.tracking_mode === 'TRACKING_IMEI') {
-      setImeiModalProduct(product);
+    const liveProduct = products.find(p => p.id === product.id) || product;
+
+    // Strict stock check: Physical products cannot be sold if out of stock
+    if (liveProduct.tracking_mode !== 'TRACKING_NONE' && liveProduct.stock_quantity <= 0) {
+      alert(`দুঃখিত, "${liveProduct.name}" এর পর্যাপ্ত স্টক নেই (বর্তমান স্টক: 0)! স্টক যুক্ত না করে বিক্রি করা সম্ভব নয়।`);
+      return;
+    }
+
+    if (liveProduct.tracking_mode === 'TRACKING_IMEI') {
+      setImeiModalProduct(liveProduct);
       setManualImeiInput('');
       setImeiError('');
       setImeiSearchQuery('');
       return;
     }
 
-    if (product.tracking_mode === 'TRACKING_BATCH') {
-      setBatchModalProduct(product);
+    if (liveProduct.tracking_mode === 'TRACKING_BATCH') {
+      setBatchModalProduct(liveProduct);
       setManualBatchNumber('');
       return;
     }
 
-    if (product.tracking_mode === 'TRACKING_WEIGHT') {
+    if (liveProduct.tracking_mode === 'TRACKING_WEIGHT') {
       setTempWeightInput(1.0);
-      setWeightModalProduct(product);
+      setWeightModalProduct(liveProduct);
       return;
     }
 
-    const existingIndex = cart.findIndex(item => item.product.id === product.id && !item.selected_imei && !item.selected_batch);
+    const existingIndex = cart.findIndex(item => item.product.id === liveProduct.id && !item.selected_imei && !item.selected_batch);
     if (existingIndex >= 0) {
       const updated = [...cart];
-      const currentQty = updated[existingIndex].quantity + 1;
-      updated[existingIndex].quantity = currentQty;
-      updated[existingIndex].total = currentQty * updated[existingIndex].unit_price - updated[existingIndex].discount;
+      const currentQty = updated[existingIndex].quantity;
+
+      // Strict stock limit: Cannot exceed available stock
+      if (liveProduct.tracking_mode !== 'TRACKING_NONE' && currentQty + 1 > liveProduct.stock_quantity) {
+        alert(`"${liveProduct.name}" এর সর্বোচ্চ মজুদ স্টক ${liveProduct.stock_quantity} ${liveProduct.unit || 'টি'}। স্টকের অতিরিক্ত বিক্রি করা যাবে না!`);
+        return;
+      }
+
+      const nextQty = currentQty + 1;
+      updated[existingIndex].quantity = nextQty;
+      updated[existingIndex].total = nextQty * updated[existingIndex].unit_price - updated[existingIndex].discount;
       setCart(updated);
     } else {
       setCart([...cart, {
-        product,
+        product: liveProduct,
         quantity: 1,
-        unit_price: product.selling_price,
+        unit_price: liveProduct.selling_price,
         discount: 0,
-        total: product.selling_price
+        total: liveProduct.selling_price
       }]);
     }
   };
@@ -755,6 +771,14 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
     if (newQty <= 0) {
       updated.splice(index, 1);
     } else {
+      // Stock validation when increasing quantity
+      if (delta > 0 && item.product.tracking_mode !== 'TRACKING_NONE') {
+        const liveProduct = products.find(p => p.id === item.product.id) || item.product;
+        if (newQty > liveProduct.stock_quantity) {
+          alert(`"${liveProduct.name}" এর মজুদ স্টক মাত্র ${liveProduct.stock_quantity} ${liveProduct.unit || 'টি'}। স্টকের অতিরিক্ত বিক্রি করা সম্ভব নয়!`);
+          return;
+        }
+      }
       item.quantity = newQty;
       item.total = newQty * item.unit_price - item.discount;
     }
@@ -763,11 +787,20 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
 
   const handleSetDirectQty = (index: number, qty: number) => {
     const updated = [...cart];
+    const item = updated[index];
     if (qty <= 0) {
       updated.splice(index, 1);
     } else {
-      updated[index].quantity = qty;
-      updated[index].total = qty * updated[index].unit_price - updated[index].discount;
+      let finalQty = qty;
+      if (item.product.tracking_mode !== 'TRACKING_NONE') {
+        const liveProduct = products.find(p => p.id === item.product.id) || item.product;
+        if (qty > liveProduct.stock_quantity) {
+          alert(`"${liveProduct.name}" এর মজুদ স্টক ${liveProduct.stock_quantity} ${liveProduct.unit || 'টি'}। সর্বোচ্চ মজুদ অনুযায়ী পরিমাণ সমন্বয় করা হলো।`);
+          finalQty = Math.max(1, liveProduct.stock_quantity);
+        }
+      }
+      updated[index].quantity = finalQty;
+      updated[index].total = finalQty * updated[index].unit_price - updated[index].discount;
     }
     setCart(updated);
   };
@@ -815,6 +848,19 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
     if (cart.length === 0) {
       setErrorMessage('কার্ট খালি! পণ্য নির্বাচন করুন।');
       return;
+    }
+
+    // Strict Stock Quantity Validation Before Checkout
+    for (const item of cart) {
+      if (item.product.tracking_mode !== 'TRACKING_NONE') {
+        const liveProduct = products.find(p => p.id === item.product.id) || item.product;
+        if (item.quantity > liveProduct.stock_quantity) {
+          const msg = `"${liveProduct.name}" এর বিক্রির পরিমাণ (${item.quantity} ${liveProduct.unit || 'টি'}) বর্তমান মজুদ স্টক (${liveProduct.stock_quantity}) এর চেয়ে বেশি! স্টক অতিক্রম করে বিক্রি সম্পন্ন করা যাবে না।`;
+          setErrorMessage(msg);
+          alert(msg);
+          return;
+        }
+      }
     }
 
     const selectedCust = customers.find(c => c.id === selectedCustomerId);
@@ -878,6 +924,13 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
           dev.status = 'sold';
           dev.sold_invoice_no = newSale.invoice_no;
           storageService.saveDevice(dev);
+        }
+      }
+      if (item.selected_batch) {
+        const b = storageService.getBatches().find(b => b.product_id === item.product.id && b.batch_number === item.selected_batch);
+        if (b) {
+          b.quantity = Math.max(0, b.quantity - item.quantity);
+          storageService.saveBatch(b);
         }
       }
     });
@@ -1137,13 +1190,19 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
                               </div>
                             </div>
                             <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-semibold ${
-                              prod.id.startsWith('srv_')
+                              prod.id.startsWith('srv_') || prod.tracking_mode === 'TRACKING_NONE'
                                 ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                : prod.stock_quantity <= 0
+                                ? 'bg-rose-100 text-rose-800 border border-rose-300 font-bold'
                                 : prod.stock_quantity <= prod.min_stock_alert
-                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                ? 'bg-amber-100 text-amber-800 border border-amber-300 font-semibold'
                                 : 'bg-[#f1f3f5] text-[#495057]'
                             }`}>
-                              {prod.id.startsWith('srv_') ? `সেবা / ${prod.unit}` : `${prod.stock_quantity} ${prod.unit}`}
+                              {prod.id.startsWith('srv_') || prod.tracking_mode === 'TRACKING_NONE'
+                                ? `সেবা / ${prod.unit}`
+                                : prod.stock_quantity <= 0
+                                ? 'স্টক শেষ (০)'
+                                : `${prod.stock_quantity} ${prod.unit}`}
                             </span>
                           </div>
                         </div>
@@ -1187,13 +1246,19 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
                           </div>
                           <div className="shrink-0 text-right">
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold ${
-                              prod.id.startsWith('srv_')
+                              prod.id.startsWith('srv_') || prod.tracking_mode === 'TRACKING_NONE'
                                 ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                : prod.stock_quantity <= 0
+                                ? 'bg-rose-100 text-rose-800 border border-rose-300 font-bold'
                                 : prod.stock_quantity <= prod.min_stock_alert
-                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                ? 'bg-amber-100 text-amber-800 border border-amber-300 font-semibold'
                                 : 'bg-[#f1f3f5] text-[#495057]'
                             }`}>
-                              {prod.id.startsWith('srv_') ? `সেবা / ${prod.unit}` : `${prod.stock_quantity} ${prod.unit}`}
+                              {prod.id.startsWith('srv_') || prod.tracking_mode === 'TRACKING_NONE'
+                                ? `সেবা / ${prod.unit}`
+                                : prod.stock_quantity <= 0
+                                ? 'স্টক নেই (০)'
+                                : `${prod.stock_quantity} ${prod.unit}`}
                             </span>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
@@ -1263,13 +1328,19 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
                       </div>
                     </div>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-semibold ${
-                      prod.id.startsWith('srv_')
+                      prod.id.startsWith('srv_') || prod.tracking_mode === 'TRACKING_NONE'
                         ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                        : prod.stock_quantity <= 0
+                        ? 'bg-rose-100 text-rose-800 border border-rose-300 font-bold'
                         : prod.stock_quantity <= prod.min_stock_alert
-                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                        ? 'bg-amber-100 text-amber-800 border border-amber-300 font-semibold'
                         : 'bg-[#f1f3f5] text-[#495057]'
                     }`}>
-                      {prod.id.startsWith('srv_') ? `সেবা / ${prod.unit}` : `${prod.stock_quantity} ${prod.unit}`}
+                      {prod.id.startsWith('srv_') || prod.tracking_mode === 'TRACKING_NONE'
+                        ? `সেবা / ${prod.unit}`
+                        : prod.stock_quantity <= 0
+                        ? 'স্টক শেষ (০)'
+                        : `${prod.stock_quantity} ${prod.unit}`}
                     </span>
                   </div>
                 </div>
@@ -1316,13 +1387,19 @@ export const POSView: React.FC<POSViewProps> = ({ activeTenant, activeRole }) =>
                   {/* Stock Status Badge */}
                   <div className="shrink-0 text-right">
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold ${
-                      prod.id.startsWith('srv_')
+                      prod.id.startsWith('srv_') || prod.tracking_mode === 'TRACKING_NONE'
                         ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                        : prod.stock_quantity <= 0
+                        ? 'bg-rose-100 text-rose-800 border border-rose-300 font-bold'
                         : prod.stock_quantity <= prod.min_stock_alert
-                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                        ? 'bg-amber-100 text-amber-800 border border-amber-300 font-semibold'
                         : 'bg-[#f1f3f5] text-[#495057]'
                     }`}>
-                      {prod.id.startsWith('srv_') ? `সেবা / ${prod.unit}` : `${prod.stock_quantity} ${prod.unit}`}
+                      {prod.id.startsWith('srv_') || prod.tracking_mode === 'TRACKING_NONE'
+                        ? `সেবা / ${prod.unit}`
+                        : prod.stock_quantity <= 0
+                        ? 'স্টক নেই (০)'
+                        : `${prod.stock_quantity} ${prod.unit}`}
                     </span>
                   </div>
 
